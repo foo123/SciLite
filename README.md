@@ -4,6 +4,8 @@ A scientific computing environment in pure JavaScript
 
 ![SciLite](./scilite.png)
 
+**v.1.0.0 in progress**
+
 [![SciLite](./scilite-live.png)](https://foo123.github.io/examples/scilite/)
 
 [SciLite Live](https://foo123.github.io/examples/scilite/)
