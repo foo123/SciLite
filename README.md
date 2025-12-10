@@ -4,7 +4,7 @@ A **scientific computing environment** in pure JavaScript
 
 ![SciLite](./scilite.png)
 
-**v.0.9.6**
+**v.0.9.6** (82 kB minified)
 
 [![SciLite](./scilite-live.png)](https://foo123.github.io/examples/scilite/)
 
@@ -15,7 +15,7 @@ SciLite includes an optional interpreter that handles all of Octave/Matlab synta
 **example**
 
 Octave syntax:
-```matlab
+```octave
 A = 4*ones(2, 2)+1;
 A(:,[1 2]) = 5;
 B = [1 2;3 4];
