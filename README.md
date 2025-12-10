@@ -15,7 +15,7 @@ SciLite includes an optional interpreter that handles all of Octave/Matlab synta
 **example**
 
 Octave syntax:
-```octave
+```Octave
 A = 4*ones(2, 2)+1;
 A(:,[1 2]) = 5;
 B = [1 2;3 4];
