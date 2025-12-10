@@ -17,10 +17,12 @@ SciLite includes an optional interpreter that handles all of Octave/Matlab synta
 Octave syntax:
 ```octave
 A = 4*ones(2, 2)+1;
-A(:,[1 2]) = 5;
+A(:,[1 2]) = [5;6];
 B = [1 2;3 4];
-C = [A; B];
-D = C';
+C = [A; B]; % similar to C = vertcat(A, B)
+D = C'; % conjugate transpose
+E = D(:); % colon operator
+F = A.*B; % dotmul operator
 Ref = rref(A); % default output
 [Ref, Pivots] = rref(A); % variable output
 ```
@@ -28,17 +30,21 @@ Ref = rref(A); % default output
 JavaScript syntax:
 ```js
 const $ = SciLite;
+const {add, dotmul, mul, set} = $._;
+const fn = $.fn;
 
-// optionally for arbitrary precision support use Decimal
+// optionally for arbitrary precision support use Decimal.js
 //$._.decimal(Decimal);
 
-let A = $._.add($._.mul(3, $.fn.ones(2, 2)), 1);
-$._.set(A, ':', [1, 2], 5);
+let A = add(mul(4, fn.ones(2, 2)), 1);
+set(A, ':', [1, 2], [5, 6]);
 let B = [[1, 2], [3, 4]];
-let C = $.fn.vertcat(A, B);
-let D = $.fn.ctranspose(C);
-let Ref = $.fn.rref(A); // default output
-let [Ref, Pivots] = $.fn.rref.nargout(2)(A); // variable output
+let C = fn.vertcat(A, B);
+let D = fn.ctranspose(C); // conjugate transpose
+let E = fn.colon(D); // colon function
+let F = dotmul(A, B);
+let Ref = fn.rref(A); // default output
+let [Ref, Pivots] = fn.rref.nargout(2)(A); // variable output
 ```
 
 **see also:**
