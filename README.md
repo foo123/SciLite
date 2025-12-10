@@ -1,14 +1,45 @@
 # SciLite
 
-A scientific computing environment in pure JavaScript
+A **scientific computing environment** in pure JavaScript
 
 ![SciLite](./scilite.png)
 
-**v.1.0.0 in progress**
+**v.0.9.6**
 
 [![SciLite](./scilite-live.png)](https://foo123.github.io/examples/scilite/)
 
 [SciLite Live](https://foo123.github.io/examples/scilite/)
+
+SciLite includes an optional interpreter that handles all of Octave/Matlab syntax except `function` definitions (see demo), however one can use the SciLite methods directly in JavaScript as well.
+
+**example**
+
+Octave syntax:
+```matlab
+A = 4*ones(2, 2)+1;
+A(:,[1 2]) = 5;
+B = [1 2;3 4];
+C = [A; B];
+D = C';
+Ref = rref(A); % default output
+[Ref, Pivots] = rref(A); % variable output
+```
+
+JavaScript syntax:
+```js
+const $ = SciLite;
+
+// optionally for arbitrary precision support use Decimal
+//$._.decimal(Decimal);
+
+let A = $._.add($._.mul(3, $.fn.ones(2, 2)), 1);
+$._.set(A, ':', [1, 2], 5);
+let B = [[1, 2], [3, 4]];
+let C = $.fn.vertcat(A, B);
+let D = $.fn.ctranspose(C);
+let Ref = $.fn.rref(A); // default output
+let [Ref, Pivots] = $.fn.rref.nargout(2)(A); // variable output
+```
 
 **see also:**
 

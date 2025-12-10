@@ -1,0 +1,67 @@
+/**
+*
+* SciLite,
+* A scientific computing environment similar to Octave/Matlab in pure JavaScript
+* @version: @@VERSION@@
+* @@DATE@@
+* https://github.com/foo123/SciLite
+*
+**/
+!function(root, name, factory) {
+"use strict";
+if (('object'===typeof module)&&module.exports) /* CommonJS */
+    (module.$deps = module.$deps||{}) && (module.exports = module.$deps[name] = factory.call(root));
+else if (('function'===typeof define)&&define.amd&&('function'===typeof require)&&('function'===typeof require.specified)&&require.specified(name) /*&& !require.defined(name)*/) /* AMD */
+    define(name,['module'],function(module){factory.moduleUri = module.uri; return factory.call(root);});
+else if (!(name in root)) /* Browser/WebWorker/.. */
+    (root[name] = factory.call(root)||1)&&('function'===typeof(define))&&define.amd&&define(function(){return root[name];});
+}(/* current root */          'undefined' !== typeof self ? self : this,
+  /* module name */           "SciLite",
+  /* module factory */        function ModuleFactory__$(undef) {
+"use strict";
+
+var decimal = null,
+    complex = null,
+    stdMath = Math,
+    realMath = {},
+    complexMath = {},
+    ze, i,
+    pi = stdMath.PI,
+    e = stdMath.E,
+    inf = Infinity,
+    nan = NaN,
+    eps = 1e-15,
+    realmax = Number.MAX_VALUE,
+    realmin = Number.MIN_VALUE,
+    intmax = Number.MAX_SAFE_INTEGER,
+    intmin = Number.MIN_SAFE_INTEGER,
+    HAS = Object.prototype.hasOwnProperty,
+    toString = Object.prototype.toString,
+    is_array = Array.isArray || function(o) {return '[object Array]' === toString.call(o);},
+    nop = function() {},
+
+    // lib
+    $ = {
+        VERSION: "@@VERSION@@",
+        // common functions
+        _: {},
+        // builtin functions
+        fn: {},
+        // operators
+        op: {},
+        // constants
+        constant: {
+            pi: pi, e: e,
+            eps: eps,
+            realmax: realmax,
+            realmin: realmin,
+            intmax: intmax,
+            intmin: intmin,
+            inf: inf, Inf: inf,
+            nan: nan, NaN: nan
+        }
+    },
+    $_ = $._,
+    constant = $.constant,
+    fn = $.fn
+;

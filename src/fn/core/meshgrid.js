@@ -1,0 +1,20 @@
+function meshgrid(x, y)
+{
+    var X, Y;
+    if (1 === arguments.length)
+    {
+        y = x;
+    }
+    if (is_vector(x) && is_vector(y))
+    {
+        X = matrix(y.length, x.length, function(i, j) {
+            return x[j];
+        });
+        Y = matrix(y.length, x.length, function(i, j) {
+            return y[i];
+        });
+        return [X, Y];
+    }
+    not_supported("meshgrid");
+}
+fn.meshgrid = meshgrid;

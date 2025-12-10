@@ -1,0 +1,21 @@
+function prod(x)
+{
+    if (is_scalar(x))
+    {
+        return x;
+    }
+    else if (is_vector(x))
+    {
+        return x.reduce(function(prod, xi) {
+            return scalar_mul(prod, xi);
+        }, __(1));
+    }
+    else if (is_matrix(x))
+    {
+        return array(COLS(x), function(column) {
+            return prod(COL(x, column));
+        });
+    }
+    return nan;
+}
+fn.prod = prod;

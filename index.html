@@ -1,0 +1,834 @@
+<!doctype html>
+<html lang="en" class="no-ie">
+<head>
+<title>SciLite: a scientific computing environment in pure JavaScript</title>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+<meta name="description" content="A scientific computing environment similar to Octave/Matlab in pure JavaScript." />
+<meta property="og:image" content="https://foo123.github.io/thumbs/scilite-live.png">
+<meta property="og:url" content="https://foo123.github.io/examples/scilite/">
+<meta name="twitter:card" content="summary">
+<meta name="theme-color" content="#efefef">
+<link rel="stylesheet" type="text/css" href="./assets/css/notify.css" />
+<link rel="stylesheet" type="text/css" href="./assets/css/InfoPopup.min.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.20/codemirror.min.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.20/addon/hint/show-hint.min.css">
+<style type="text/css">
+body {
+    font-size: 16px;
+    font-family: Helvetica, sans-serif;
+    color: #343434;
+    background: #efefef;
+    box-sizing: border-box;
+    margin: 0 auto;
+    padding: 2px 10px 30px 10px;
+}
+.humane-notify {
+    font-weight: bold;
+}
+.info-popup {
+    display: inline-block;
+    width: 156px;
+    max-width: 156px !important;
+    margin-top: -16px;
+    border-radius: 0;
+    font-size: 14px;
+    font-weight: normal;
+    padding: 4px 8px;
+    line-height: 1.2;
+    box-sizing: border-box;
+}
+.info-icon {
+    position: relative;
+    box-sizing: border-box;
+    display: inline-block;
+    vertical-align: middle;
+    width: 40px;
+    margin-right: 10px;
+}
+.info-icon .icon {
+    position: relative;
+    width: 100%;
+}
+.info-msg {
+    position: relative;
+    box-sizing: border-box;
+    display: inline-block;
+    vertical-align: middle;
+    width: calc(100% - 50px);
+    text-align: left;
+}
+.icon {
+    position: relative;
+    display: inline-block;
+    box-sizing: border-box;
+    --icon: none;
+    --aspect-ratio: calc(1 / 1);
+}
+.icon::before {
+    position: relative;
+    display: inline-block;
+    box-sizing: border-box;
+    content: "";
+    width: 100%;
+    height: auto;
+    padding: 0;
+    padding-bottom: calc(100% / var(--aspect-ratio));
+    background-color: transparent;
+    background-image: var(--icon);
+    background-position: 0 0;
+    background-repeat: no-repeat;
+    background-size: cover;
+}
+.icon.run {
+    --icon: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 24 24"><path fill="green" d="M20 4v9a4 4 0 0 1-4 4H6.914l2.5 2.5L8 20.914L3.086 16L8 11.086L9.414 12.5l-2.5 2.5H16a2 2 0 0 0 2-2V4h2Z"></path></svg>');
+}
+.icon.clear {
+    --icon: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 17 17"><path fill="red" fill-rule="evenodd" d="m12.566 8l3.045-3.044c.42-.421.42-1.103 0-1.522L12.566.389a1.078 1.078 0 0 0-1.523 0L7.999 3.433L4.955.389a1.078 1.078 0 0 0-1.523 0L.388 3.434a1.074 1.074 0 0 0-.001 1.522L3.431 8L.387 11.044a1.075 1.075 0 0 0 .001 1.523l3.044 3.044c.42.421 1.102.421 1.523 0l3.044-3.044l3.044 3.044a1.076 1.076 0 0 0 1.523 0l3.045-3.044c.42-.421.42-1.103 0-1.523L12.566 8z"></path></svg>');
+}
+.icon.info {
+    --icon: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 32 32" fill="%23f90b13"><g fill="none" stroke="%23f90b13"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 14h1v9h1m12-7a13 13 0 1 1-26 0a13 13 0 0 1 26 0Z"></path><path fill="%23f90b13" d="M17 9.5a1 1 0 1 1-2 0a1 1 0 0 1 2 0Z"></path></g></svg>')
+}
+.code {
+    position: relative;
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+    border: 0;
+    outline: 0;
+    padding: 8px 2px;
+    width: 100%;
+    min-height: 100px;
+}
+#output .CodeMirror {
+    height: auto;
+}
+.math {
+    position: relative;
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+    border: 0;
+    outline: 0;
+    padding: 4px;
+    padding-left: 30px;
+    width: 100%;
+    overflow: hidden;
+    overflow-x: auto;
+}
+mjx-container[jax="CHTML"][display="true"] {
+  text-align: left !important;
+}
+.fig {
+    position: relative;
+    box-sizing: border-box;
+    display: block;
+    max-width: 100%;
+    width: 700px;
+    height: auto;
+    background: #fff;
+}
+.fig2d,
+.fig3d {
+    position: relative;
+    box-sizing: border-box;
+    display: block;
+    max-width: 100%;
+    width: 700px;
+    height: auto;
+    background: #fff;
+    --aspect-ratio: calc(4 / 3);
+}
+.fig2d::before,
+.fig3d::before {
+    position: relative;
+    box-sizing: border-box;
+    display: block;
+    content: "";
+    padding: 0;
+    width: 100%;
+    height: auto;
+    padding-bottom: calc(100% / var(--aspect-ratio));
+}
+.fig2d .plot-container.plotly,
+.fig3d .plot-container.plotly {
+    position: absolute !important;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+.fig3d .plot-container.plotly svg:not(:root) {
+  display: none !important;
+}
+
+.err {
+    position: relative;
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+    border: 0;
+    outline: 0;
+    padding: 8px 4px;
+    width: 100%;
+    color: #f90b13;
+    font-family: 'Courier New', 'Lucida Console', monospace;
+}
+.label {
+    position: relative;
+    display: inline-block;
+    vertical-align: top;
+    font-style: italic;
+    font-weight: bold;
+    width: 20px;
+    text-align: right;
+    margin-right: 4px;
+}
+.showcase {
+    color: inherit;
+}
+#examples {
+    text-align: center;
+    margin-bottom: 10px;
+    line-height: 1.4;
+}
+#examples a, #examples label {
+    display: inline-block;
+    color: #f90b13;
+    cursor: pointer;
+}
+#overlay {
+    position: absolute;
+    display: block;
+    box-sizing: border-box;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #efefef;
+    opacity: 0.8;
+}
+#overlay::before {
+    position: absolute;
+    display: inline-block;
+    content: "loading..";
+    font-size: 14px;
+    font-weight: bold;
+    margin-top: -25px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+#overlay::after {
+    position: absolute;
+    display: inline-block;
+    content: "";
+    margin-top: 25px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 64px; height: 64px;
+    background: transparent url('./assets/css/cubes2.gif') 0 0 no-repeat;
+}
+
+#screen {
+    position: relative;
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+    border: 0;
+    outline: 0;
+    width: 1800px;
+    max-width: 100%;
+    margin: 0 auto;
+}
+#output {
+    position: relative;
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+    border: 0;
+    outline: 0;
+    width: calc(100% - 25px);
+    padding: 10px 4px;
+    border: 1px solid #232323;
+    background: #fff;
+    height: 600px;
+    overflow-y: auto;
+    display: inline-block;
+    vertical-align: top;
+}
+#input {
+    position: relative;
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+    border: 0;
+    outline: 0;
+    width: calc(100% - 100px);
+    display: inline-block;
+    vertical-align: top;
+    border: 1px solid #232323;
+}
+#inputarea {
+    position: relative;
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+    border: 0;
+    outline: 0;
+    width: 100%;
+    padding: 10px 4px;
+    border: 1px solid #232323;
+    height: 50px;
+}
+#buttons {
+    position: relative;
+    display: inline-block;
+    box-sizing: border-box;
+    font-size: 0;
+}
+.button {
+    position: relative;
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+    border: 0;
+    outline: 0;
+    background: #fefefe;
+    color: #232323;
+    font-weight: bold;
+    font-size: 14px;
+    padding: 6px 4px 4px 4px;
+    border-radius: 8px;
+    border: 1px solid #232323;
+    display: inline-block;
+    vertical-align: top;
+    margin-top: 4px;
+    margin-left: 4px;
+}
+.button:active {
+    top: 1px;
+}
+.checkbox {
+    position: relative;
+    box-sizing: border-box;
+    display: inline-block;
+    color: #f90b13;
+    cursor: pointer;
+    vertical-align: middle;
+}
+.checkbox > input {
+    position: absolute;
+    opacity: 0;
+    z-index: -1;
+}
+.checkbox > span {
+    position: relative;
+    box-sizing: border-box;
+    display: inline-block;
+    padding: 0;
+    color: inherit;
+    width: 20px;
+    height: 20px;
+    border-radius: 10px;
+    border: 1px solid #aaa;
+    z-index: 1;
+}
+.checkbox > span::before {
+    position: absolute;
+    content: "";
+    box-sizing: border-box;
+    display: inline-block;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 30px;
+    z-index: 1;
+}
+.checkbox > input:checked ~ span::before {
+    content: "•";
+}
+#footer {
+    position: relative;
+    box-sizing: border-box;
+    display: block;
+    border-top: 1px solid #fff;
+    padding-top: 20px;
+    text-align: center;
+}
+#footer::before {
+    position: absolute;
+    didplay: block;
+    box-sizing: border-box;
+    content: "";
+    top: 2px; left: 0;
+    width: 100%; height: 0;
+    border-top: 1px solid #bbb;
+}
+@media all and (max-width: 800px) {
+h1 {
+    font-size: 1.3em;
+}
+}
+@media all and (max-width: 360px) {
+#output {
+    height: 400px;
+}
+}
+@media all and (max-height: 360px) {
+#output {
+    height: 300px;
+}
+}
+</style>
+
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.20/codemirror.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.20/addon/display/placeholder.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.20/addon/hint/show-hint.min.js"></script>
+<script defer src="./assets/js/codemirror_grammar.min.js"></script>
+<script async src="./assets/js/define_grammar_mode.js"></script>
+<script type="text/javascript">
+window.MathJax = {
+    loader: {
+        typeset: false // Perform initial typeset?
+    }
+};
+</script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<script async src="https://cdn.plot.ly/plotly-3.3.0.min.js" charset="utf-8"></script>
+<script async src="https://cdnjs.cloudflare.com/ajax/libs/decimal.js/10.6.0/decimal.min.js"></script>
+<script async src="./assets/js/humane2.min.js"></script>
+<script async src="./assets/js/InfoPopup.min.js"></script>
+<script async src="./assets/js/Dromeo.min.js"></script>
+<script async src="./build/SciLite.js"></script>
+<script async src="./build/browser-repl.js"></script>
+</head>
+<body>
+<header id="header" style="text-align:center;line-height:1.4;padding-top:10px;">
+<h1 style="font-size:1em;font-weight:normal"><b>SciLite <span id="ver"></span></b>: a scientific computing environment similar to <b>Octave/Matlab</b> in pure JavaScript.</h1>
+</header>
+
+<br><br>
+
+<div id="screen">
+
+<div id="examples">
+<b>Demo Examples:</b>
+<br>
+<label for="arbitrary_precision" class="checkbox"><input type="checkbox" id="arbitrary_precision" value="arbitrary_precision" /><span></span></label>&nbsp;&nbsp;<label for="arbitrary_precision">Use Arbitrary Precision</label>
+<br>
+<a href="#" aria-label="run numbers example" onclick="return runExample('numbers');">Numbers</a>
+• <a href="#" aria-label="run strings example" onclick="return runExample('strings');">Strings</a>
+• <a href="#" aria-label="run matrices example" onclick="return runExample('matrices');">Matrices</a>
+<br>
+<a href="#" aria-label="run functions example" onclick="return runExample('functions');">Functions</a>
+• <a href="#" aria-label="run linear algebra example" onclick="return runExample('linalg');">Linear Algebra</a>
+<br>
+<a href="#" aria-label="run polynomial functions example" onclick="return runExample('polys');">Polys</a>
+• <a href="#" aria-label="run statistics example" onclick="return runExample('stats');">Stats</a>
+• <a href="#" aria-label="run dsp example" onclick="return runExample('dsp');">DSP</a>
+<br>
+<a href="#" aria-label="run 2D plots example" onclick="return runExample('plots2d');">2D Plots</a>
+• <a href="#" aria-label="run 3D plots example" onclick="return runExample('plots3d');">3D Plots</a>
+<br>
+<a href="#" aria-label="run if-else example" onclick="return runExample('ifelse');">If-ElseIf-Else</a>
+• <a href="#" aria-label="run loops example" onclick="return runExample('loops');">Loops</a>
+</div>
+
+<span class="label">&nbsp;</span><div id="output"></div><br>
+<span class="label" style="margin-top:8px;color:#f90b13;">&gt;&gt;</span><div id="input"><textarea id="inputarea" placeholder="code to run.. (ctrl+space autocomplete)"></textarea></div><div id="buttons">
+<button id="run" aria-label="run code" class="button" style="padding:8px"><i class="icon run" style="width:14px"></i></button>
+<button id="clear" aria-label="clear contents" class="button" style="padding:8px"><i class="icon clear" style="width:14px;top:2px"></i></button>
+<br><button id="share" aria-label="get link to share current session" class="button" style="font-size:16px;margin-top:11px;padding:10px 11px">Share</button>
+</div>
+
+<div id="overlay"></div>
+</div>
+
+<br><br><br>
+
+<footer id="footer">
+<div class="showcase">Computing Environment by <a href="https://github.com/foo123/SciLite" target="_blank">SciLite</a></div>
+<!--<div class="showcase">Symbolic Computations by <a href="https://github.com/foo123/Abacus" target="_blank">Abacus</a></div>-->
+<div class="showcase">Arbitrary Precision Arithmetic by <a href="https://mikemcl.github.io/decimal.js/" target="_blank">Decimal</a></div>
+<div class="showcase">Mathematics Rendering by <a href="https://www.mathjax.org/" target="_blank">MathJax</a></div>
+<div class="showcase">2D and 3D Plots by <a href="https://plotly.com/javascript/" target="_blank">Plotly</a></div>
+<div class="showcase">Syntax Highlight by <a href="https://codemirror.net/" target="_blank">CodeMirror</a></div>
+<div class="showcase">Syntax Highlight Grammar by <a href="https://github.com/foo123/codemirror-grammar" target="_blank">CodeMirror Grammar</a></div>
+<div class="showcase">Notifications by <a href="https://github.com/foo123/humane2.js" target="_blank">humane2.js</a></div>
+<div class="showcase">Tooltips by <a href="https://github.com/foo123/InfoPopup" target="_blank">InfoPopup</a></div>
+<div class="fluid col-1-1 text-center" style="margin-top: 10px;"><a href="https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=DP8WED9XW9TAE" class="donate">donate</a></div>
+</footer>
+<div id="notifications-area" class="humane-container-notify"></div>
+
+<script type="text/javascript">//<![CDATA[
+!function() {
+"use strict";
+
+function init($)
+{
+    function notify(msg, type)
+    {
+        if ('error' === type) notifier.error(msg);
+        else if ('success' === type) notifier.success(msg);
+        else notifier.info(msg);
+    }
+    function obj_to_array(o)
+    {
+        o.length = Object.keys(o).length;
+        return Array.prototype.slice.call(o);
+    }
+    function session_link(href)
+    {
+        if (arguments.length)
+        {
+            const uri = new URL(href);
+            const params = '' !== uri.hash ? (new Dromeo()).unglue(uri.hash.slice(1).split('+').join('%20')) : {session:[],arbprec:0};
+            params.session = obj_to_array(params.session || []);
+            params.arbprec = '1' === String(params.arbprec) ? true : false;
+            return params;
+        }
+        else
+        {
+            const uri = new URL(location.href);
+            uri.hash = '#' + (new Dromeo()).glue({session:session, arbprec:document.getElementById('arbitrary_precision').checked? 1 : 0});
+            return uri.href;
+        }
+    }
+    async function run_session(statements)
+    {
+        if (Array.isArray(statements))
+        {
+            for (let code of statements)
+            {
+                session.push(code);
+                await $.repl(code, output);
+            }
+        }
+    }
+    function run_example(example)
+    {
+        switch (String(example).toLowerCase())
+        {
+            case 'numbers':
+                return run_session([
+                '% numbers',
+                'a = 1+2',
+                'b = 2j+a+1i',
+                'c = (3*a)+2*b',
+                'inf',
+                '-inf',
+                'nan',
+                'eps',
+                'realmax',
+                'realmin',
+                'intmax',
+                'intmin'
+                ]);
+            break;
+            case 'strings':
+                return run_session([
+                '% strings',
+                '"string"',
+                's = "str"',
+                's+"ing"',
+                '\'string\''
+                ]);
+            break;
+            case 'functions':
+                return run_session([
+                '% numeric functions',
+                'sin(linspace(0,4*pi,8))',
+                'cos(linspace(0,4*pi,8))',
+                'exp(linspace(0,2,4))',
+                'mod(0:5, 3)',
+                '% and more..'
+                ]);
+            break;
+            case 'matrices':
+                return run_session([
+                '% matrices',
+                '1:5',
+                '1:2:5',
+                'zeros(2, 3)',
+                'ones(2, 3)',
+                'eye(2)',
+                'A = ones(2,2)*3+1',
+                'A(:,2) = 2',
+                'A(1,1:2) = 3',
+                'A',
+                'A(1:end,2)',
+                'A(1:end)',
+                'A(2,2)',
+                'A(4)',
+                'A(:,[1 2]) = A(:,[2 1])',
+                'A',
+                'B = A\'',
+                'A(:)',
+                'B = [1 2; 3 4]',
+                'B(B>1)',
+                'B(B>1) = 2',
+                'C = [1 2; 3 4]',
+                '[C, C]',
+                '[C; C]',
+                '[C, C; C, C]',
+                '[[1 2; 3 4]; [5 6; 7 8]]',
+                'kron([1 2 3; 4 5 6], ones(2))',
+                'ones(2)(:)',
+                'ones(2)(:, 1)',
+                'a = (2*ones(2))(:)',
+                'b = (2*ones(2))(:, 1)',
+                'ones(20, 10)',
+                'ones(10, 20)',
+                'ones(20, 20)',
+                '% and more..'
+                ]);
+            break;
+            case 'linalg':
+                return run_session([
+                '% linear algebra',
+                'A = [1 2;3 4]',
+                'b = [1;2]',
+                'A\\b',
+                'A = magic(3)',
+                'trace(A)',
+                'det(A)',
+                'charpoly(A)',
+                '[R, p] = rref(A)',
+                'inv(A)',
+                'pinv(A)',
+                'inv(A)*A',
+                //'H = [-149 -50 -154; 537 180 546; -27 -9 -25]',
+                //'[Q, H] = hess(H)',
+                'A = [1 2 3; 0 3 4; 0 0 2]',
+                '[V, D, W] = eig(A)',
+                'A*V','V*D',
+                'W\'*A','D*W\'',
+                //'A = [1 2 3; 0 1 4; 0 0 2]',
+                //'[V, D, W] = eig(A)',
+                //'A*V','V*D',
+                //'W\'*A','D*W\'',
+                //'A = [1+1i, 2; 2, 2+1i]',
+                //'[V, D, W] = eig(A)',
+                //'A*V','V*D',
+                //'W\'*A','D*W\'',
+                'A = [1+1i, 2; 0, -1j]',
+                '[U,S,V] = svd(A)',
+                'U*S*V\'','U\'*U','V*V\'',
+                '% and more..'
+                ]);
+            break;
+            case 'polys':
+                return run_session([
+                '% polynomial functions',
+                'polyval([1 0 -1], [2 4])',
+                'polyvalm([1 0 -1], [2 4;3 1])',
+                'polydiv([2 7 4 9], [2 0 1])',
+                'polyfit([0 1], [0 2], 1)',
+                'polyfit([0 1 2], [1 2 5], 2)',
+                'roots([1 0 -1])',
+                'poly(roots([1 0 -1]))',
+                '% and more..'
+                ]);
+            break;
+            case 'stats':
+                return run_session([
+                '% statistics',
+                'X = randn(10, 10);',
+                'mean(X)',
+                'median(X)',
+                'mode(X)',
+                'std(X)',
+                'var(X)',
+                'corrcoef(X)',
+                'erf(0.76)',
+                '% and more..'
+                ]);
+            break;
+            case 'dsp':
+                return run_session([
+                '% digital signal processing',
+                'conv([1 2 3], [2 4])',
+                'conv2([1 2;3 4], [2 2;3 3])',
+                'filter([2 4 4], [1 2], [1 2 3 4 5])',
+                'ifft(fft([1 2 3]))',
+                'ifft2(fft2([1 2;3 4]))',
+                '% and more..'
+                ]);
+            break;
+            case 'plots2d':
+                return run_session([
+                '% 2D plots',
+                't = 0:pi/100:2*pi;',
+                'plot(t,sin(t),"Color","m","LineStyle","--",t,cos(t),"Color","b","LineStyle","-.");',
+                'xlabel("x");',
+                'ylabel("y");',
+                'title("plot x-y");',
+                'legend("sin","cos");',
+                'x1 = (10*randn(100,1)-5);',
+                'y1 = (10*randn(100,1)-5);',
+                'x2 = (10*randn(100,1)-15);',
+                'y2 = (10*randn(100,1)-15);',
+                'scatter(x1(:),y1(:),"Color","b",x2(:),y2(:),"Color","r");',
+                'xlabel("x");',
+                'ylabel("y");',
+                'title("scatter x-y");',
+                'semilogy(exp(0.1:0.1:5));',
+                'xlabel("x");',
+                'ylabel("y");',
+                'title("semilogy x-y");',
+                'a = 2*(1:5)-1;',
+                'b = 1.2*(1:5)-1/2;',
+                'bar(a,"Color","b",b,"Color","r");',
+                'xlabel("x");',
+                'ylabel("y");',
+                'title("bar x-y");',
+                'a = 2*(1:5)-1/2;',
+                'b = 3*(1:5)-1;',
+                'barh(a,"Color","b",b,"Color","r");',
+                'xlabel("y");',
+                'ylabel("x");',
+                'title("barh x-y");',
+                'piechart([1 2 3 4],[2 2 3 4]);',
+                'title("piechart");',
+                'legend(["1","2","3","4"],["a","b","c","d"]);',
+                '% and more..'
+                ]);
+            break;
+            case 'plots3d':
+                return run_session([
+                '% 3D plots',
+                'x = linspace(-2*pi,2*pi);',
+                'y = linspace(0,4*pi);',
+                '[X,Y] = meshgrid(x,y);',
+                'Z = sin(X)+cos(Y);',
+                'contour(X,Y,Z);',
+                't = 0:pi/50:10*pi;',
+                'plot3(sin(t),cos(t),t);',
+                '[X,Y] = meshgrid(-8:0.5:8);',
+                'R = sqrt(X.^2 + Y.^2) + eps;',
+                'Z = sin(R)./R;',
+                'mesh(X,Y,Z);',
+                '% and more..'
+                ]);
+            break;
+            case 'ifelse':
+                return run_session([
+                '% if .. elseif .. else .. end',
+                'a = 1',
+                'if a == 1\n b = 2\nelseif a == 2\n b = 3\nelse\n b = 4\nend',
+                'a = 2',
+                'if a == 1\n b = 2\nelseif a == 2\n b = 3\nelse\n b = 4\nend',
+                'a = 3',
+                'if a == 1\n b = 2\nelseif a == 2\n b = 3\nelse\n b = 4\nend'
+                ]);
+            break;
+            case 'loops':
+                return run_session([
+                '% for .. end',
+                'for a=1:3\n b=a+1\nend',
+                'for a=1:3\n if a==3\n  continue\n end\n b=a+1\nend',
+                'for a=1:3\n if a==3\n  break\n end\n b=a+1\nend',
+                '% while .. end',
+                'a = 1',
+                'b = 1',
+                'while a==1\n b=b+1\n if b==3\n  break\n end\nend',
+                'while a==0\n b=b+1\n if b==3\n  break\n end\nend'
+                ]);
+            break;
+        }
+        return Promise.resolve();
+    }
+
+    const notifier = humane2.create({container: document.getElementById('notifications-area'), baseCls: 'humane-notify', timeout: 4000});
+    notifier.info = notifier.spawn({addnCls: 'humane-notify-info'}, true);
+    notifier.success = notifier.spawn({addnCls: 'humane-notify-success'}, true);
+    notifier.error = notifier.spawn({addnCls: 'humane-notify-error'}, true);
+
+    const output = document.getElementById('output');
+    const input = CodeMirror.fromTextArea(document.getElementById('inputarea'), {
+        mode: "scilite",
+        lineWrapping: false,
+        lineNumbers : false,
+        indentUnit: 0,
+        indentWithTabs: false,
+        foldGutter: false,
+        gutters: [],
+        extraKeys: {"Ctrl-Space": "scilite-mode-autocomplete"}
+    });
+    input.setSize(null, 90);
+    document.getElementById('arbitrary_precision').checked = false;
+    document.getElementById('ver').textContent = 'v.'+SciLite.VERSION;
+    document.getElementById('overlay').style.display = 'none';
+
+    document.getElementById('arbitrary_precision').addEventListener('change', (evt) => {
+        if ($.arbitraryPrecision(evt.target.checked)) runExample('numbers');
+    }, false);
+    document.getElementById('run').addEventListener('click', (evt) => {
+        let code = input.getValue().trim();
+        input.setValue('');
+        if (code.length) session.push(code);
+        $.repl(code, output).then(() => 0);
+    }, false);
+    document.getElementById('clear').addEventListener('click', (evt) => {
+        session = [];
+        $.clear(output);
+    }, false);
+    document.getElementById('share').addEventListener('click', (evt) => {
+        try {
+            navigator.clipboard.writeText(session_link()).then(() => {
+                notify('Session link copied to clipboard.', 'success');
+            }).catch((err) => {
+                notify('Cannot write to clipboard!', 'error');
+            });
+        } catch (err) {
+            notify('Clipboard access error!', 'error');
+        }
+    }, false);
+
+    InfoPopup({
+        item: '[aria-label]',
+        content: (item) => '<div class="info-icon"><i class="icon info"></i></div><div class="info-msg">'+item.getAttribute('aria-label')+'</div>',
+        atItemX: 'center',
+        atItemY: 'top',
+        hideDelay: 400,
+        showDelay: 400,
+        preventDefault: false
+    });
+
+    let session = [];
+
+    window.runExample = function(example) {
+        session = [];
+        $.clear(output);
+        run_example(example).then(() => 0);
+        return false;
+    };
+
+    const params = session_link(location.href);
+    if (params.session.length)
+    {
+        document.getElementById('arbitrary_precision').checked = params.arbprec;
+        arbitraryPrecision(params.arbprec);
+        run_session(params.session).then(() => 0); // other session loaded
+    }
+    else
+    {
+        run_example('numbers').then(() => 0); // default
+    }
+}
+
+(function onReady() {
+    if (!window.BrowserREPL || !window.SciLite || !window.CodeMirror || !window.CodeMirrorGrammar || !window.codemirror_define_grammar_mode || !window.Decimal || !window.MathJax.typesetPromise || !window.Plotly || !window.humane2 || !window.InfoPopup || !window.Dromeo)
+    {
+        setTimeout(onReady, 100); // wait
+    }
+    else
+    {
+        init(BrowserREPL(SciLite, Decimal, MathJax, Plotly, CodeMirror, CodeMirrorGrammar, codemirror_define_grammar_mode));
+    }
+})();
+}();
+//]]></script>
+</body>
+</html>
