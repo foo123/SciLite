@@ -1,7 +1,7 @@
 function lagrange(x, y)
 {
     // adapted from https://github.com/foo123/Abacus
-    var p, i, n, d, f, vi, hash, dupl, O, I;
+    var p, i, n, d, f, vi, hash, dupl;
     if (!is_vector(x) || !x.length || !is_vector(y) || !y.length) return [];
     // check and filter out duplicate values
     x = x.slice();
@@ -27,8 +27,6 @@ function lagrange(x, y)
     hash = null;
     dupl = null;
     n = x.length;
-    //O = __(0);
-    I = __(1);
 
     // Set-up denominators
     d = array(n, function(j) {
@@ -66,7 +64,7 @@ fn.polyfit = function(x, y, n) {
         n = _(n);
         // least-squares fit
         return realify(mul(pinv(x.reduce(function(A, xi) {
-            for (var i=1,row=[__(1)]; i<=n; ++i)
+            for (var i=1,row=[I]; i<=n; ++i)
             {
                 row.unshift(scalar_mul(xi, row[0]));
             }

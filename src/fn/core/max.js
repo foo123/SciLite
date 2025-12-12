@@ -17,6 +17,6 @@ function max(x)
             return max(COL(x, column));
         });
     }
-    return 0;
+    return nan;
 }
 fn.max = max;

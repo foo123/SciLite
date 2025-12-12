@@ -27,5 +27,5 @@ function all(x, check)
 }
 $_.all = all;
 fn.all = function(x) {
-    return all(x, function(x) {return !eq(x, 0);});
+    return all(x, function(x) {return !eq(x, O);});
 };

@@ -9,11 +9,11 @@ function norm(x, p)
         }
         else if (is_vector(x))
         {
-            return n_lt(p, 0) ? min(abs(x)) : max(abs(x));
+            return n_lt(p, O) ? min(abs(x)) : max(abs(x));
         }
         else if (is_matrix(x))
         {
-            if (n_gt(p, 0))
+            if (n_gt(p, O))
             {
                 return max(sum(abs(transpose(x))));
             }
@@ -21,7 +21,7 @@ function norm(x, p)
     }
     else if (is_num(p))
     {
-        if (n_eq(p, 1))
+        if (n_eq(p, I))
         {
             if (is_scalar(x))
             {
@@ -51,7 +51,7 @@ function norm(x, p)
                 return max(svd(x, null, false, false));
             }
         }
-        else if (n_gt(p, 0))
+        else if (n_gt(p, O))
         {
             if (is_scalar(x))
             {

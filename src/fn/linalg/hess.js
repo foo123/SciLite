@@ -15,8 +15,8 @@ function hess(A, B, wantq)
                 //G_t = ctranspose(G);
                 G = compute_givens(H[i-1-1][k-1], H[i-1][k-1]);
                 G_t = [scalar_conj(G[0]), scalar_neg(scalar_conj(G[1]))];
-                if (wantq) Q = givensmul('right', G, i-1-1, i-1, Q);//mul(Q, G);
-                H = givensmul('left', G_t, i-1-1, i-1, givensmul('right', G, i-1-1, i-1, H));//mul(ctranspose(G), mul(H, G));
+                if (wantq) Q = rotmul('right', G, i-1-1, i-1, Q);//mul(Q, G);
+                H = rotmul('left', G_t, i-1-1, i-1, rotmul('right', G, i-1-1, i-1, H));//mul(ctranspose(G), mul(H, G));
             }
         }
         return wantq ? [Q, H] : H;
@@ -38,15 +38,15 @@ function hess(A, B, wantq)
                 //Rl_t = ctranspose(Rl);
                 Rl = compute_givens(AA[i-1-1][k-1], AA[i-1][k-1]);
                 Rl_t = [scalar_conj(Rl[0]), scalar_neg(scalar_conj(Rl[1]))];
-                Q = givensmul('right', Rl, i-1-1, i-1, Q);//mul(Q, Rl);
-                AA = givensmul('left', Rl_t, i-1-1, i-1, AA);//mul(Rl_t, AA);
-                BB = givensmul('left', Rl_t, i-1-1, i-1, BB);//mul(Rl_t, BB);
+                Q = rotmul('right', Rl, i-1-1, i-1, Q);//mul(Q, Rl);
+                AA = rotmul('left', Rl_t, i-1-1, i-1, AA);//mul(Rl_t, AA);
+                BB = rotmul('left', Rl_t, i-1-1, i-1, BB);//mul(Rl_t, BB);
 
                 //Rr = givens(n, i-1-1, i-1, scalar_neg(BB[i-1][i-1]), BB[i-1][i-1-1]);
                 Rr = compute_givens(scalar_neg(BB[i-1][i-1]), BB[i-1][i-1-1]);
-                Z = givensmul('right', Rr, i-1-1, i-1, Z);//mul(Z, Rr);
-                AA = givensmul('right', Rr, i-1-1, i-1, AA);//mul(AA, Rr);
-                BB = givensmul('right', Rr, i-1-1, i-1, BB);//mul(BB, Rr);
+                Z = rotmul('right', Rr, i-1-1, i-1, Z);//mul(Z, Rr);
+                AA = rotmul('right', Rr, i-1-1, i-1, AA);//mul(AA, Rr);
+                BB = rotmul('right', Rr, i-1-1, i-1, BB);//mul(BB, Rr);
             }
         }
         return [AA, BB, Q, Z];

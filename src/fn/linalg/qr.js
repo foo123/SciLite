@@ -37,8 +37,8 @@ function qr_givens(A, wantq)
             //G_t = ctranspose(G);
             G = compute_givens(R[i-1][j], R[i][j]);
             G_t = [scalar_conj(G[0]), scalar_neg(scalar_conj(G[1]))];
-            R = givensmul('left', G_t, i-1, i, R);//mul(ctranspose(G), R);
-            if (wantq) Q = givensmul('right', G, i-1, i, Q);//mul(Q, G);
+            R = rotmul('left', G_t, i-1, i, R);//mul(ctranspose(G), R);
+            if (wantq) Q = rotmul('right', G, i-1, i, Q);//mul(Q, G);
         }
     }
     return wantq ? [Q, R] : R;

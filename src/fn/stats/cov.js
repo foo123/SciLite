@@ -10,11 +10,11 @@ function cov(a, b, w)
     {
         if (is_scalar(a))
         {
-            return 0;
+            return O;
         }
         else if (is_vector(a))
         {
-            if (1 >= a.length) return a.length ? __(0) : nan;
+            if (1 >= a.length) return a.length ? O : nan;
             var N = a.length,
                 mu_a = mean(a),
                 bar_a = sub(a, mu_a);
@@ -41,7 +41,7 @@ function cov(a, b, w)
         if (is_vector(a) && is_vector(b))
         {
             if (a.length !== b.length) throw "cov: inputs not of same dimension";
-            if (1 >= a.length) return a.length ? __(0) : nan;
+            if (1 >= a.length) return a.length ? O : nan;
             var N = a.length;
             return scalar_div(sum(dotmul(conj(sub(a, mean(a))), sub(b, mean(b)))), __(1 === w ? N : (N-1)));
         }

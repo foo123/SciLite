@@ -29,8 +29,8 @@ function ADDR(m, i, j, a, b, k0)
 {
     // add (a multiple of) row j to (a multiple of) row i
     var k, n = m[0].length;
-    if (null == a) a = 1;
-    if (null == b) b = 1;
+    if (null == a) a = I;
+    if (null == b) b = I;
     for (k=k0||0; k<n; ++k)
         m[i][k] = scalar_add(scalar_mul(b, m[i][k]), scalar_mul(a, m[j][k]));
     return m;
@@ -39,8 +39,8 @@ function ADDC(m, i, j, a, b, k0)
 {
     // add (a multiple of) column j to (a multiple of) column i
     var k, n = m.length;
-    if (null == a) a = 1;
-    if (null == b) b = 1;
+    if (null == a) a = I;
+    if (null == b) b = I;
     for (k=k0||0; k<n; ++k)
         m[k][i] = scalar_add(scalar_mul(b, m[k][i]), scalar_mul(a, m[k][j]));
     return m;
@@ -123,9 +123,9 @@ function concat(A, B, axis)
         // |  B  |
         return matrix(rA+rB, stdMath.max(cA, cB), function(i, j) {
             if (j >= cA)
-                return i < rA ? 0 : B[i-rA][j];
+                return i < rA ? O : B[i-rA][j];
             else if (j >= cB)
-                return i < rA ? A[i][j] : 0;
+                return i < rA ? A[i][j] : O;
             else
                 return i < rA ? A[i][j] : B[i-rA][j];
         });
@@ -135,23 +135,17 @@ function concat(A, B, axis)
         // | A | B |
         return matrix(stdMath.max(rA, rB), cA+cB, function(i, j) {
             if (i >= rA)
-                return j < cA ? 0 : B[i][j-cA];
+                return j < cA ? O : B[i][j-cA];
             else if (i >= rB)
-                return j < cA ? A[i][j] : 0;
+                return j < cA ? A[i][j] : O;
             else
                 return j < cA ? A[i][j] : B[i][j-cA];
         });
     }
 }
-function norm2(x)
-{
-    return x.reduce(function(n, xi) {
-        return scalar_add(n, scalar_mul(xi, scalar_conj(xi)));
-    }, __(0));
-}
 function is_tri(A, type, strict, eps)
 {
-    var nr = ROWS(A), nc = COLS(A), n, r, c, O;
+    var nr = ROWS(A), nc = COLS(A), n, r, c;
     if ((false !== strict) && (nr !== nc)) return false;
 
     eps = __(eps || 0);
@@ -194,17 +188,17 @@ function compute_givens(f, g)
     */
     // f, g may be real or complex
     var c, s, r, sf, af, n;
-    if (eq(g, 0))
+    if (eq(g, O))
     {
-        c = __(1);
-        s = __(0);
+        c = I;
+        s = O;
         //r = f;
     }
-    else if (eq(f, 0))
+    else if (eq(f, O))
     {
-        c = __(0);
+        c = O;
         s = scalar_sign(scalar_conj(g));
-        if (eq(s, 0)) s = __(1);
+        if (eq(s, O)) s = I;
         //r = scalar_abs(g);
     }
     else
@@ -218,11 +212,36 @@ function compute_givens(f, g)
     }
     return [c, s/*, r*/]; // skip r
 }
-function givens(n, p, q, f, g)
+function compute_jacobi(alpha, beta, gamma)
+{
+    // Compute the Jacobi/Givens rotation
+    //
+    //   [ c -s ] [ alpha beta  ] [  c s ] = [ alpha_new 0        ]
+    //   [ s  c ] [ beta  gamma ] [ -s c ]   [ 0         beta_new ]
+    //
+    if (eq(beta, O))
+    {
+        return [
+            [I, O],
+            [O, I]
+        ];
+    }
+    else
+    {
+        var b = scalar_div(scalar_sub(gamma, alpha), scalar_mul(beta, 2)),
+            t = scalar_div(scalar_sign(b), scalar_add(scalar_add(scalar_abs(b), fn.sqrt(scalar_pow(b, 2))), I));
+            c = scalar_inv(fn.sqrt(scalar_add(I, scalar_pow(t,2)))),
+            s = scalar_mul(c, t);
+        return [
+            [c,             s],
+            [scalar_neg(s), c]
+        ];
+    }
+}
+/*function givens(n, p, q, f, g)
 {
     var givens_rot = compute_givens(f, g),
-        c = givens_rot[0], s = givens_rot[1],
-        O = __(0), I = __(1);
+        c = givens_rot[0], s = givens_rot[1];
     return matrix(n, n, function(i, j) {
         if (i === j)
         {
@@ -234,12 +253,35 @@ function givens(n, p, q, f, g)
         }
         return O;
     });
-}
-function givensmul(type, G, p, q, A)
+}*/
+function rotmul(type, G, p, q, A)
 {
-    var i, j, n = ROWS(A),
-        B = copy(A),
-        Gpp, Gpq, Gqp, Gqq;
+    var n = ROWS(A), B = copy(A),
+        i, j, Gpp, Gpq, Gqp, Gqq;
+    if ((2 === G.length) && is_scalar(G[0]))
+    {
+        // c, s
+        Gpp = G[0];
+        Gpq = scalar_neg(G[1]);
+        Gqp = G[1];
+        Gqq = G[0];
+    }
+    else if ((2 === G.length) && (2 === G[0].length))
+    {
+        // jacobi/givens compact matrix
+        Gpp = G[0][0];
+        Gpq = G[0][1];
+        Gqp = G[1][0];
+        Gqq = G[1][1];
+    }
+    else
+    {
+        // jacobi/givens full matrix
+        Gpp = G[p][p];
+        Gpq = G[p][q];
+        Gqp = G[q][p];
+        Gqq = G[q][q];
+    }
     if ('right' === type)
     {
         /*
@@ -248,22 +290,7 @@ function givensmul(type, G, p, q, A)
         a3 b3 c3 d3 | 0 s  c 0  = a3 (G[:,i]*A[3,:]) c3 (G[:,j]*A[3,:])
         a4 b4 c4 d4 | 0 0  0 1  = a4 (G[:,i]*A[4,:]) c4 (G[:,j]*A[4,:])
         */
-        if ((2 === G.length) && is_scalar(G[0]))
-        {
-            // c, s
-            Gpp = G[0];
-            Gpq = scalar_neg(G[1]);
-            Gqp = G[1];
-            Gqq = G[0];
-        }
-        else
-        {
-            // matrix
-            Gpp = G[p][p];
-            Gpq = G[p][q];
-            Gqp = G[q][p];
-            Gqq = G[q][q];
-        }
+        // A(:, [k l]) = A(:, [k l])*G;
         for (i=0; i<n; ++i)
         {
             /*for (s=0,j=0; j<n; ++j)
@@ -286,22 +313,7 @@ function givensmul(type, G, p, q, A)
         0 s  c 0 | a3 b3 c3 d3 = (G[j,:]*A[:,1]) (G[j,:]*A[:,2]) (G[j,:]*A[:,3]) (G[j,:]*A[:,4])
         0 0  0 1 | a4 b4 c4 d4 = a4 b4 c4 d4
         */
-        if ((2 === G.length) && is_scalar(G[0]))
-        {
-            // c, s
-            Gpp = G[0];
-            Gpq = scalar_neg(G[1]);
-            Gqp = G[1];
-            Gqq = G[0];
-        }
-        else
-        {
-            // matrix
-            Gpp = G[p][p];
-            Gpq = G[p][q];
-            Gqp = G[q][p];
-            Gqq = G[q][q];
-        }
+        // A([k l], :) = G'*A([k l], :);
         for (i=0; i<n; ++i)
         {
             /*for (s=0,j=0; j<n; ++j)
@@ -317,4 +329,213 @@ function givensmul(type, G, p, q, A)
         }
     }
     return B;
+}
+function jacobi_sweep(A, nsweeps)
+{
+    if (null == nsweeps) nsweeps = 1;
+    var n = ROWS(A), sweep, k, l, J;
+
+    for (sweep=1; sweep<=nsweeps; ++sweep)
+    {
+        for (k=1; k<n; ++k)
+        {
+            for (l=0; l<=k-1; ++l)
+            {
+                J = compute_jacobi(A[k][k], A[k][l], A[l][l]);
+                A = rotmul('right', J, k, l, rotmul('left', ctranspose(J), k, l, A));
+            }
+        }
+    }
+    return A;
+}
+function francis_poly(H)
+{
+    // Get shifts via trailing submatrix
+    var i = ROWS(H)-1, j = COLS(H)-1,
+        trHH  = scalar_add(H[i-1][j-1], H[i][j]),
+        detHH = scalar_sub(scalar_mul(H[i-1][j-1], H[i][j]), scalar_mul(H[i-1][j], H[i][j-1])),
+        f1, f2, f3, r1, r2, b, c
+    ;
+
+    f1 = scalar_pow(trHH, 2);
+    f2 = scalar_mul(detHH, 4);
+    if (gt(f1, f2)) // Real eigenvalues
+    {
+        // Use the one closer to H(n,n)
+        f3 = fn.sqrt(scalar_sub(f1, f2));
+        r1 = scalar_div(scalar_add(trHH, f3), 2);
+        r2 = scalar_div(scalar_sub(trHH, f3), 2);
+        if (lt(scalar_abs(scalar_sub(r1, H[i][j])), scalar_abs(scalar_sub(r2, H[i][j]))))
+        {
+            r2 = r1;
+        }
+        else
+        {
+            r1 = r2;
+        }
+        // z^2 + bz + c = (z-sigma_1)(z-sigma_2)
+        b = scalar_neg(scalar_add(r1, r2));
+        c = scalar_mul(r1, r2);
+    }
+    else
+    {
+        // In the complex case, we want the char poly for HH
+        b = scalar_neg(trHH);
+        c = detHH;
+    }
+    return [b, c];
+}
+function gauss_jordan(A, with_pivots, odim, eps)
+{
+    // adapted from https://github.com/foo123/Abacus
+    var rows = ROWS(A), columns = COLS(A),
+        dim = columns, pivots,
+        det, pl = 0, r, i, i0, p0,
+        lead, leadc, imin, im, min,
+        a, z, m, aug, find_dupl;
+    eps = __(eps || 0);
+    // original dimensions, eg when having augmented matrix
+    if (is_array(odim)) dim = stdMath.min(dim, odim[1]);
+    m = concat(A, eye(rows));
+    pivots = new Array(dim);
+    lead = 0; leadc = 0; det = I;
+    find_dupl = function find_dupl(k0, k) {
+        k = k || 0;
+        for (var p=pl-1; p>=0; --p)
+            if (k0 === pivots[p][k])
+                return p;
+        return -1;
+    };
+    for (r=0; r<rows; ++r)
+    {
+        if (dim <= lead) break;
+
+        i = r;
+        while (le(scalar_abs(m[i][lead]), eps))
+        {
+            ++i;
+            if (rows <= i)
+            {
+                i = r; ++lead;
+                if (dim <= lead)
+                {
+                    lead = -1;
+                    break;
+                }
+            }
+        }
+        if (-1 === lead) break; // nothing to do
+
+        i0 = i;
+        imin = -1; min = null; z = 0;
+        // find row with min abs leading value non-zero for current column lead
+        for (i=i0; i<rows; ++i)
+        {
+            a = scalar_abs(m[i][lead]);
+            if (le(a, eps)) ++z;
+            else if ((null == min) || lt(a, min)) {min = a; imin = i;}
+        }
+        do {
+            if (-1 === imin) break; // all zero, nothing else to do
+            if (rows-i0 === z+1)
+            {
+                // only one non-zero, swap row to put it first
+                if (r !== imin)
+                {
+                    SWAPR(m, r, imin);
+                    // determinant changes sign for row swaps
+                    det = scalar_neg(det);
+                }
+                if (lt(m[r][lead], O))
+                {
+                    ADDR(m, r, r, O, J, lead); // make it positive
+                    // determinant is multiplied by same constant for row multiplication, here simply changes sign
+                    det = scalar_neg(det);
+                }
+                i = imin; i0 = r;
+                while ((0 <= i) && (-1 !== (p0=find_dupl(i)))) {i0 -= pl-p0; i = i0;}
+                pivots[pl++] = [i, lead/*, leadc*/]; // row/column/original column of pivot
+                // update determinant
+                det = r < dim ? scalar_mul(det, m[r][r/*lead*/]) : O;
+                break;
+            }
+            else
+            {
+                z = 0; im = imin;
+                for (i=i0; i<rows; ++i)
+                {
+                    if (i === im) continue;
+                    // subtract min row from other rows
+                    ADDR(m, i, im, scalar_neg(scalar_div(m[i][lead], m[im][lead])), 1, lead);
+                    // determinant does not change for this operation
+
+                    // find again row with min abs value for this column as well for next round
+                    a = scalar_abs(m[i][lead]);
+                    if (le(a, eps)) ++z;
+                    else if (lt(a, min)) {min = a; imin = i;}
+                }
+            }
+        } while (1);
+
+        ++lead; //++leadc;
+    }
+    if (pl < dim) det = O;
+
+    aug = slice(m, 0, columns, rows-1, rows+columns-1);
+    m = slice(m, 0, 0, rows-1, columns-1);
+    // truncate if needed
+    if (pivots.length > pl) pivots.length = pl;
+
+    return with_pivots ? [m, pivots, det, aug] : m;
+}
+var ref = gauss_jordan;
+function largest_eig(A, N, eps, valueonly)
+{
+    // power method
+    var iter,
+        A_t,
+        k, prev_k,
+        v, prev_v,
+        w, prev_w;
+
+    k = O;
+    if (true === valueonly)
+    {
+        v = array(N, function() {return new complex(__(stdMath.random() || 0.1), O);});
+        v = dotdiv(v, norm(v));
+        for (iter=1; iter<=100; ++iter)
+        {
+            prev_k = k;
+            prev_v = v;
+            v = vec(mul(A, v));
+            k = dot(v, prev_v);
+            v = dotdiv(v, v[0].sign());
+            v = dotdiv(v, norm(v));
+            if (n_le(realMath.abs(n_sub(real(k), real(prev_k))), eps) && n_le(realMath.abs(n_sub(imag(k), imag(prev_k))), eps)) break;
+        }
+        return k;
+    }
+    else
+    {
+        A_t = ctranspose(A);
+        v = array(N, function() {return new complex(__(stdMath.random() || 0.1), O);});
+        v = dotdiv(v, norm(v));
+        w = array(N, function() {return new complex(__(stdMath.random() || 0.1), O);});
+        w = dotdiv(w, norm(w));
+        for (iter=1; iter<=100; ++iter)
+        {
+            prev_k = k;
+            prev_v = v;
+            prev_w = w;
+            v = vec(mul(A, v));
+            w = vec(mul(A_t, w));
+            k = dot(v, prev_v);
+            v = dotdiv(v, v[0].sign());
+            w = dotdiv(w, w[0].sign());
+            v = dotdiv(v, norm(v));
+            w = dotdiv(w, norm(w));
+            if (n_le(realMath.abs(n_sub(real(k), real(prev_k))), eps) && n_le(realMath.abs(n_sub(imag(k), imag(prev_k))), eps)) break;
+        }
+        return [k, v, w];
+    }
 }

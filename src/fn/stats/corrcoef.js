@@ -1,6 +1,5 @@
 function corrcoef(a, b)
 {
-    var I = __(1);
     if (null == b)
     {
         if (is_scalar(a) || is_vector(a))

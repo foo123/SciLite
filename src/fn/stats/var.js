@@ -3,11 +3,11 @@ function variance(x, w, dim)
     w = _(w || 0);
     if (is_scalar(x))
     {
-        return __(0);
+        return O;
     }
     else if (is_vector(x))
     {
-        if (1 >= x.length) return x.length ? __(0) : nan;
+        if (1 >= x.length) return x.length ? O : nan;
         var N = x.length,
             mu_x = mean(x),
             bar_x = sub(x, mu_x);

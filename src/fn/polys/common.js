@@ -11,7 +11,6 @@ var mulp = conv, divp = deconv;
 function horner(p, x)
 {
     // adapted from https://github.com/foo123/Abacus
-    var O = __(0);
     if (!p.length) return O;
     x = x || O;
     var n = p.length, i = 0, v = p[0];

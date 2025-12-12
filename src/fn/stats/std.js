@@ -3,11 +3,11 @@ function std(x, w, dim)
     w = _(w || 0);
     if (is_scalar(x))
     {
-        return __(0);
+        return O;
     }
     else if (is_vector(x))
     {
-        return 0 === x.length ? nan : (1 === x.length ? __(0) : realMath.sqrt(scalar_div(sum(dotpow(abs(sub(x, mean(x))), __(2))), __(1 === w ? x.length : (x.length-1)))));
+        return 0 === x.length ? nan : (1 === x.length ? O : realMath.sqrt(scalar_div(sum(dotpow(abs(sub(x, mean(x))), __(2))), __(1 === w ? x.length : (x.length-1)))));
     }
     else if (is_matrix(x))
     {

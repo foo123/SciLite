@@ -4,7 +4,7 @@ A **scientific computing environment** in pure JavaScript
 
 ![SciLite](./scilite.png)
 
-**v.0.9.6** (82 kB minified)
+**v.0.9.7** in progress (82 kB minified)
 
 [![SciLite](./scilite-live.png)](https://foo123.github.io/examples/scilite/)
 
@@ -17,8 +17,8 @@ SciLite includes an optional interpreter that handles all of Octave/Matlab synta
 Octave syntax:
 ```octave
 A = 4*ones(2, 2)+1;
-A(:,[1 2]) = [5;6];
 B = [1 2;3 4];
+A(:,[1 2]) = B(end:-1:1, 1);
 C = [A; B]; % similar to C = vertcat(A, B)
 D = C'; % conjugate transpose
 E = D(:); % colon operator
@@ -29,16 +29,15 @@ Ref = rref(A); % default output
 
 JavaScript syntax:
 ```js
-const $ = SciLite;
-const {add, dotmul, mul, set} = $._;
-const fn = $.fn;
+const {add, dotmul, mul, get, set} = SciLite._;
+const fn = SciLite.fn;
 
 // optionally for arbitrary precision support use Decimal.js
-//$._.decimal(Decimal);
+//SciLite._.decimal(Decimal);
 
 let A = add(mul(4, fn.ones(2, 2)), 1);
-set(A, ':', [1, 2], [5, 6]);
 let B = [[1, 2], [3, 4]];
+set(A, ':', [1, 2], get(B, fn.colon(fn.rows(B),-1,1), 1));
 let C = fn.vertcat(A, B);
 let D = fn.ctranspose(C); // conjugate transpose
 let E = fn.colon(D); // colon function

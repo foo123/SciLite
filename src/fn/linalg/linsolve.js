@@ -27,8 +27,7 @@ function linsolve(A, b, opts)
     var tmp = ref(transpose(A), true),
         pivots = tmp[1],
         rank = pivots.length,
-        Tt, Rt, p, i, j, c, t,
-        O = __(0);
+        Tt, Rt, p, i, j, c, t;
 
     if (rank !== k) return []; // no solution
 
@@ -40,7 +39,7 @@ function linsolve(A, b, opts)
         p = array(k, O);
         for (i=0; i<k; ++i)
         {
-            if (eq(Rt[i][i], 0)) return []; // no solution
+            if (eq(Rt[i][i], O)) return []; // no solution
             for (t=O,j=0; j<i; ++j) t = scalar_add(t, scalar_mul(Rt[i][j], p[j]));
             p[i] = scalar_div(scalar_sub(b[i], t), Rt[i][i]);
         }

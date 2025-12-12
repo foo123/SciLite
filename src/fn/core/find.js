@@ -21,5 +21,5 @@ function find(x, check)
 }
 $_.find = find;
 fn.find = function(x) {
-    return find(x, function(x) {return !eq(x, 0);});
+    return find(x, function(x) {return !eq(x, O);});
 };

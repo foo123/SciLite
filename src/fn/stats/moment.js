@@ -2,11 +2,11 @@ function moment(x, order, dim)
 {
     if (is_scalar(x))
     {
-        return __(0);
+        return O;
     }
     else if (is_vector(x))
     {
-        if (1 >= x.length) return x.length ? __(0) : nan;
+        if (1 >= x.length) return x.length ? O : nan;
         var N = x.length;
         return scalar_div(sum(dotpow(sub(x, mean(x)), order)), __(N));
     }

@@ -5,7 +5,7 @@ function conv2(a, b)
         rB, cB,
         c, rC, cC,
         cjk, j, k,
-        p, q, t, O;
+        p, q, t;
 
     if (ROWS(a) < ROWS(b))
     {
@@ -19,8 +19,7 @@ function conv2(a, b)
     cB = COLS(b);
     rC = rA + rB - 1;
     cC = cA + cB - 1;
-    c = zeros(rC, cC),
-    O = __(0);
+    c = zeros(rC, cC);
 
     for (j=0; j<rC; ++j)
     {

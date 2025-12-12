@@ -10,6 +10,6 @@ function ones(rows, cols)
     {
         cols = rows;
     }
-    return matrix(_(rows), _(cols), __(1));
+    return matrix(_(rows), _(cols), I);
 }
 fn.ones = ones;

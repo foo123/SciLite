@@ -1,40 +1,7 @@
-function largest_eig(A, N, eps, O, I)
-{
-    // power method
-    var iter,
-        A_t = ctranspose(A),
-        k, prev_k,
-        v, prev_v,
-        w, prev_w;
-
-    k = O;
-    v = array(N, function() {return new complex(__(stdMath.random() || 0.1), O);});
-    v = dotdiv(v, norm(v));
-    w = array(N, function() {return new complex(__(stdMath.random() || 0.1), O);});
-    w = dotdiv(w, norm(w));
-
-    for (iter=1; iter<=100; ++iter)
-    {
-        prev_k = k;
-        prev_v = v;
-        prev_w = w;
-        v = vec(mul(A, v));
-        w = vec(mul(A_t, w));
-        k = dot(v, prev_v);
-        v = dotdiv(v, v[0].sign());
-        w = dotdiv(w, w[0].sign());
-        v = dotdiv(v, norm(v));
-        w = dotdiv(w, norm(w));
-        if (n_le(realMath.abs(n_sub(real(k), real(prev_k))), eps) && n_le(realMath.abs(n_sub(imag(k), imag(prev_k))), eps)) break;
-    }
-    return [k, v, w];
-}
 function eig_power(A)
 {
     var e, d, v, w,
         eps = __(1e-10),
-        O = __(0),
-        I = __(1),
         n, N = ROWS(A),
         V = new Array(N),
         W = new Array(N),
@@ -43,7 +10,7 @@ function eig_power(A)
     A = copy(A);
     for (n=0; n<N; ++n)
     {
-        e = largest_eig(A, N, eps, O, I);
+        e = largest_eig(A, N, eps);
         d = e[0];
         v = e[1];
         w = e[2];

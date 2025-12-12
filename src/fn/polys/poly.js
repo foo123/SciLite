@@ -1,7 +1,6 @@
 function poly(r)
 {
     // adapted from https://github.com/foo123/Abacus
-    var I = __(1);
     return r.reduce(function(p, ri) {
         return mulp(p, [I, scalar_neg(ri)]);
     }, [I]);

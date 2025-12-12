@@ -6,7 +6,7 @@ function charpoly(A)
     n = rows;
     coeff = new Array(n+1);
     M = zeros(n, n); // zero
-    coeff[n] = __(1);
+    coeff[n] = I;
     for (k=1; k<=n; ++k)
     {
         M = mul(A, M).map(function(vi, i) {

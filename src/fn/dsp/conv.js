@@ -4,8 +4,7 @@ function conv(a, b)
     var i, j, ij, t,
         n = a.length,
         m = b.length,
-        nm = n + m - 1,
-        c, O = __(0);
+        nm = n + m - 1, c;
     if (!n || !m) return [];
     c = new Array(nm);
     if (n < m)

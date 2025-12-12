@@ -1,9 +1,6 @@
 function magic(n)
 {
-    n = sca(n, true);
-    n = is_int(n) ? _(n) : null;
-    if (!is_int(n) || (2 >= n)) return 1 === n ? [[1]] : [];
-
+    // adapted from https://github.com/foo123/Abacus
     var odd = n & 1,
         even = 1 - odd,
         doubly_even = 0 === (/*n%4*/n&3),
@@ -63,4 +60,10 @@ function magic(n)
         return m;
     }
 }
-fn.magic = magic;
+fn.magic = function(n) {
+    n = sca(n, true);
+    n = is_int(n) ? _(n) : null;
+    if (!is_int(n) || (2 >= n)) return 1 === n ? [[I]] : [];
+    var m = magic(n);
+    return matrix(n, n, function(i, j) {return __(m[i][j]);});
+};

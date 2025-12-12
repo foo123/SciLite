@@ -91,12 +91,22 @@ function n_div(a, b)
 $_.ndiv = n_div;
 function n_pow(a, b)
 {
+    if (is_nan(a) || is_nan(b))
+    {
+        return nan;
+    }
     if (is_number(a))
     {
-        if (is_number(b)) return stdMath.pow(a, b);
-        else return decimal(a).pow(b);
+        if (is_number(b))
+        {
+            return 0 > a ? realify((new complex(a)).pow(b)) : (stdMath.pow(a, b));
+        }
+        else
+        {
+            return 0 > a ? realify((new complex(decimal(a))).pow(b)) : (decimal(a).pow(b));
+        }
     }
-    return a.pow(b);
+    return n_gt(O, a) ? realify((new complex(a)).pow(decimal(b))) : a.pow(b);
 }
 $_.npow = n_pow;
 function n_mod(a, b)
@@ -116,7 +126,7 @@ function n_neg(a)
 $_.nneg = n_neg;
 function n_inv(a)
 {
-    return is_number(a) ? 1/a : decimal(1).div(a);
+    return is_number(a) ? 1/a : I.div(a);
 }
 $_.ninv = n_inv;
 
@@ -134,14 +144,14 @@ function eq(a, b)
     {
         if (is_string(b)) return String(a) === b ? 1 : 0;
         else if (is_num(b)) return n_eq(a, b) ? 1 : 0;
-        else if (is_complex(b)) return n_eq(b.re, a) && n_eq(b.im, 0) ? 1 : 0;
+        else if (is_complex(b)) return n_eq(b.re, a) && n_eq(b.im, O) ? 1 : 0;
         else if (is_vector(b)) return b.map(function(bi) {return eq(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return eq(a, b[i][j]);});
     }
     else if (is_complex(a))
     {
         if (is_string(b)) return String(a) === b ? 1 : 0;
-        else if (is_num(b)) return n_eq(a.re, b) && n_eq(a.im, 0) ? 1 : 0;
+        else if (is_num(b)) return n_eq(a.re, b) && n_eq(a.im, O) ? 1 : 0;
         else if (is_complex(b)) return n_eq(a.re, b.re) && n_eq(a.im, b.im) ? 1 : 0;
         else if (is_vector(b)) return b.map(function(bi) {return eq(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return eq(a, b[i][j]);});
@@ -196,14 +206,14 @@ function ne(a, b)
     {
         if (is_string(b)) return String(a) === b ? 0 : 1;
         else if (is_num(b)) return n_eq(a, b) ? 0 : 1;
-        else if (is_complex(b)) return n_eq(b.re, a) && n_eq(b.im, 0) ? 0 : 1;
+        else if (is_complex(b)) return n_eq(b.re, a) && n_eq(b.im, O) ? 0 : 1;
         else if (is_vector(b)) return b.map(function(bi) {return ne(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return ne(a, b[i][j]);});
     }
     else if (is_complex(a))
     {
         if (is_string(b)) return String(a) === b ? 0 : 1;
-        else if (is_num(b)) return n_eq(a.re, b) && n_eq(a.im, 0) ? 0 : 1;
+        else if (is_num(b)) return n_eq(a.re, b) && n_eq(a.im, O) ? 0 : 1;
         else if (is_complex(b)) return n_eq(a.re, b.re) && n_eq(a.im, b.im) ? 0 : 1;
         else if (is_vector(b)) return b.map(function(bi) {return ne(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return ne(a, b[i][j]);});
@@ -258,15 +268,15 @@ function lt(a, b)
     {
         if (is_string(b)) return String(a) < b ? 1 : 0;
         else if (is_num(b)) return n_lt(a, b) ? 1 : 0;
-        else if (is_complex(b)) return n_lt(b.re, a) && n_eq(b.im, 0) ? 1 : 0;
+        else if (is_complex(b)) return n_lt(b.re, a) && n_eq(b.im, O) ? 1 : 0;
         else if (is_vector(b)) return b.map(function(bi) {return lt(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return lt(a, b[i][j]);});
     }
     else if (is_complex(a))
     {
         if (is_string(b)) return String(a) < b ? 1 : 0;
-        else if (is_num(b)) return n_lt(a.re, b) && n_eq(a.im, 0) ? 1 : 0;
-        else if (is_complex(b)) return (n_lt(a.re, b.re) && n_eq(a.im, 0) && n_eq(b.im, 0)) || (n_lt(a.im, b.im) && n_eq(a.re, 0) && n_eq(b.re, 0)) ? 1 : 0;
+        else if (is_num(b)) return n_lt(a.re, b) && n_eq(a.im, O) ? 1 : 0;
+        else if (is_complex(b)) return (n_lt(a.re, b.re) && n_eq(a.im, O) && n_eq(b.im, O)) || (n_lt(a.im, b.im) && n_eq(a.re, O) && n_eq(b.re, O)) ? 1 : 0;
         else if (is_vector(b)) return b.map(function(bi) {return lt(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return lt(a, b[i][j]);});
     }
@@ -320,15 +330,15 @@ function gt(a, b)
     {
         if (is_string(b)) return String(a) > b ? 1 : 0;
         else if (is_num(b)) return n_gt(a, b) ? 1 : 0;
-        else if (is_complex(b)) return n_gt(b.re, a) && n_eq(b.im, 0) ? 1 : 0;
+        else if (is_complex(b)) return n_gt(b.re, a) && n_eq(b.im, O) ? 1 : 0;
         else if (is_vector(b)) return b.map(function(bi) {return gt(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return gt(a, b[i][j]);});
     }
     else if (is_complex(a))
     {
         if (is_string(b)) return String(a) > b ? 1 : 0;
-        else if (is_num(b)) return n_gt(a.re, b) && n_eq(a.im, 0) ? 1 : 0;
-        else if (is_complex(b)) return (n_gt(a.re, b.re) && n_eq(a.im, 0) && n_eq(b.im, 0)) || (n_gt(a.im, b.im) && n_eq(a.re, 0) && n_eq(b.re, 0)) ? 1 : 0;
+        else if (is_num(b)) return n_gt(a.re, b) && n_eq(a.im, O) ? 1 : 0;
+        else if (is_complex(b)) return (n_gt(a.re, b.re) && n_eq(a.im, O) && n_eq(b.im, O)) || (n_gt(a.im, b.im) && n_eq(a.re, O) && n_eq(b.re, O)) ? 1 : 0;
         else if (is_vector(b)) return b.map(function(bi) {return gt(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return gt(a, b[i][j]);});
     }
@@ -382,15 +392,15 @@ function le(a, b)
     {
         if (is_string(b)) return String(a) <= b ? 1 : 0;
         else if (is_num(b)) return n_le(a, b) ? 1 : 0;
-        else if (is_complex(b)) return n_le(b.re, a) && n_eq(b.im, 0) ? 1 : 0;
+        else if (is_complex(b)) return n_le(b.re, a) && n_eq(b.im, O) ? 1 : 0;
         else if (is_vector(b)) return b.map(function(bi) {return le(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return le(a, b[i][j]);});
     }
     else if (is_complex(a))
     {
         if (is_string(b)) return String(a) <= b ? 1 : 0;
-        else if (is_num(b)) return n_le(a.re, b) && n_eq(a.im, 0) ? 1 : 0;
-        else if (is_complex(b)) return (n_le(a.re, b.re) && n_eq(a.im, 0) && n_eq(b.im, 0)) || (n_le(a.im, b.im) && n_eq(a.re, 0) && n_eq(b.re, 0)) ? 1 : 0;
+        else if (is_num(b)) return n_le(a.re, b) && n_eq(a.im, O) ? 1 : 0;
+        else if (is_complex(b)) return (n_le(a.re, b.re) && n_eq(a.im, O) && n_eq(b.im, O)) || (n_le(a.im, b.im) && n_eq(a.re, O) && n_eq(b.re, O)) ? 1 : 0;
         else if (is_vector(b)) return b.map(function(bi) {return le(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return le(a, b[i][j]);});
     }
@@ -444,15 +454,15 @@ function ge(a, b)
     {
         if (is_string(b)) return String(a) >= b ? 1 : 0;
         else if (is_num(b)) return n_ge(a, b) ? 1 : 0;
-        else if (is_complex(b)) return n_ge(b.re, a) && n_eq(b.im, 0) ? 1 : 0;
+        else if (is_complex(b)) return n_ge(b.re, a) && n_eq(b.im, O) ? 1 : 0;
         else if (is_vector(b)) return b.map(function(bi) {return ge(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return ge(a, b[i][j]);});
     }
     else if (is_complex(a))
     {
         if (is_string(b)) return String(a) >= b ? 1 : 0;
-        else if (is_num(b)) return n_ge(a.re, b) && n_eq(a.im, 0) ? 1 : 0;
-        else if (is_complex(b)) return (n_ge(a.re, b.re) && n_eq(a.im, 0) && n_eq(b.im, 0)) || (n_ge(a.im, b.im) && n_eq(a.re, 0) && n_eq(b.re, 0)) ? 1 : 0;
+        else if (is_num(b)) return n_ge(a.re, b) && n_eq(a.im, O) ? 1 : 0;
+        else if (is_complex(b)) return (n_ge(a.re, b.re) && n_eq(a.im, O) && n_eq(b.im, O)) || (n_ge(a.im, b.im) && n_eq(a.re, O) && n_eq(b.re, O)) ? 1 : 0;
         else if (is_vector(b)) return b.map(function(bi) {return ge(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return ge(a, b[i][j]);});
     }
@@ -534,7 +544,7 @@ function scalar_pow(a, b)
 {
     if (is_num(a) && is_num(b)) return n_pow(a, b);
     else if (is_complex(a) && is_scalar(b)) return a.pow(b);
-    else if (is_complex(b) && is_scalar(a)) return (new complex(a, 0)).pow(b);
+    else if (is_complex(b) && is_scalar(a)) return (new complex(a, O)).pow(b);
     return nan;
 }
 $_.spow = scalar_pow;
@@ -554,8 +564,8 @@ function scalar_conj(a)
 $_.sconj = scalar_conj;
 function scalar_inv(a)
 {
-    if (is_num(a)) return n_eq(a, 0) ? inf : n_inv(a);
-    else if (is_complex(a)) return n_eq(a.abs(), 0) ? new complex(inf, n_lt(a.im, 0) ? inf : -inf) : a.inv();
+    if (is_num(a)) return n_eq(a, O) ? inf : n_inv(a);
+    else if (is_complex(a)) return n_eq(a.abs(), O) ? new complex(inf, n_lt(a.im, O) ? inf : -inf) : a.inv();
     return nan;
 }
 $_.sinv = scalar_inv;
@@ -568,7 +578,7 @@ function scalar_abs(a)
 $_.sabs = scalar_abs;
 function scalar_angle(a)
 {
-    if (is_num(a)) return (n_lt(a, 0) ? pi : 0);
+    if (is_num(a)) return (n_lt(a, O) ? constant.pi : O);
     else if (is_complex(a)) return a.angle();
     return nan;
 }
@@ -591,8 +601,9 @@ function add(a, b)
         if ((ROWS(a) === ROWS(b)) && (COLS(a) === COLS(b)))
         {
             return a.map(function(ai, i) {
+                var bi = b[i];
                 return ai.map(function(aij, j) {
-                    return add(aij, b[i][j]);
+                    return add(aij, bi[j]);
                 });
             });
         }
@@ -641,8 +652,9 @@ function sub(a, b)
         if ((ROWS(a) === ROWS(b)) && (COLS(a) === COLS(b)))
         {
             return a.map(function(ai, i) {
+                var bi = b[i];
                 return ai.map(function(aij, j) {
-                    return sub(aij, b[i][j]);
+                    return sub(aij, bi[j]);
                 });
             });
         }
@@ -691,8 +703,9 @@ function dotmul(a, b)
         if ((ROWS(a) === ROWS(b)) && (COLS(a) === COLS(b)))
         {
             return a.map(function(ai, i) {
+                var bi = b[i];
                 return ai.map(function(aij, j) {
-                    return dotmul(aij, b[i][j]);
+                    return dotmul(aij, bi[j]);
                 });
             });
         }
@@ -742,8 +755,9 @@ function dotdiv(a, b)
         if ((ROWS(a) === ROWS(b)) && (COLS(a) === COLS(b)))
         {
             return a.map(function(ai, i) {
+                var bi = b[i];
                 return ai.map(function(aij, j) {
-                    return dotdiv(aij, b[i][j]);
+                    return dotdiv(aij, bi[j]);
                 });
             });
         }
@@ -792,8 +806,9 @@ function dotpow(a, b)
         if ((ROWS(a) === ROWS(b)) && (COLS(a) === COLS(b)))
         {
             return a.map(function(ai, i) {
+                var bi = b[i];
                 return ai.map(function(aij, j) {
-                    return dotpow(aij, b[i][j]);
+                    return dotpow(aij, bi[j]);
                 });
             });
         }
@@ -829,6 +844,7 @@ function dotpow(a, b)
     not_supported("dotpow");
 }
 $_.dotpow = dotpow;
+fn.power = dotpow;
 function mul(a, b)
 {
     if (is_scalar(a) && is_scalar(b))
@@ -844,7 +860,7 @@ function mul(a, b)
             // TODO maybe optimize matrix-matrix multiplication (eg Strassen algorithm)
             var rows = ROWS(a), cols = COLS(b), rc = ROWS(b);
             return matrix(rows, cols, function(i, j) {
-                for (var cij=0,k=0; k<rc; ++k)
+                for (var cij=O,k=0; k<rc; ++k)
                 {
                     cij = scalar_add(cij, scalar_mul(a[i][k], b[k][j]));
                 }
@@ -862,8 +878,8 @@ function mul(a, b)
         if (a.length === ROWS(b))
         {
             var rows = 1, cols = COLS(b), rc = a.length;
-            return matrix(rows, cols, function(i, j) {
-                for (var cij=0,k=0; k<rc; ++k)
+            return /*array(cols, */matrix(rows, cols, function(i, j) {
+                for (var cij=O,k=0; k<rc; ++k)
                 {
                     cij = scalar_add(cij, scalar_mul(a[k], b[k][j]));
                 }
@@ -881,8 +897,8 @@ function mul(a, b)
         if (COLS(a) === b.length)
         {
             var rows = ROWS(a), cols = 1, rc = b.length;
-            return matrix(rows, cols, function(i, j) {
-                for (var cij=0,k=0; k<rc; ++k)
+            return /*array(rows, */matrix(rows, cols, function(i, j) {
+                for (var cij=O,k=0; k<rc; ++k)
                 {
                     cij = scalar_add(cij, scalar_mul(a[i][k], b[k]));
                 }
@@ -959,6 +975,15 @@ function pow(a, b)
     not_supported("pow");
 }
 $_.pow = pow;
+fn.mpower = pow;
+
+function neg(a)
+{
+    if (is_scalar(a)) return scalar_neg(a);
+    if (is_array(a)) return a.map(neg);
+    return a;
+}
+$_.neg = neg;
 
 function get(mat, rrange = ':', crange = null)
 {
@@ -1060,6 +1085,7 @@ function set(mat, rrange = ':', crange = null, val = null)
     if (is_1d(mat))
     {
         //val = crange;
+        if (is_2d(val)) val = COL(val, 0);
         if (is_vector(rrange) && (rrange.length === mat.length) && all(rrange, function(v) {return 0 === _(v) || 1 === _(v);}))
         {
             if (is_0d(val))
@@ -1071,11 +1097,11 @@ function set(mat, rrange = ':', crange = null, val = null)
             }
             else if (is_array(val))
             {
-                var k = 0;
+                var k = 0, nv = val.length;
                 rrange.forEach(function(v, i) {
                     if (1 === _(v))
                     {
-                        if (k >= val.length) throw "set: index out of bounds";
+                        if (k >= nv) throw "set: index out of bounds";
                         mat[i] = val[k++];
                     }
                 });
@@ -1115,7 +1141,7 @@ function set(mat, rrange = ':', crange = null, val = null)
     }
     if (is_2d(mat))
     {
-        var rows = ROWS(mat), cols = COLS(mat), n = rows*cols;
+        var rows = ROWS(mat), cols = COLS(mat), n = rows*cols, rowsv, colsv, nv, i, j, iv, jv, k;
         if (is_matrix(rrange) && (ROWS(rrange) === rows) && (COLS(rrange) === cols) && all(rrange, function(v) {return 0 === _(v) || 1 === _(v);}))
         {
             if (is_0d(val))
@@ -1127,15 +1153,36 @@ function set(mat, rrange = ':', crange = null, val = null)
                 });
                 return mat;
             }
-            else if (is_array(val))
+            else if (is_2d(val))
             {
-                for (var k=0,j=0; j<cols; ++j)
+                rowsv = ROWS(val);
+                colsv = COLS(val);
+                for (j=0,jv=0; j<cols; ++j,++jv)
                 {
-                    for (var i=0; i<rows; ++i)
+                    if (1 === colsv) jv = 0;
+                    else if (jv >= colsv) throw "set: index out of bounds";
+                    for (i=0,iv=0; i<rows; ++i,++iv)
                     {
                         if (1 === _(rrange[i][j]))
                         {
-                            if (k >= val.length) throw "set: index out of bounds";
+                            if (1 === rowsv) iv = 0;
+                            else if (iv >= rowsv) throw "set: index out of bounds";
+                            mat[i][j] = val[iv][jv];
+                        }
+                    }
+                }
+                return mat;
+            }
+            else if (is_array(val))
+            {
+                nv = val.length;
+                for (k=0,j=0; j<cols; ++j)
+                {
+                    for (i=0; i<rows; ++i)
+                    {
+                        if (1 === _(rrange[i][j]))
+                        {
+                            if (k >= nv) throw "set: index out of bounds";
                             mat[i][j] = val[k++];
                         }
                     }
@@ -1162,7 +1209,22 @@ function set(mat, rrange = ':', crange = null, val = null)
                     });
                     return mat;
                 }
-                else if (is_1d(val) && (val.length >= rrange.length))
+                else if (is_2d(val))
+                {
+                    rowsv = ROWS(val);
+                    colsv = COLS(val);
+                    rrange.forEach(function(r, i) {
+                        r = _(r);
+                        if (1 > r) r += n;
+                        if (1 > r || r > n) throw "set: index out of bounds";
+                        var iv = 1 === rowsv ? 0 : (i % rows),
+                            jv = 1 === colsv ? 0 : stdMath.floor(i / rows);
+                        if (iv >= rowsv || jv >= colsv) throw "set: index out of bounds";
+                        mat[(r-1) % rows][stdMath.floor((r-1) / rows)] = val[iv][jv];
+                    });
+                    return mat;
+                }
+                else if (is_array(val) && (val.length >= rrange.length))
                 {
                     rrange.forEach(function(r, i) {
                         r = _(r);
@@ -1194,9 +1256,30 @@ function set(mat, rrange = ':', crange = null, val = null)
                     });
                     return mat;
                 }
-                else if (is_1d(val) && (val.length >= rrange.length*crange.length))
+                else if (is_2d(val))
                 {
-                    var k = 0;
+                    rowsv = ROWS(val);
+                    colsv = COLS(val);
+                    rrange.forEach(function(r, iv) {
+                        r = _(r);
+                        if (1 > r) r += rows;
+                        if (1 > r || r > rows) throw "set: index out of bounds";
+                        if (1 === rowsv) iv = 0;
+                        else if (iv >= rowsv) throw "set: index out of bounds";
+                        crange.forEach(function(c, jv) {
+                            c = _(c);
+                            if (1 > c) c += cols;
+                            if (1 > c || c > cols) throw "set: index out of bounds";
+                            if (1 === colsv) jv = 0;
+                            else if (jv >= colsv) throw "set: index out of bounds";
+                            mat[r-1][c-1] = val[iv][jv];
+                        });
+                    });
+                    return mat;
+                }
+                else if (is_array(val) && (val.length >= rrange.length*crange.length))
+                {
+                    k = 0;
                     crange.forEach(function(c, j) {
                         c = _(c);
                         if (1 > c) c += cols;
@@ -1206,21 +1289,6 @@ function set(mat, rrange = ':', crange = null, val = null)
                             if (1 > r) r += rows;
                             if (1 > r || r > rows) throw "set: index out of bounds";
                             mat[r-1][c-1] = val[k++];
-                        });
-                    });
-                    return mat;
-                }
-                else if (is_2d(val) && (val.length >= rrange.length) && (val[0].length >= crange.length))
-                {
-                    rrange.forEach(function(r, i) {
-                        r = _(r);
-                        if (1 > r) r += rows;
-                        if (1 > r || r > rows) throw "set: index out of bounds";
-                        crange.forEach(function(c, j) {
-                            c = _(c);
-                            if (1 > c) c += cols;
-                            if (1 > c || c > cols) throw "set: index out of bounds";
-                            mat[r-1][c-1] = val[i][j];
                         });
                     });
                     return mat;

@@ -6,7 +6,6 @@ function roots(p)
         roots, found, i, j, m,
         ri, ratio, offset, iter,
         epsilon = __(1e-10),
-        O = __(0), I = __(1),
         epsilonz = new complex(epsilon, O),
         zero = new complex(O, O),
         one = new complex(I, O),

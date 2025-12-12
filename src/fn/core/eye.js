@@ -1,10 +1,12 @@
-function eye(n)
+function eye(n, d)
 {
+    if (null == d) d = I;
     if (null == n) n = 1;
     n = sca(n, true);
-    var I = __(1), O = __(0);
     return matrix(_(n), _(n), function(i, j) {
-        return i === j ? I : O;
+        return i === j ? d : O;
     });
 }
-fn.eye = eye;
+fn.eye = function(n) {
+    return eye(n, I);
+};

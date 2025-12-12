@@ -6,7 +6,7 @@ function filter(b, a, x/*, zi, dim*/)
         nb = b.length,
         y = new Array(nx),
         n, k, m, yn,
-        a0 = a[0], O = __(0);
+        a0 = a[0];
 
     a = a.map(function(ai) {return scalar_div(ai, a0);});
     b = b.map(function(bi) {return scalar_div(bi, a0);});

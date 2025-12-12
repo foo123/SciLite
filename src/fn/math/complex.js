@@ -8,13 +8,12 @@ complex = function complex(re, im, type) {
     }
     else
     {
-        im = im || 0;
+        im = im || O;
         if ('polar' === type)
         {
             self._rho = realMath.abs(re);
-            self._theta = im;
-            self.re = n_mul(self._rho, realMath.cos(self._theta));
-            self.im = n_mul(self._rho, realMath.sin(self._theta));
+            self.re = n_mul(self._rho, realMath.cos(im));
+            self.im = n_mul(self._rho, realMath.sin(im));
         }
         else
         {
@@ -54,7 +53,7 @@ complex.prototype = {
         var self = this;
         if (null == self._theta)
         {
-            self._theta = n_eq(self.re, 0) ? (n_lt(self.im, 0) ? -1 : 1)*pi/2 : realMath.atan(n_div(self.im, self.re));
+            self._theta = /*n_eq(self.re, O) ? __((n_lt(self.im, O) ? -1 : 1)*pi/2) :*/ realMath.atan2(self.im, self.re);
         }
         return self._theta;
     },
@@ -62,7 +61,7 @@ complex.prototype = {
         var self = this;
         if (null == self._sgn)
         {
-            self._sgn = !n_eq(self.im, 0) ? self.div(self.abs())/*new complex(realMath.cos(self.angle()), realMath.sin(self.angle()))*/ : realMath.sign(self.re);
+            self._sgn = !n_eq(self.im, O) ? self.div(self.abs())/*new complex(realMath.cos(self.angle()), realMath.sin(self.angle()))*/ : realMath.sign(self.re);
             if (is_complex(self._sgn)) self._sgn._sgn = self._sgn;
         }
         return self._sgn;
@@ -93,7 +92,7 @@ complex.prototype = {
         var self = this;
         if (is_num(other))
         {
-            return new complex(n_eq(self.re, 0) ? 0 : n_mul(self.re, other), n_eq(self.im, 0) ? 0 : n_mul(self.im, other));
+            return new complex(n_eq(self.re, O) ? O : n_mul(self.re, other), n_eq(self.im, O) ? O : n_mul(self.im, other));
         }
         else
         {
@@ -110,7 +109,7 @@ complex.prototype = {
         var self = this;
         if (is_num(other))
         {
-            return new complex(n_eq(self.re, 0) ? 0 : n_div(self.re, other), n_eq(self.im, 0) ? 0 : n_div(self.im, other));
+            return new complex(n_eq(self.re, O) ? O : n_div(self.re, other), n_eq(self.im, O) ? O : n_div(self.im, other));
         }
         else
         {
@@ -127,7 +126,11 @@ complex.prototype = {
         }
     },
     pow: function(other) {
-        var self = this;
+        var self = this, invother;
+        if (is_nan(other))
+        {
+            return nan;
+        }
         if (is_num(other))
         {
             return new complex(n_pow(self.abs(), other), n_mul(self.angle(), other), 'polar');
@@ -152,7 +155,7 @@ complex.prototype = {
         var self = this;
         if (null == self._str)
         {
-            self._str = num2str(self.re) + (n_lt(self.im, 0) ? ' - ' : ' + ') + num2str(realMath.abs(self.im))+'i';
+            self._str = num2str(self.re) + (n_lt(self.im, O) ? ' - ' : ' + ') + num2str(realMath.abs(self.im))+'i';
         }
         return self._str;
     },
@@ -160,8 +163,8 @@ complex.prototype = {
         return _(this.re);
     }
 };
-i = new complex(0, 1);
-ze = new complex(e, 0);
+i = new complex(O, I);
+ze = new complex(constant.e, O);
 
 complexMath = {
     floor: function(z) {
@@ -173,11 +176,14 @@ complexMath = {
     round: function(z) {
         return new complex(realMath.round(z.re), realMath.round(z.im));
     },
+    fix: function(z) {
+        return new complex(realMath.fix(z.re), realMath.fix(z.im));
+    },
     sign: function(z) {
         return z.sign();
     },
     sqrt: function(z) {
-        return z.pow(new complex(1/2, 0));
+        return z.pow(new complex(__(1/2), O));
     },
     exp: function(z) {
         return ze.pow(z);
@@ -216,7 +222,8 @@ complexMath = {
 };
 $_.complexMath = complexMath;
 fn.complex = complex;
-(['floor','ceil','round','sign','sqrt','exp','log','log10','sin','cos','tan','sinh','cosh','tanh','asin','acos','atan','asinh','acosh','atanh']).forEach(function(f) {
+
+(['floor','ceil','round','fix','sign','exp','log','log10','sin','cos','tan','sinh','cosh','tanh','asin','acos','atan','asinh','acosh','atanh']).forEach(function(f) {
     fn[f] = complexMath[f] ? function(x) {
         return apply(function(x) {
             return is_complex(x) ? complexMath[f](x) : realMath[f](x);
@@ -225,5 +232,25 @@ fn.complex = complex;
         return apply(function(x) {
             return realMath[f](x);
         }, x, false);
+    };
+});
+fn.atan2 = function(y, x) {
+    return apply2(function(y, x) {
+        return realMath.atan2(y, x);
+    }, y, x, false);
+};
+fn.sqrt = function(x) {
+    return apply(function(x) {
+        return is_complex(x) ? complexMath.sqrt(x) : (n_gt(O, x) ? new complex(O, realMath.sqrt(n_neg(x))) : realMath.sqrt(x));
+    }, x, true);
+};
+(['sqrt','pow','log']).forEach(function(f) {
+    fn['real'+f] = function(x) {
+        return apply(function(x) {
+            x = realify(x);
+            if (is_complex(x)) not_supported("real"+f);
+            var y = realMath[f](x);
+            return is_nan(y) || !is_real(y) ? not_supported("real"+f) : y;
+        }, x, true);
     };
 });

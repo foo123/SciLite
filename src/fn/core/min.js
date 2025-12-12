@@ -17,6 +17,6 @@ function min(x)
             return min(COL(x, column));
         });
     }
-    return 0;
+    return nan;
 }
 fn.min = min;

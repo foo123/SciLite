@@ -18,4 +18,10 @@
         };
     }
 });
+realMath.atan2 = function(y, x) {
+    return n_eq(O, x) && n_eq(O, y) ? O : (is_number(y) && is_number(x) ? stdMath.atan2(y, x) : decimal.atan2(y, x));
+};
+realMath.fix = function(x) {
+    return n_lt(x, O) ? realMath.ceil(x) : realMath.floor(x);
+};
 $_.realMath = realMath;

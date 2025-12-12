@@ -10,6 +10,6 @@ function zeros(rows, cols)
     {
         cols = rows;
     }
-    return matrix(_(rows), _(cols), __(0));
+    return matrix(_(rows), _(cols), O);
 }
 fn.zeros = zeros;

@@ -1,4 +1,4 @@
-function detr(m, n, O, I, J)
+function detr(m, n)
 {
     var ii, zr, zc,
         s, det,
@@ -58,7 +58,7 @@ function detr(m, n, O, I, J)
             // expand along 1st col
             for (ii=0; ii<n; ++ii)
             {
-                if (!eq(m[ii][0], O)) det = scalar_add(det, scalar_mul(m[ii][0], scalar_mul(s, detr(reduce(m, n, ii, 0), n-1, O, I, J))));
+                if (!eq(m[ii][0], O)) det = scalar_add(det, scalar_mul(m[ii][0], scalar_mul(s, detr(reduce(m, n, ii, 0), n-1))));
                 s = I === s ? J : I;
             }
         }
@@ -67,7 +67,7 @@ function detr(m, n, O, I, J)
             // expand along 1st row
             for (ii=0; ii<n; ++ii)
             {
-                if (!eq(m[0][ii], O)) det = scalar_add(det, scalar_mul(m[0][ii], scalar_mul(s, detr(reduce(m, n, 0, ii), n-1, O, I, J))));
+                if (!eq(m[0][ii], O)) det = scalar_add(det, scalar_mul(m[0][ii], scalar_mul(s, detr(reduce(m, n, 0, ii), n-1))));
                 s = I === s ? J : I;
             }
         }
@@ -100,7 +100,7 @@ function det(A, explicit, eps)
     else
     {
         // compute either recursively or via ref
-        return true === explicit ? detr(A, n, __(0), __(1), __(-1)) : (ref(A, true, null, eps)[2]);
+        return true === explicit ? detr(A, n) : (ref(A, true, null, eps)[2]);
     }
 }
 fn.det = function(A) {

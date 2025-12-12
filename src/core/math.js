@@ -67,29 +67,35 @@ function d_cityblock(a, b)
 }
 function d_cosine(a, b)
 {
-    return scalar_sub(1, scalar_div(scalar_div(dot(a, b), realMath.sqrt(real(dot(a, a)))), realMath.sqrt(real(dot(b, b)))));
+    return scalar_sub(I, scalar_div(scalar_div(dot(a, b), realMath.sqrt(real(dot(a, a)))), realMath.sqrt(real(dot(b, b)))));
 }
 function d_hamming(a, b)
 {
-    return a.reduce(function(d, ai, i) {
+    return __(a.reduce(function(d, ai, i) {
         return d + 1 - eq(ai, b[i]);
-    }, 0) / a.length;
+    }, 0) / a.length);
 }
 function d_jaccard(a, b)
 {
-    return a.reduce(function(d, ai, i) {
+    return __(a.reduce(function(d, ai, i) {
         return d + eq(ai, b[i]);
-    }, 0) / a.length;
+    }, 0) / a.length);
 }
 function d_minkowski(a, b, p)
 {
     // p-norm
     if (2 === arguments.length) p = b;
-    return n_pow(sum(dotpow(abs(2 === arguments.length ? a : sub(a, b)), p)), n_inv(p));
+    return scalar_pow(sum(dotpow(abs(2 === arguments.length ? a : sub(a, b)), p)), n_inv(p));
 }
 function d_chebyshev(a, b)
 {
     return max(abs(1 === arguments.length ? a : sub(a, b)));
+}
+function norm2(x)
+{
+    return x.reduce(function(n, xi) {
+        return scalar_add(n, scalar_mul(xi, scalar_conj(xi)));
+    }, O);
 }
 /*function zsin(side, hypotenuse)
 {

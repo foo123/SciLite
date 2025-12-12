@@ -18,25 +18,37 @@ $_.decimal = function(Decimal) {
                 return decimal.sign(this);
             };
         }
+        O = decimal(0);
+        I = decimal(1);
+        J = decimal(-1);
         constant.pi = decimal(pi);
         constant.e = decimal(e);
         constant.realmax = decimal(realmax);
         constant.realmin = decimal(realmin);
         constant.intmax = decimal(intmax);
         constant.intmin = decimal(intmin);
-        ze = new complex(constant.e, 0);
+        constant.bitmax = decimal(bitmax);
     }
     else
     {
         decimal = null;
+        O = 0;
+        I = 1;
+        J = -1;
         constant.pi = pi;
         constant.e = e;
         constant.realmax = realmax;
         constant.realmin = realmin;
         constant.intmax = intmax;
         constant.intmin = intmin;
-        ze = new complex(constant.e, 0);
+        constant.bitmax = bitmax;
     }
+    if (complex)
+    {
+        i = new complex(O, I);
+        ze = new complex(constant.e, O);
+    }
+    update.forEach(function(u) {u();});
 };
 
 // utils
@@ -65,7 +77,7 @@ function is_string(x)
 $_.is_string = is_string;
 function is_nan(x)
 {
-    return (is_decimal(x) && x.isNaN()) || (Number.isNaN(x));
+    return /*(is_complex(x) && (is_nan(x.re) || is_nan(x.im))) ||*/ (is_decimal(x) && x.isNaN()) || (Number.isNaN(x));
 }
 $_.is_nan = is_nan;
 function is_inf(x)
@@ -97,6 +109,11 @@ function is_complex(x)
     return (null != complex) && (x instanceof complex);
 }
 $_.is_complex = is_complex;
+function is_real(x)
+{
+    return !is_complex(x) || n_eq(O, x.im);
+}
+$_.is_real = is_real;
 function is_scalar(x, strict)
 {
     if (is_number(x) || is_complex(x) || is_decimal(x)) return true;
@@ -130,11 +147,6 @@ function is_2d(x)
 {
     return is_array(x) && is_array(x[0]);
 }
-function is_real(x)
-{
-    return !is_complex(x) || n_eq(x.im, 0);
-}
-$_.is_real = is_real;
 function array(n, v)
 {
     var i, arr = new Array(n);
@@ -262,7 +274,7 @@ function apply(f, x, iscomplex)
     if (is_complex(x))
     {
         if (iscomplex) return f(x);
-        else if (n_eq(x.im, 0)) return f(x.re);
+        else if (n_eq(x.im, O)) return f(x.re);
     }
     if (is_array(x))
     {
@@ -271,15 +283,34 @@ function apply(f, x, iscomplex)
     return x;
 }
 $_.apply = apply;
+function apply2(f, x, y, iscomplex)
+{
+    if (is_num(x) && is_num(y))
+    {
+        return f(x, y);
+    }
+    if (is_scalar(x) && is_scalar(y))
+    {
+        if (iscomplex) return f(complexify(x), complexify(y));
+        else if (is_real(x) && is_real(y)) return f(realify(x), realify(y));
+        else return nan;
+    }
+    if (is_array(x) && is_array(y))
+    {
+        return x.map(function(xi, i) {return apply2(f, xi, y[i], iscomplex);});
+    }
+    return nan;
+}
+$_.apply2 = apply2;
 
 function roundoff(x, eps)
 {
     eps = __(eps);
-    if (is_num(eps) && n_gt(eps, 0))
+    if (is_num(eps) && n_gt(eps, O))
     {
         if (is_scalar(x))
         {
-            return le(scalar_abs(x), eps) ? 0 : x;
+            return le(scalar_abs(x), eps) ? O : x;
         }
         else if (is_array(x))
         {
@@ -327,7 +358,7 @@ function num2str(x)
     }
     else if (is_inf(x))
     {
-        x = (n_lt(x, 0) ? '-' : '') + 'inf';
+        x = (n_lt(x, O) ? '-' : '') + 'inf';
     }
     else if (is_int(x))
     {
@@ -385,7 +416,7 @@ function texify(x)
         {
             x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat([array($_.MAXPRINTSIZE, function(i) {return stdMath.round($_.MAXPRINTSIZE/2) === i ? (use_ddots ? '\\ddots' : '\\vdots') : '\\vdots';})]).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
         }
-        x = '\\begin{bmatrix}'+ x.map(function(xi) {return xi.map(texify).join(' & ');}).join(' \\\\ ') + '\\end{bmatrix}';
+        x = '\\begin{bmatrix}'+ x.map(function(xi) {return xi.map(texify).join(' & \\hskip 1em ');}).join(' \\\\ ') + '\\end{bmatrix}';
     }
     else if (is_array(x))
     {
@@ -560,13 +591,13 @@ $_.str = function(x) {
 function realify(x)
 {
     if (is_array(x)) return x.map(realify);
-    else if (is_complex(x)) return n_eq(x.im, 0) ? x.re : x;
+    else if (is_complex(x)) return n_eq(x.im, O) ? x.re : x;
     return x;
 }
 function complexify(x)
 {
     if (!complex) return x;
     if (is_array(x)) return x.map(complexify);
-    else if (is_num(x)) return new complex(x, 0);
+    else if (is_num(x)) return new complex(__(x), O);
     return x;
 }

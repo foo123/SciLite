@@ -8,7 +8,7 @@ function sum(x)
     {
         return x.reduce(function(sum, xi) {
             return scalar_add(sum, xi);
-        }, __(0));
+        }, O);
     }
     else if (is_matrix(x))
     {

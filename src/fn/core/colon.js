@@ -1,7 +1,7 @@
 function colon(a, b, c)
 {
     var ans;
-    if (1 === arguments.length)
+    if ((1 === arguments.length) && is_array(a))
     {
         // a(:)
         if (is_2d(a))
@@ -30,24 +30,24 @@ function colon(a, b, c)
         {
             // two inputs
             c = b;
-            b = 1;
+            b = I;
         }
         else
         {
             // one input
             c = a;
-            b = 1;
-            a = 1;
+            b = I;
+            a = I;
         }
         a = sca(a, true);
         b = sca(b, true);
         c = sca(c, true);
         ans = [];
-        if (n_gt(b, 0))
+        if (n_gt(b, O))
         {
             for (; n_le(a, c); a=n_add(a, b)) ans.push(a);
         }
-        else if (n_lt(b, 0))
+        else if (n_lt(b, O))
         {
             for (; n_ge(a, c); a=n_add(a, b)) ans.push(a);
         }

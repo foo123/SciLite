@@ -1,6 +1,6 @@
 function bitshift(x, k)
 {
-    return apply(function(x) {return is_int(x) ? (n_lt(k, 0) ? (_(x) >> (-_(k))) : (_(x) << _(k))) : x}, x, true);
+    return apply(function(x) {return is_int(x) ? (n_lt(k, O) ? (_(x) >> (-_(k))) : (_(x) << _(k))) : x}, x, true);
 }
 fn.bitshift = bitshift;
 function bitand(x, y)

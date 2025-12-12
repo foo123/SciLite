@@ -22,7 +22,7 @@ function blkdiag(matrices)
             mat_rows = ROWS(mat);
             mat_cols = COLS(mat);
         }
-        return (col < offset_col) || (col >= offset_col+mat_cols) ? 0 : (mat[row-offset_row][col-offset_col]);
+        return (col < offset_col) || (col >= offset_col+mat_cols) ? O : (mat[row-offset_row][col-offset_col]);
     });
 }
 fn.blkdiag = function(/*..args*/) {

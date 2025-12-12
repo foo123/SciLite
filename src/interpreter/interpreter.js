@@ -15,11 +15,11 @@ function TRUE(x)
     }
     else if (is_decimal(x))
     {
-        return !x.eq(0);
+        return !x.eq(O);
     }
     else if (is_complex(x))
     {
-        return !n_eq(x.re, 0) || !n_eq(x.im, 0);
+        return !n_eq(x.re, O) || !n_eq(x.im, O);
     }
     else if (is_array(x))
     {
@@ -253,12 +253,13 @@ var OP = {
     '-': {
      name         : 'sub'
     ,arity        : 2
+    ,arityalt     : 1
     ,fixity       : INFIX
     ,associativity: LEFT
     ,commutativity: ANTICOMMUTATIVE
     ,priority     : 25
     ,fn           : function(arg0, arg1) {
-                        return sub(arg0, arg1);
+                        return 1 === arguments.length ? neg(arg0) : sub(arg0, arg1);
                     }
     },
     '>=': {
@@ -374,7 +375,7 @@ var OP = {
     },
     '=': {
      name         : 'set'
-    ,breakpoint   : 'end'
+    ,breakpoint   : 'set'
     ,arity        : 2
     ,fixity       : INFIX
     ,associativity: LEFT
@@ -657,14 +658,14 @@ function parse(s, ctx, lineStart, posStart)
             terms = [], ops = [],
             statements = [];
 
-        function merge(to_end)
+        function merge(up_to_end)
         {
-            // extended shunting-yard algorithm
+            // generalized shunting-yard algorithm
             if (!ops.length) return;
             var o, op, opc,
                 o2, op2, opc2,
                 result, args;
-            if (to_end)
+            if (up_to_end)
             {
                 while (0 < ops.length)
                 {
@@ -672,22 +673,28 @@ function parse(s, ctx, lineStart, posStart)
                     op2 = o2[0];
                     opc2 = OP[op2];
 
-                    if (to_end === opc2.breakpoint)
+                    if (up_to_end === opc2.breakpoint)
                     {
                         ops.unshift(o2);
                         break;
                     }
-                    if (('-' === op2) && (1 === terms.length))
+                    if (opc2.arity > terms.length)
                     {
-                        terms[0] = expr(OP['*'].fn, [terms[0], expr(-1)]);
+                        if ((null != opc2.arityalt) && (opc2.arityalt <= terms.length))
+                        {
+                            args = terms.splice(0, opc2.arityalt).reverse();
+                        }
+                        else
+                        {
+                            throw error('invalid or missing argument for "'+op2+'"', o2[1], o2[2]);
+                        }
                     }
                     else
                     {
-                        if (opc2.arity > terms.length) throw error('invalid or missing argument for "'+op2+'"', o2[1], o2[2]);
                         args = terms.splice(0, opc2.arity).reverse();
-                        result = expr(opc2.fn, args);
-                        terms.unshift(result);
                     }
+                    result = expr(opc2.fn, args);
+                    terms.unshift(result);
                 }
             }
             else
@@ -726,17 +733,24 @@ function parse(s, ctx, lineStart, posStart)
                             LEFT === opc2.associativity))))
                         )
                         {
-                            if (('-' === op2) && (1 === terms.length))
+                            if (opc2.arity > terms.length)
                             {
-                                terms[0] = expr(OP['*'].fn, [terms[0], expr(-1)]);
+                                if ((null != opc2.arityalt) && (opc2.arityalt <= terms.length))
+                                {
+                                    args = terms.splice(0, opc2.arityalt).reverse();
+                                }
+                                else
+                                {
+                                    throw error('invalid or missing argument for "'+op2+'"', o2[1], o2[2]);
+
+                                }
                             }
                             else
                             {
-                                if (opc2.arity > terms.length) throw error('invalid or missing argument for "'+op2+'"', o2[1], o2[2]);
                                 args = terms.splice(0, opc2.arity).reverse();
-                                result = expr(opc2.fn, args);
-                                terms.unshift(result);
                             }
+                            result = expr(opc2.fn, args);
+                            terms.unshift(result);
                             ops.shift();
                         }
                         else
@@ -763,8 +777,9 @@ function parse(s, ctx, lineStart, posStart)
 
         function can_merge()
         {
-            return ops.reduce(function(sum, op) {
-                return sum + (('-' === op[0]) && (1 === terms.length) ? 1 : OP[op[0]].arity);
+            return ops.reduce(function(used_terms, op) {
+                var opc = OP[op[0]];
+                return used_terms + ((opc.arity > terms.length-used_terms) && (null != opc.arityalt) ? opc.arityalt : opc.arity);
             }, 0) <= terms.length;
         }
 
@@ -1100,13 +1115,6 @@ function parse(s, ctx, lineStart, posStart)
                 {
                     // statement end
                     eat(";");
-                    /*eat(/^[ \t\v\f]+/);
-                    if (eat("\n"))
-                    {
-                        // new line
-                        ++l;
-                        i = 0;
-                    }*/
                     // new statement
                     end(true);
                     continue;
@@ -1121,8 +1129,8 @@ function parse(s, ctx, lineStart, posStart)
                 else
                 {
                     // line end
-                    // new line
                     eat("\n");
+                    // new line
                     ++l;
                     i = 0;
                     // new statement
@@ -1147,7 +1155,7 @@ function parse(s, ctx, lineStart, posStart)
                 // comment
                 j = s.indexOf("\n");
                 s = s.slice(-1 < j ? j+1 : s.length);
-                ++l;
+                if (-1 < j) ++l;
                 i = 0;
                 end(true);
                 continue;
@@ -1295,6 +1303,31 @@ function parse(s, ctx, lineStart, posStart)
                 terms.unshift(term);
                 continue;
             }
+            if (match = eat(/^(-?\s*\.\d+([eE][+-]?\d+)?)([ij])?/))
+            {
+                // number, shorthand version
+                arg = match[1].split(/\s+/).join('');
+                arg = '-' === arg.charAt(0) ? ('-0'+arg.slice(1)) : ('0'+arg);
+                if (decimal)
+                {
+                    // prefer default number for small integers
+                    /*if (!/[\.eE]/.test(arg) && (arg.length < 6))
+                    {
+                        arg = parseFloat(arg, 10);
+                    }
+                    else
+                    {*/
+                        arg = decimal(arg);
+                    /*}*/
+                }
+                else
+                {
+                    arg = parseFloat(arg, 10);
+                }
+                term = expr(match[4] ? (new complex(0, arg)) : arg);
+                terms.unshift(term);
+                continue;
+            }
             c = s.charAt(0);
             if ('[' === c)
             {
@@ -1342,7 +1375,7 @@ function parse(s, ctx, lineStart, posStart)
                 {
                     if (terms.length && can_merge())
                     {
-                        merge('end');
+                        merge('set');
                         term = terms.shift();
                         arg = [];
                         for (;;)

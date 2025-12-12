@@ -8,31 +8,29 @@ function balance(A, pnorm, wantt)
     */
     var n = ROWS(A),
         B = copy(A),
-        T = wantt ? array(n, 1) : null,
+        T = wantt ? array(n, I) : null,
         i, j, f,
         col, row, c, r,
         eps = __(1e-10),
-        zero = __(0),
-        one = __(1),
         converged, iter;
     for (iter=1; iter<=10000; ++iter)
     {
         converged = 0;
         for (i=0; i<n; ++i)
         {
-            col = COL(B, i);
+            col = COL(B, i).map(__);
             col.splice(i, 1);
-            row = ROW(B, i).slice();
+            row = ROW(B, i).map(__);
             row.splice(i, 1);
             c = norm(col, pnorm);
             r = norm(row, pnorm);
-            if (n_eq(r, zero) || n_eq(c, zero))
+            if (n_eq(r, O) || n_eq(c, O))
             {
                 ++converged;
                 continue;
             }
             f = realMath.sqrt(n_div(r, c));
-            if (n_le(realMath.abs(n_sub(f, one)), eps)) ++converged;
+            if (n_le(realMath.abs(n_sub(f, I)), eps)) ++converged;
             if (wantt) T[i] = n_mul(f, T[i]);
             for (j=0; j<n; ++j)
             {

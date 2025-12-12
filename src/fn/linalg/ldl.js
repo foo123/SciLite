@@ -1,8 +1,7 @@
 function ldl(A, triangle)
 {
     // adapted from https://github.com/foo123/Abacus
-    var rows = ROWS(A), columns = COLS(A), i, j, jj,
-        k, sum, M, D, L, O = __(0);
+    var rows = ROWS(A), columns = COLS(A), i, j, jj, k, sum, D, L;
     if ((rows !== columns) || !EQU(A, ctranspose(A)))
     {
         not_supported("ldl");

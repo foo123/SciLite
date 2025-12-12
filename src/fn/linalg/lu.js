@@ -3,8 +3,7 @@ function lu(A, without_d, eps)
     // adapted from https://github.com/foo123/Abacus
     var n, m, dim, P, L, U, DD,
         oldpivot, k, i, j, kpivot,
-        NotFound, Ukk, Uik, defficient,
-        O = __(0);
+        NotFound, Ukk, Uik, defficient;
     eps = __(eps || 0);
     n = ROWS(A);
     m = COLS(A);

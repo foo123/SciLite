@@ -8,7 +8,7 @@ function prod(x)
     {
         return x.reduce(function(prod, xi) {
             return scalar_mul(prod, xi);
-        }, __(1));
+        }, I);
     }
     else if (is_matrix(x))
     {

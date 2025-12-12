@@ -25,5 +25,5 @@ function any(x, check)
 }
 $_.any = any;
 fn.any = function(x) {
-    return any(x, function(x) {return !eq(x, 0);});
+    return any(x, function(x) {return !eq(x, O);});
 };

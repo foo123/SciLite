@@ -1,14 +1,28 @@
 function cat(type, A, B)
 {
-    if (("horz" === type) && is_2d(A) && is_2d(B) && (ROWS(A) === ROWS(B)))
+    if ("horz" === type)
     {
-        return A.map(function(Ai, i) {
-            return Ai.concat(B[i]);
-        });
+        if (is_1d(A) && is_1d(B))
+        {
+            return A.concat(B);
+        }
+        else if (is_2d(A) && is_2d(B) && (ROWS(A) === ROWS(B)))
+        {
+            return A.map(function(Ai, i) {
+                return Ai.concat(B[i]);
+            });
+        }
     }
-    if (("vert" === type) && is_2d(A) && is_2d(B) && (COLS(A) === COLS(B)))
+    if ("vert" === type)
     {
-        return A.concat(B);
+        if (is_1d(A) && is_1d(B))
+        {
+            return A.concat(B);
+        }
+        else if (is_2d(A) && is_2d(B) && (COLS(A) === COLS(B)))
+        {
+            return A.concat(B);
+        }
     }
     not_supported("cat");
 }

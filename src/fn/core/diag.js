@@ -8,7 +8,7 @@ function diag(x, k)
     if (is_1d(x))
     {
         return matrix(x.length, x.length, function(i, j) {
-            return k === i - j ? x[i] : 0;
+            return k === i - j ? x[i] : O;
         });
     }
     if (is_2d(x))

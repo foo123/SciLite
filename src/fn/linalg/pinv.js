@@ -1,6 +1,7 @@
 function rankf(A, ref)
 {
     // adapted from https://github.com/foo123/Abacus
+    // rank factorization
     var rows = ROWS(A), columns = COLS(A), pivots, rank, F, C;
     if (!ref) ref = rref(A, true);
     pivots = ref[1];
@@ -9,12 +10,17 @@ function rankf(A, ref)
     F = slice(ref[0], 0, 0, rank-1, columns-1).map(function(rref_i, i) {
         return rref_i.map(function(rref_ij, j) {
             j = i;
-            while ((j+1 < columns) && eq(ref[0][i][j], 0)) ++j;
-            return scalar_div(rref_ij, ref[0][i][j]);
+            while ((j+1 < columns) && eq(rref_i[j], O)) ++j;
+            return scalar_div(rref_ij, rref_i[j]);
         });
     });
     return [C, F];
 }
+fn.rankf = function(A) {
+    if (is_scalar(A)) A = [[A]];
+    if (!is_matrix(A)) not_supported("rankf");
+    return rankf(A);
+};
 function pinv(A, eps)
 {
     // adapted from https://github.com/foo123/Abacus
