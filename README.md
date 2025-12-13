@@ -49,7 +49,7 @@ let [Ref, Pivots] = fn.rref.nargout(2)(A); // variable output
 ### TODO
 * implement matrix functions `sqrtm`, `expm`, `logm` (IN PROGRESS)
 * implement generalized/polynomial eigen decomposition (TODO)
-* add ssymbolic computations (IN PROGRESS)
+* support symbolic computations (IN PROGRESS)
 * add support for computations on GPU (TODO)
 
 **see also:**
