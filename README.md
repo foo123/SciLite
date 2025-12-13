@@ -46,6 +46,11 @@ let Ref = fn.rref(A); // default output
 let [Ref, Pivots] = fn.rref.nargout(2)(A); // variable output
 ```
 
+### TODO
+* implement matrix functions `sqrtm`, `expm`, `logm` (IN PROGRESS)
+* implement generalized/polynomial eigen decomposition (TODO)
+* add support for computations on GPU (TODO)
+
 **see also:**
 
 * [Abacus](https://github.com/foo123/Abacus) Computer Algebra and Symbolic Computation System for Combinatorics and Algebraic Number Theory for JavaScript and Python
