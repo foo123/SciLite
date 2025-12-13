@@ -30,7 +30,7 @@ const repl = require('repl').start({
         code = String(code).trim();
         if (!code.length) return cb(null, null);
         if (null == ctx) ctx = $._.createContext();
-        $._.eval(code, ctx, 1, 1).then(ans => cb(null, ans)).catch(err => cb(err, ''));
+        $._.eval(code, ctx, 1, 1).then(ans => cb(null, ans)).catch(err => cb(err.toString(), ''));
     }
 });
 repl.on('reset', function() {

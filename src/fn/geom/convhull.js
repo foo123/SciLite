@@ -71,5 +71,5 @@ fn.convhull = varargout(function(nargout, x, y, z) {
     }
     if (!is_vector(x) || !is_vector(y) || (x.length !== y.length)) not_supported("convhull");
     var hull2d = convex_hull_2d(x, y);
-    return 1 < nargout ? [hull2d.map(function(i) {return i+1;}), polyarea(x, y)] : (hull2d.map(function(i) {return i+1;}));
+    return 1 < nargout ? [hull2d.map(function(i) {return i+1;}), polyarea(hull2d.map(function(i) {return x[i];}), hull2d.map(function(i) {return y[i];}))] : (hull2d.map(function(i) {return i+1;}));
 });

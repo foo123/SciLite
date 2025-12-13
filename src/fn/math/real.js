@@ -1,4 +1,4 @@
-(['floor','ceil','round','sign','abs','exp','log','log10','sqrt','sin','cos','tan','sinh','cosh','tanh','asin','acos','atan','asinh','acosh','atanh']).forEach(function(f) {
+(['floor','ceil','round','sign','abs','exp','log','log10','log2','sqrt','sin','cos','tan','sinh','cosh','tanh','asin','acos','atan','asinh','acosh','atanh']).forEach(function(f) {
     if ('log' === f)
     {
         realMath[f] = function(x) {
@@ -8,7 +8,13 @@
     else if ('log10' === f)
     {
         realMath[f] = function(x) {
-            return is_number(x) ? stdMath.log10(x) : x.log();
+            return is_number(x) ? stdMath.log10(x) : x.log(10);
+        };
+    }
+    else if ('log2' === f)
+    {
+        realMath[f] = function(x) {
+            return is_number(x) ? stdMath.log2(x) : x.log(2);
         };
     }
     else

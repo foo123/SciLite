@@ -1,7 +1,7 @@
 function n_lcm2(a, b)
 {
     // adapted from https://github.com/foo123/Abacus
-    var aa = n_abs(a), bb = n_abs(b);
+    var aa = realMath.abs(a), bb = realMath.abs(b);
     if (n_eq(aa, bb)) return n_eq(n_sign(a), n_sign(b)) ? aa : n_neg(aa);
     return n_mul(n_div(a, n_gcd(a, b)), b);
 }

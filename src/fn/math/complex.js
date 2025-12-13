@@ -183,7 +183,7 @@ complexMath = {
         return z.sign();
     },
     sqrt: function(z) {
-        return z.pow(new complex(__(1/2), O));
+        return z.pow(new complex(half, O));
     },
     exp: function(z) {
         return ze.pow(z);
@@ -192,7 +192,10 @@ complexMath = {
         return new complex(realMath.log(z.abs()), z.angle());
     },
     log10: function(z) {
-        return new complex(realMath.log10(z.abs()), z.angle());
+        return complexMath.log(z).div(log_10);
+    },
+    log2: function(z) {
+        return complexMath.log(z).div(log_2);
     },
     sin: function(z) {
       return new complex(n_mul(realMath.sin(z.re), realMath.cosh(z.im)), n_mul(realMath.cos(z.re), realMath.sinh(z.im)));
@@ -223,7 +226,7 @@ complexMath = {
 $_.complexMath = complexMath;
 fn.complex = complex;
 
-(['floor','ceil','round','fix','sign','exp','log','log10','sin','cos','tan','sinh','cosh','tanh','asin','acos','atan','asinh','acosh','atanh']).forEach(function(f) {
+(['floor','ceil','round','fix','sign','exp','log','log10','log2','sin','cos','tan','sinh','cosh','tanh','asin','acos','atan','asinh','acosh','atanh']).forEach(function(f) {
     fn[f] = complexMath[f] ? function(x) {
         return apply(function(x) {
             return is_complex(x) ? complexMath[f](x) : realMath[f](x);

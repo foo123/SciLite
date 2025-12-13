@@ -70,7 +70,7 @@ function svd(A, eta, wantu, wantv)
         z = O;
         for (i=k; i<=m; ++i)
         {
-            z = n_add(z, n_add(n_pow(real(a[i-1][k-1]), 2), n_pow(imag(a[i-1][k-1]), 2)));
+            z = n_add(z, n_add(n_pow(realMath.abs(real(a[i-1][k-1])), two), n_pow(realMath.abs(imag(a[i-1][k-1])), two)));
         }
 
         b[k-1] = O;
@@ -128,10 +128,10 @@ function svd(A, eta, wantu, wantv)
             break;
         }
 
-        z = 0;
+        z = O;
         for (j=k1; j<=n; ++j)
         {
-            z = n_add(z, n_add(n_pow(real(a[k-1][j-1]), 2), n_pow(imag(a[k-1][j-1]), 2)));
+            z = n_add(z, n_add(n_pow(realMath.abs(real(a[k-1][j-1])), two), n_pow(realMath.abs(imag(a[k-1][j-1])), two)));
         }
 
         c[k1-1] = O;
@@ -314,7 +314,7 @@ function svd(A, eta, wantu, wantv)
             y = s[k-1-1];
             g = t[k-1-1];
             h = t[k-1];
-            f = n_div(n_add(n_mul(n_sub(y, w), n_add(y, w)), n_mul(n_sub(g, h), n_add(g, h))), n_mul(2, n_mul(h, y)));
+            f = n_div(n_add(n_mul(n_sub(y, w), n_add(y, w)), n_mul(n_sub(g, h), n_add(g, h))), n_mul(two, n_mul(h, y)));
             g = n_hypot(f, I);
             if (n_lt(f, O))
             {

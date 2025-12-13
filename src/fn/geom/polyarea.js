@@ -1,7 +1,7 @@
 function polyarea(x, y)
 {
     // adapted from https://github.com/foo123/Geometrize
-    var two=__(2), x1, y1, x2, y2, area = O,
+    var x1, y1, x2, y2, area = O,
         i, n = stdMath.min(x.length, y.length)-1;
     for (i=0; i<n; ++i)
     {

@@ -2,16 +2,16 @@
 *
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
-* @version: 0.9.6
-* 2025-12-10 14:41:26
+* @version: 0.9.7
+* 2025-12-13 20:47:19
 * https://github.com/foo123/SciLite
 *
 **//**
 *
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
-* @version: 0.9.6
-* 2025-12-10 14:41:26
+* @version: 0.9.7
+* 2025-12-13 20:47:19
 * https://github.com/foo123/SciLite
 *
 **/
@@ -36,6 +36,8 @@ var decimal = null,
     ze, i,
     pi = stdMath.PI,
     e = stdMath.E,
+    log_10 = stdMath.log(10),
+    log_2 = stdMath.log(2),
     inf = Infinity,
     nan = NaN,
     eps = 1e-15,
@@ -43,6 +45,10 @@ var decimal = null,
     realmin = Number.MIN_VALUE,
     intmax = Number.MAX_SAFE_INTEGER,
     intmin = Number.MIN_SAFE_INTEGER,
+    bitmax = intmax,
+    O = 0, I = 1, J = -1,
+    half = 0.5, two = 2, ten = 10,
+    update = [],
     HAS = Object.prototype.hasOwnProperty,
     toString = Object.prototype.toString,
     is_array = Array.isArray || function(o) {return '[object Array]' === toString.call(o);},
@@ -50,7 +56,7 @@ var decimal = null,
 
     // lib
     $ = {
-        VERSION: "0.9.6",
+        VERSION: "0.9.7",
         // common functions
         _: {},
         // builtin functions
@@ -93,25 +99,47 @@ $_.decimal = function(Decimal) {
                 return decimal.sign(this);
             };
         }
+        O = decimal(0);
+        I = decimal(1);
+        J = decimal(-1);
+        half = decimal(0.5);
+        two = decimal(2);
+        ten = decimal(10);
+        log_10 = decimal(stdMath.log(10));
+        log_2 = decimal(stdMath.log(2));
         constant.pi = decimal(pi);
         constant.e = decimal(e);
         constant.realmax = decimal(realmax);
         constant.realmin = decimal(realmin);
         constant.intmax = decimal(intmax);
         constant.intmin = decimal(intmin);
-        ze = new complex(constant.e, 0);
+        constant.bitmax = decimal(bitmax);
     }
     else
     {
         decimal = null;
+        O = 0;
+        I = 1;
+        J = -1;
+        half = 0.5;
+        two = 2;
+        ten = 10;
+        log_2 = stdMath.log(2);
+        log_10 = stdMath.log(10);
         constant.pi = pi;
         constant.e = e;
         constant.realmax = realmax;
         constant.realmin = realmin;
         constant.intmax = intmax;
         constant.intmin = intmin;
-        ze = new complex(constant.e, 0);
+        constant.bitmax = bitmax;
     }
+    if (complex)
+    {
+        i = new complex(O, I);
+        ze = new complex(constant.e, O);
+    }
+    update.forEach(function(u) {u();});
 };
 
 // utils
@@ -140,7 +168,7 @@ function is_string(x)
 $_.is_string = is_string;
 function is_nan(x)
 {
-    return (is_decimal(x) && x.isNaN()) || (Number.isNaN(x));
+    return /*(is_complex(x) && (is_nan(x.re) || is_nan(x.im))) ||*/ (is_decimal(x) && x.isNaN()) || (Number.isNaN(x));
 }
 $_.is_nan = is_nan;
 function is_inf(x)
@@ -172,6 +200,11 @@ function is_complex(x)
     return (null != complex) && (x instanceof complex);
 }
 $_.is_complex = is_complex;
+function is_real(x)
+{
+    return !is_complex(x) || n_eq(O, x.im);
+}
+$_.is_real = is_real;
 function is_scalar(x, strict)
 {
     if (is_number(x) || is_complex(x) || is_decimal(x)) return true;
@@ -205,11 +238,6 @@ function is_2d(x)
 {
     return is_array(x) && is_array(x[0]);
 }
-function is_real(x)
-{
-    return !is_complex(x) || n_eq(x.im, 0);
-}
-$_.is_real = is_real;
 function array(n, v)
 {
     var i, arr = new Array(n);
@@ -326,10 +354,6 @@ function copy(x)
 $_.copy = copy;
 function apply(f, x, iscomplex)
 {
-    if (true === f)
-    {
-        return x;
-    }
     if (is_num(x))
     {
         return f(x);
@@ -337,7 +361,7 @@ function apply(f, x, iscomplex)
     if (is_complex(x))
     {
         if (iscomplex) return f(x);
-        else if (n_eq(x.im, 0)) return f(x.re);
+        else if (n_eq(x.im, O)) return f(x.re);
     }
     if (is_array(x))
     {
@@ -346,15 +370,34 @@ function apply(f, x, iscomplex)
     return x;
 }
 $_.apply = apply;
+function apply2(f, x, y, iscomplex)
+{
+    if (is_num(x) && is_num(y))
+    {
+        return f(x, y);
+    }
+    if (is_scalar(x) && is_scalar(y))
+    {
+        if (iscomplex) return f(complexify(x), complexify(y));
+        else if (is_real(x) && is_real(y)) return f(realify(x), realify(y));
+        else return nan;
+    }
+    if (is_array(x) && is_array(y))
+    {
+        return x.map(function(xi, i) {return apply2(f, xi, y[i], iscomplex);});
+    }
+    return nan;
+}
+$_.apply2 = apply2;
 
 function roundoff(x, eps)
 {
     eps = __(eps);
-    if (is_num(eps) && n_gt(eps, 0))
+    if (is_num(eps) && n_gt(eps, O))
     {
         if (is_scalar(x))
         {
-            return le(scalar_abs(x), eps) ? 0 : x;
+            return le(scalar_abs(x), eps) ? O : x;
         }
         else if (is_array(x))
         {
@@ -402,7 +445,7 @@ function num2str(x)
     }
     else if (is_inf(x))
     {
-        x = (n_lt(x, 0) ? '-' : '') + 'inf';
+        x = (n_lt(x, O) ? '-' : '') + 'inf';
     }
     else if (is_int(x))
     {
@@ -460,7 +503,7 @@ function texify(x)
         {
             x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat([array($_.MAXPRINTSIZE, function(i) {return stdMath.round($_.MAXPRINTSIZE/2) === i ? (use_ddots ? '\\ddots' : '\\vdots') : '\\vdots';})]).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
         }
-        x = '\\begin{bmatrix}'+ x.map(function(xi) {return xi.map(texify).join(' & ');}).join(' \\\\ ') + '\\end{bmatrix}';
+        x = '\\begin{bmatrix}'+ x.map(function(xi) {return xi.map(texify).join(' & \\hskip 1em ');}).join(' \\\\ ') + '\\end{bmatrix}';
     }
     else if (is_array(x))
     {
@@ -635,14 +678,14 @@ $_.str = function(x) {
 function realify(x)
 {
     if (is_array(x)) return x.map(realify);
-    else if (is_complex(x)) return n_eq(x.im, 0) ? x.re : x;
+    else if (is_complex(x)) return n_eq(x.im, O) ? x.re : x;
     return x;
 }
 function complexify(x)
 {
     if (!complex) return x;
     if (is_array(x)) return x.map(complexify);
-    else if (is_num(x)) return new complex(x, 0);
+    else if (is_num(x)) return new complex(__(x), O);
     return x;
 }
 // primitive numeric ops (overloaded)
@@ -738,12 +781,22 @@ function n_div(a, b)
 $_.ndiv = n_div;
 function n_pow(a, b)
 {
+    if (is_nan(a) || is_nan(b))
+    {
+        return nan;
+    }
     if (is_number(a))
     {
-        if (is_number(b)) return stdMath.pow(a, b);
-        else return decimal(a).pow(b);
+        if (is_number(b))
+        {
+            return 0 > a ? realify((new complex(a)).pow(b)) : (stdMath.pow(a, b));
+        }
+        else
+        {
+            return 0 > a ? realify((new complex(decimal(a))).pow(b)) : (decimal(a).pow(b));
+        }
     }
-    return a.pow(b);
+    return n_gt(O, a) ? realify((new complex(a)).pow(decimal(b))) : a.pow(b);
 }
 $_.npow = n_pow;
 function n_mod(a, b)
@@ -763,7 +816,7 @@ function n_neg(a)
 $_.nneg = n_neg;
 function n_inv(a)
 {
-    return is_number(a) ? 1/a : decimal(1).div(a);
+    return is_number(a) ? 1/a : I.div(a);
 }
 $_.ninv = n_inv;
 
@@ -781,14 +834,14 @@ function eq(a, b)
     {
         if (is_string(b)) return String(a) === b ? 1 : 0;
         else if (is_num(b)) return n_eq(a, b) ? 1 : 0;
-        else if (is_complex(b)) return n_eq(b.re, a) && n_eq(b.im, 0) ? 1 : 0;
+        else if (is_complex(b)) return n_eq(b.re, a) && n_eq(b.im, O) ? 1 : 0;
         else if (is_vector(b)) return b.map(function(bi) {return eq(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return eq(a, b[i][j]);});
     }
     else if (is_complex(a))
     {
         if (is_string(b)) return String(a) === b ? 1 : 0;
-        else if (is_num(b)) return n_eq(a.re, b) && n_eq(a.im, 0) ? 1 : 0;
+        else if (is_num(b)) return n_eq(a.re, b) && n_eq(a.im, O) ? 1 : 0;
         else if (is_complex(b)) return n_eq(a.re, b.re) && n_eq(a.im, b.im) ? 1 : 0;
         else if (is_vector(b)) return b.map(function(bi) {return eq(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return eq(a, b[i][j]);});
@@ -843,14 +896,14 @@ function ne(a, b)
     {
         if (is_string(b)) return String(a) === b ? 0 : 1;
         else if (is_num(b)) return n_eq(a, b) ? 0 : 1;
-        else if (is_complex(b)) return n_eq(b.re, a) && n_eq(b.im, 0) ? 0 : 1;
+        else if (is_complex(b)) return n_eq(b.re, a) && n_eq(b.im, O) ? 0 : 1;
         else if (is_vector(b)) return b.map(function(bi) {return ne(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return ne(a, b[i][j]);});
     }
     else if (is_complex(a))
     {
         if (is_string(b)) return String(a) === b ? 0 : 1;
-        else if (is_num(b)) return n_eq(a.re, b) && n_eq(a.im, 0) ? 0 : 1;
+        else if (is_num(b)) return n_eq(a.re, b) && n_eq(a.im, O) ? 0 : 1;
         else if (is_complex(b)) return n_eq(a.re, b.re) && n_eq(a.im, b.im) ? 0 : 1;
         else if (is_vector(b)) return b.map(function(bi) {return ne(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return ne(a, b[i][j]);});
@@ -905,15 +958,15 @@ function lt(a, b)
     {
         if (is_string(b)) return String(a) < b ? 1 : 0;
         else if (is_num(b)) return n_lt(a, b) ? 1 : 0;
-        else if (is_complex(b)) return n_lt(b.re, a) && n_eq(b.im, 0) ? 1 : 0;
+        else if (is_complex(b)) return n_lt(b.re, a) && n_eq(b.im, O) ? 1 : 0;
         else if (is_vector(b)) return b.map(function(bi) {return lt(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return lt(a, b[i][j]);});
     }
     else if (is_complex(a))
     {
         if (is_string(b)) return String(a) < b ? 1 : 0;
-        else if (is_num(b)) return n_lt(a.re, b) && n_eq(a.im, 0) ? 1 : 0;
-        else if (is_complex(b)) return (n_lt(a.re, b.re) && n_eq(a.im, 0) && n_eq(b.im, 0)) || (n_lt(a.im, b.im) && n_eq(a.re, 0) && n_eq(b.re, 0)) ? 1 : 0;
+        else if (is_num(b)) return n_lt(a.re, b) && n_eq(a.im, O) ? 1 : 0;
+        else if (is_complex(b)) return (n_lt(a.re, b.re) && n_eq(a.im, O) && n_eq(b.im, O)) || (n_lt(a.im, b.im) && n_eq(a.re, O) && n_eq(b.re, O)) ? 1 : 0;
         else if (is_vector(b)) return b.map(function(bi) {return lt(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return lt(a, b[i][j]);});
     }
@@ -967,15 +1020,15 @@ function gt(a, b)
     {
         if (is_string(b)) return String(a) > b ? 1 : 0;
         else if (is_num(b)) return n_gt(a, b) ? 1 : 0;
-        else if (is_complex(b)) return n_gt(b.re, a) && n_eq(b.im, 0) ? 1 : 0;
+        else if (is_complex(b)) return n_gt(b.re, a) && n_eq(b.im, O) ? 1 : 0;
         else if (is_vector(b)) return b.map(function(bi) {return gt(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return gt(a, b[i][j]);});
     }
     else if (is_complex(a))
     {
         if (is_string(b)) return String(a) > b ? 1 : 0;
-        else if (is_num(b)) return n_gt(a.re, b) && n_eq(a.im, 0) ? 1 : 0;
-        else if (is_complex(b)) return (n_gt(a.re, b.re) && n_eq(a.im, 0) && n_eq(b.im, 0)) || (n_gt(a.im, b.im) && n_eq(a.re, 0) && n_eq(b.re, 0)) ? 1 : 0;
+        else if (is_num(b)) return n_gt(a.re, b) && n_eq(a.im, O) ? 1 : 0;
+        else if (is_complex(b)) return (n_gt(a.re, b.re) && n_eq(a.im, O) && n_eq(b.im, O)) || (n_gt(a.im, b.im) && n_eq(a.re, O) && n_eq(b.re, O)) ? 1 : 0;
         else if (is_vector(b)) return b.map(function(bi) {return gt(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return gt(a, b[i][j]);});
     }
@@ -1029,15 +1082,15 @@ function le(a, b)
     {
         if (is_string(b)) return String(a) <= b ? 1 : 0;
         else if (is_num(b)) return n_le(a, b) ? 1 : 0;
-        else if (is_complex(b)) return n_le(b.re, a) && n_eq(b.im, 0) ? 1 : 0;
+        else if (is_complex(b)) return n_le(b.re, a) && n_eq(b.im, O) ? 1 : 0;
         else if (is_vector(b)) return b.map(function(bi) {return le(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return le(a, b[i][j]);});
     }
     else if (is_complex(a))
     {
         if (is_string(b)) return String(a) <= b ? 1 : 0;
-        else if (is_num(b)) return n_le(a.re, b) && n_eq(a.im, 0) ? 1 : 0;
-        else if (is_complex(b)) return (n_le(a.re, b.re) && n_eq(a.im, 0) && n_eq(b.im, 0)) || (n_le(a.im, b.im) && n_eq(a.re, 0) && n_eq(b.re, 0)) ? 1 : 0;
+        else if (is_num(b)) return n_le(a.re, b) && n_eq(a.im, O) ? 1 : 0;
+        else if (is_complex(b)) return (n_le(a.re, b.re) && n_eq(a.im, O) && n_eq(b.im, O)) || (n_le(a.im, b.im) && n_eq(a.re, O) && n_eq(b.re, O)) ? 1 : 0;
         else if (is_vector(b)) return b.map(function(bi) {return le(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return le(a, b[i][j]);});
     }
@@ -1091,15 +1144,15 @@ function ge(a, b)
     {
         if (is_string(b)) return String(a) >= b ? 1 : 0;
         else if (is_num(b)) return n_ge(a, b) ? 1 : 0;
-        else if (is_complex(b)) return n_ge(b.re, a) && n_eq(b.im, 0) ? 1 : 0;
+        else if (is_complex(b)) return n_ge(b.re, a) && n_eq(b.im, O) ? 1 : 0;
         else if (is_vector(b)) return b.map(function(bi) {return ge(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return ge(a, b[i][j]);});
     }
     else if (is_complex(a))
     {
         if (is_string(b)) return String(a) >= b ? 1 : 0;
-        else if (is_num(b)) return n_ge(a.re, b) && n_eq(a.im, 0) ? 1 : 0;
-        else if (is_complex(b)) return (n_ge(a.re, b.re) && n_eq(a.im, 0) && n_eq(b.im, 0)) || (n_ge(a.im, b.im) && n_eq(a.re, 0) && n_eq(b.re, 0)) ? 1 : 0;
+        else if (is_num(b)) return n_ge(a.re, b) && n_eq(a.im, O) ? 1 : 0;
+        else if (is_complex(b)) return (n_ge(a.re, b.re) && n_eq(a.im, O) && n_eq(b.im, O)) || (n_ge(a.im, b.im) && n_eq(a.re, O) && n_eq(b.re, O)) ? 1 : 0;
         else if (is_vector(b)) return b.map(function(bi) {return ge(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return ge(a, b[i][j]);});
     }
@@ -1181,7 +1234,7 @@ function scalar_pow(a, b)
 {
     if (is_num(a) && is_num(b)) return n_pow(a, b);
     else if (is_complex(a) && is_scalar(b)) return a.pow(b);
-    else if (is_complex(b) && is_scalar(a)) return (new complex(a, 0)).pow(b);
+    else if (is_complex(b) && is_scalar(a)) return (new complex(a, O)).pow(b);
     return nan;
 }
 $_.spow = scalar_pow;
@@ -1201,8 +1254,8 @@ function scalar_conj(a)
 $_.sconj = scalar_conj;
 function scalar_inv(a)
 {
-    if (is_num(a)) return n_eq(a, 0) ? inf : n_inv(a);
-    else if (is_complex(a)) return n_eq(a.abs(), 0) ? new complex(inf, n_lt(a.im, 0) ? inf : -inf) : a.inv();
+    if (is_num(a)) return n_eq(a, O) ? inf : n_inv(a);
+    else if (is_complex(a)) return n_eq(a.abs(), O) ? new complex(inf, n_lt(a.im, O) ? inf : -inf) : a.inv();
     return nan;
 }
 $_.sinv = scalar_inv;
@@ -1215,7 +1268,7 @@ function scalar_abs(a)
 $_.sabs = scalar_abs;
 function scalar_angle(a)
 {
-    if (is_num(a)) return (n_lt(a, 0) ? pi : 0);
+    if (is_num(a)) return (n_lt(a, O) ? constant.pi : O);
     else if (is_complex(a)) return a.angle();
     return nan;
 }
@@ -1238,8 +1291,9 @@ function add(a, b)
         if ((ROWS(a) === ROWS(b)) && (COLS(a) === COLS(b)))
         {
             return a.map(function(ai, i) {
+                var bi = b[i];
                 return ai.map(function(aij, j) {
-                    return add(aij, b[i][j]);
+                    return add(aij, bi[j]);
                 });
             });
         }
@@ -1288,8 +1342,9 @@ function sub(a, b)
         if ((ROWS(a) === ROWS(b)) && (COLS(a) === COLS(b)))
         {
             return a.map(function(ai, i) {
+                var bi = b[i];
                 return ai.map(function(aij, j) {
-                    return sub(aij, b[i][j]);
+                    return sub(aij, bi[j]);
                 });
             });
         }
@@ -1338,8 +1393,9 @@ function dotmul(a, b)
         if ((ROWS(a) === ROWS(b)) && (COLS(a) === COLS(b)))
         {
             return a.map(function(ai, i) {
+                var bi = b[i];
                 return ai.map(function(aij, j) {
-                    return dotmul(aij, b[i][j]);
+                    return dotmul(aij, bi[j]);
                 });
             });
         }
@@ -1389,8 +1445,9 @@ function dotdiv(a, b)
         if ((ROWS(a) === ROWS(b)) && (COLS(a) === COLS(b)))
         {
             return a.map(function(ai, i) {
+                var bi = b[i];
                 return ai.map(function(aij, j) {
-                    return dotdiv(aij, b[i][j]);
+                    return dotdiv(aij, bi[j]);
                 });
             });
         }
@@ -1439,8 +1496,9 @@ function dotpow(a, b)
         if ((ROWS(a) === ROWS(b)) && (COLS(a) === COLS(b)))
         {
             return a.map(function(ai, i) {
+                var bi = b[i];
                 return ai.map(function(aij, j) {
-                    return dotpow(aij, b[i][j]);
+                    return dotpow(aij, bi[j]);
                 });
             });
         }
@@ -1476,6 +1534,7 @@ function dotpow(a, b)
     not_supported("dotpow");
 }
 $_.dotpow = dotpow;
+fn.power = dotpow;
 function mul(a, b)
 {
     if (is_scalar(a) && is_scalar(b))
@@ -1491,7 +1550,7 @@ function mul(a, b)
             // TODO maybe optimize matrix-matrix multiplication (eg Strassen algorithm)
             var rows = ROWS(a), cols = COLS(b), rc = ROWS(b);
             return matrix(rows, cols, function(i, j) {
-                for (var cij=0,k=0; k<rc; ++k)
+                for (var cij=O,k=0; k<rc; ++k)
                 {
                     cij = scalar_add(cij, scalar_mul(a[i][k], b[k][j]));
                 }
@@ -1509,8 +1568,8 @@ function mul(a, b)
         if (a.length === ROWS(b))
         {
             var rows = 1, cols = COLS(b), rc = a.length;
-            return matrix(rows, cols, function(i, j) {
-                for (var cij=0,k=0; k<rc; ++k)
+            return /*array(cols, */matrix(rows, cols, function(i, j) {
+                for (var cij=O,k=0; k<rc; ++k)
                 {
                     cij = scalar_add(cij, scalar_mul(a[k], b[k][j]));
                 }
@@ -1528,8 +1587,8 @@ function mul(a, b)
         if (COLS(a) === b.length)
         {
             var rows = ROWS(a), cols = 1, rc = b.length;
-            return matrix(rows, cols, function(i, j) {
-                for (var cij=0,k=0; k<rc; ++k)
+            return /*array(rows, */matrix(rows, cols, function(i, j) {
+                for (var cij=O,k=0; k<rc; ++k)
                 {
                     cij = scalar_add(cij, scalar_mul(a[i][k], b[k]));
                 }
@@ -1606,6 +1665,15 @@ function pow(a, b)
     not_supported("pow");
 }
 $_.pow = pow;
+fn.mpower = pow;
+
+function neg(a)
+{
+    if (is_scalar(a)) return scalar_neg(a);
+    if (is_array(a)) return a.map(neg);
+    return a;
+}
+$_.neg = neg;
 
 function get(mat, rrange = ':', crange = null)
 {
@@ -1707,6 +1775,7 @@ function set(mat, rrange = ':', crange = null, val = null)
     if (is_1d(mat))
     {
         //val = crange;
+        if (is_2d(val)) val = COL(val, 0);
         if (is_vector(rrange) && (rrange.length === mat.length) && all(rrange, function(v) {return 0 === _(v) || 1 === _(v);}))
         {
             if (is_0d(val))
@@ -1718,11 +1787,11 @@ function set(mat, rrange = ':', crange = null, val = null)
             }
             else if (is_array(val))
             {
-                var k = 0;
+                var k = 0, nv = val.length;
                 rrange.forEach(function(v, i) {
                     if (1 === _(v))
                     {
-                        if (k >= val.length) throw "set: index out of bounds";
+                        if (k >= nv) throw "set: index out of bounds";
                         mat[i] = val[k++];
                     }
                 });
@@ -1762,7 +1831,7 @@ function set(mat, rrange = ':', crange = null, val = null)
     }
     if (is_2d(mat))
     {
-        var rows = ROWS(mat), cols = COLS(mat), n = rows*cols;
+        var rows = ROWS(mat), cols = COLS(mat), n = rows*cols, rowsv, colsv, nv, i, j, iv, jv, k;
         if (is_matrix(rrange) && (ROWS(rrange) === rows) && (COLS(rrange) === cols) && all(rrange, function(v) {return 0 === _(v) || 1 === _(v);}))
         {
             if (is_0d(val))
@@ -1774,15 +1843,36 @@ function set(mat, rrange = ':', crange = null, val = null)
                 });
                 return mat;
             }
-            else if (is_array(val))
+            else if (is_2d(val))
             {
-                for (var k=0,j=0; j<cols; ++j)
+                rowsv = ROWS(val);
+                colsv = COLS(val);
+                for (j=0,jv=0; j<cols; ++j,++jv)
                 {
-                    for (var i=0; i<rows; ++i)
+                    if (1 === colsv) jv = 0;
+                    else if (jv >= colsv) throw "set: index out of bounds";
+                    for (i=0,iv=0; i<rows; ++i,++iv)
                     {
                         if (1 === _(rrange[i][j]))
                         {
-                            if (k >= val.length) throw "set: index out of bounds";
+                            if (1 === rowsv) iv = 0;
+                            else if (iv >= rowsv) throw "set: index out of bounds";
+                            mat[i][j] = val[iv][jv];
+                        }
+                    }
+                }
+                return mat;
+            }
+            else if (is_array(val))
+            {
+                nv = val.length;
+                for (k=0,j=0; j<cols; ++j)
+                {
+                    for (i=0; i<rows; ++i)
+                    {
+                        if (1 === _(rrange[i][j]))
+                        {
+                            if (k >= nv) throw "set: index out of bounds";
                             mat[i][j] = val[k++];
                         }
                     }
@@ -1809,7 +1899,22 @@ function set(mat, rrange = ':', crange = null, val = null)
                     });
                     return mat;
                 }
-                else if (is_1d(val) && (val.length >= rrange.length))
+                else if (is_2d(val))
+                {
+                    rowsv = ROWS(val);
+                    colsv = COLS(val);
+                    rrange.forEach(function(r, i) {
+                        r = _(r);
+                        if (1 > r) r += n;
+                        if (1 > r || r > n) throw "set: index out of bounds";
+                        var iv = 1 === rowsv ? 0 : (i % rows),
+                            jv = 1 === colsv ? 0 : stdMath.floor(i / rows);
+                        if (iv >= rowsv || jv >= colsv) throw "set: index out of bounds";
+                        mat[(r-1) % rows][stdMath.floor((r-1) / rows)] = val[iv][jv];
+                    });
+                    return mat;
+                }
+                else if (is_array(val) && (val.length >= rrange.length))
                 {
                     rrange.forEach(function(r, i) {
                         r = _(r);
@@ -1841,9 +1946,30 @@ function set(mat, rrange = ':', crange = null, val = null)
                     });
                     return mat;
                 }
-                else if (is_1d(val) && (val.length >= rrange.length*crange.length))
+                else if (is_2d(val))
                 {
-                    var k = 0;
+                    rowsv = ROWS(val);
+                    colsv = COLS(val);
+                    rrange.forEach(function(r, iv) {
+                        r = _(r);
+                        if (1 > r) r += rows;
+                        if (1 > r || r > rows) throw "set: index out of bounds";
+                        if (1 === rowsv) iv = 0;
+                        else if (iv >= rowsv) throw "set: index out of bounds";
+                        crange.forEach(function(c, jv) {
+                            c = _(c);
+                            if (1 > c) c += cols;
+                            if (1 > c || c > cols) throw "set: index out of bounds";
+                            if (1 === colsv) jv = 0;
+                            else if (jv >= colsv) throw "set: index out of bounds";
+                            mat[r-1][c-1] = val[iv][jv];
+                        });
+                    });
+                    return mat;
+                }
+                else if (is_array(val) && (val.length >= rrange.length*crange.length))
+                {
+                    k = 0;
                     crange.forEach(function(c, j) {
                         c = _(c);
                         if (1 > c) c += cols;
@@ -1853,21 +1979,6 @@ function set(mat, rrange = ':', crange = null, val = null)
                             if (1 > r) r += rows;
                             if (1 > r || r > rows) throw "set: index out of bounds";
                             mat[r-1][c-1] = val[k++];
-                        });
-                    });
-                    return mat;
-                }
-                else if (is_2d(val) && (val.length >= rrange.length) && (val[0].length >= crange.length))
-                {
-                    rrange.forEach(function(r, i) {
-                        r = _(r);
-                        if (1 > r) r += rows;
-                        if (1 > r || r > rows) throw "set: index out of bounds";
-                        crange.forEach(function(c, j) {
-                            c = _(c);
-                            if (1 > c) c += cols;
-                            if (1 > c || c > cols) throw "set: index out of bounds";
-                            mat[r-1][c-1] = val[i][j];
                         });
                     });
                     return mat;
@@ -1949,29 +2060,35 @@ function d_cityblock(a, b)
 }
 function d_cosine(a, b)
 {
-    return scalar_sub(1, scalar_div(scalar_div(dot(a, b), realMath.sqrt(real(dot(a, a)))), realMath.sqrt(real(dot(b, b)))));
+    return scalar_sub(I, scalar_div(scalar_div(dot(a, b), realMath.sqrt(real(dot(a, a)))), realMath.sqrt(real(dot(b, b)))));
 }
 function d_hamming(a, b)
 {
-    return a.reduce(function(d, ai, i) {
+    return __(a.reduce(function(d, ai, i) {
         return d + 1 - eq(ai, b[i]);
-    }, 0) / a.length;
+    }, 0) / a.length);
 }
 function d_jaccard(a, b)
 {
-    return a.reduce(function(d, ai, i) {
+    return __(a.reduce(function(d, ai, i) {
         return d + eq(ai, b[i]);
-    }, 0) / a.length;
+    }, 0) / a.length);
 }
 function d_minkowski(a, b, p)
 {
     // p-norm
     if (2 === arguments.length) p = b;
-    return n_pow(sum(dotpow(abs(2 === arguments.length ? a : sub(a, b)), p)), n_inv(p));
+    return scalar_pow(sum(dotpow(abs(2 === arguments.length ? a : sub(a, b)), p)), n_inv(p));
 }
 function d_chebyshev(a, b)
 {
     return max(abs(1 === arguments.length ? a : sub(a, b)));
+}
+function norm2(x)
+{
+    return x.reduce(function(n, xi) {
+        return scalar_add(n, scalar_mul(xi, scalar_conj(xi)));
+    }, O);
 }
 /*function zsin(side, hypotenuse)
 {
@@ -2298,7 +2415,7 @@ fn.help = nop;
 fn.who = nop;
 fn.whos = nop;
 fn.exist = nop;
-(['floor','ceil','round','sign','abs','exp','log','log10','sqrt','sin','cos','tan','sinh','cosh','tanh','asin','acos','atan','asinh','acosh','atanh']).forEach(function(f) {
+(['floor','ceil','round','sign','abs','exp','log','log10','log2','sqrt','sin','cos','tan','sinh','cosh','tanh','asin','acos','atan','asinh','acosh','atanh']).forEach(function(f) {
     if ('log' === f)
     {
         realMath[f] = function(x) {
@@ -2308,7 +2425,13 @@ fn.exist = nop;
     else if ('log10' === f)
     {
         realMath[f] = function(x) {
-            return is_number(x) ? stdMath.log10(x) : x.log();
+            return is_number(x) ? stdMath.log10(x) : x.log(10);
+        };
+    }
+    else if ('log2' === f)
+    {
+        realMath[f] = function(x) {
+            return is_number(x) ? stdMath.log2(x) : x.log(2);
         };
     }
     else
@@ -2318,6 +2441,12 @@ fn.exist = nop;
         };
     }
 });
+realMath.atan2 = function(y, x) {
+    return n_eq(O, x) && n_eq(O, y) ? O : (is_number(y) && is_number(x) ? stdMath.atan2(y, x) : decimal.atan2(y, x));
+};
+realMath.fix = function(x) {
+    return n_lt(x, O) ? realMath.ceil(x) : realMath.floor(x);
+};
 $_.realMath = realMath;
 complex = function complex(re, im, type) {
     var self = this;
@@ -2329,13 +2458,12 @@ complex = function complex(re, im, type) {
     }
     else
     {
-        im = im || 0;
+        im = im || O;
         if ('polar' === type)
         {
             self._rho = realMath.abs(re);
-            self._theta = im;
-            self.re = n_mul(self._rho, realMath.cos(self._theta));
-            self.im = n_mul(self._rho, realMath.sin(self._theta));
+            self.re = n_mul(self._rho, realMath.cos(im));
+            self.im = n_mul(self._rho, realMath.sin(im));
         }
         else
         {
@@ -2375,7 +2503,7 @@ complex.prototype = {
         var self = this;
         if (null == self._theta)
         {
-            self._theta = n_eq(self.re, 0) ? (n_lt(self.im, 0) ? -1 : 1)*pi/2 : realMath.atan(n_div(self.im, self.re));
+            self._theta = /*n_eq(self.re, O) ? __((n_lt(self.im, O) ? -1 : 1)*pi/2) :*/ realMath.atan2(self.im, self.re);
         }
         return self._theta;
     },
@@ -2383,7 +2511,7 @@ complex.prototype = {
         var self = this;
         if (null == self._sgn)
         {
-            self._sgn = !n_eq(self.im, 0) ? self.div(self.abs())/*new complex(realMath.cos(self.angle()), realMath.sin(self.angle()))*/ : realMath.sign(self.re);
+            self._sgn = !n_eq(self.im, O) ? self.div(self.abs())/*new complex(realMath.cos(self.angle()), realMath.sin(self.angle()))*/ : realMath.sign(self.re);
             if (is_complex(self._sgn)) self._sgn._sgn = self._sgn;
         }
         return self._sgn;
@@ -2414,7 +2542,7 @@ complex.prototype = {
         var self = this;
         if (is_num(other))
         {
-            return new complex(n_eq(self.re, 0) ? 0 : n_mul(self.re, other), n_eq(self.im, 0) ? 0 : n_mul(self.im, other));
+            return new complex(n_eq(self.re, O) ? O : n_mul(self.re, other), n_eq(self.im, O) ? O : n_mul(self.im, other));
         }
         else
         {
@@ -2431,7 +2559,7 @@ complex.prototype = {
         var self = this;
         if (is_num(other))
         {
-            return new complex(n_eq(self.re, 0) ? 0 : n_div(self.re, other), n_eq(self.im, 0) ? 0 : n_div(self.im, other));
+            return new complex(n_eq(self.re, O) ? O : n_div(self.re, other), n_eq(self.im, O) ? O : n_div(self.im, other));
         }
         else
         {
@@ -2448,7 +2576,11 @@ complex.prototype = {
         }
     },
     pow: function(other) {
-        var self = this;
+        var self = this, invother;
+        if (is_nan(other))
+        {
+            return nan;
+        }
         if (is_num(other))
         {
             return new complex(n_pow(self.abs(), other), n_mul(self.angle(), other), 'polar');
@@ -2473,7 +2605,7 @@ complex.prototype = {
         var self = this;
         if (null == self._str)
         {
-            self._str = num2str(self.re) + (n_lt(self.im, 0) ? ' - ' : ' + ') + num2str(realMath.abs(self.im))+'i';
+            self._str = num2str(self.re) + (n_lt(self.im, O) ? ' - ' : ' + ') + num2str(realMath.abs(self.im))+'i';
         }
         return self._str;
     },
@@ -2481,8 +2613,8 @@ complex.prototype = {
         return _(this.re);
     }
 };
-i = new complex(0, 1);
-ze = new complex(e, 0);
+i = new complex(O, I);
+ze = new complex(constant.e, O);
 
 complexMath = {
     floor: function(z) {
@@ -2494,11 +2626,14 @@ complexMath = {
     round: function(z) {
         return new complex(realMath.round(z.re), realMath.round(z.im));
     },
+    fix: function(z) {
+        return new complex(realMath.fix(z.re), realMath.fix(z.im));
+    },
     sign: function(z) {
         return z.sign();
     },
     sqrt: function(z) {
-        return z.pow(new complex(1/2, 0));
+        return z.pow(new complex(half, O));
     },
     exp: function(z) {
         return ze.pow(z);
@@ -2507,7 +2642,10 @@ complexMath = {
         return new complex(realMath.log(z.abs()), z.angle());
     },
     log10: function(z) {
-        return new complex(realMath.log10(z.abs()), z.angle());
+        return complexMath.log(z).div(log_10);
+    },
+    log2: function(z) {
+        return complexMath.log(z).div(log_2);
     },
     sin: function(z) {
       return new complex(n_mul(realMath.sin(z.re), realMath.cosh(z.im)), n_mul(realMath.cos(z.re), realMath.sinh(z.im)));
@@ -2537,7 +2675,8 @@ complexMath = {
 };
 $_.complexMath = complexMath;
 fn.complex = complex;
-(['floor','ceil','round','sign','sqrt','exp','log','log10','sin','cos','tan','sinh','cosh','tanh','asin','acos','atan','asinh','acosh','atanh']).forEach(function(f) {
+
+(['floor','ceil','round','fix','sign','exp','log','log10','log2','sin','cos','tan','sinh','cosh','tanh','asin','acos','atan','asinh','acosh','atanh']).forEach(function(f) {
     fn[f] = complexMath[f] ? function(x) {
         return apply(function(x) {
             return is_complex(x) ? complexMath[f](x) : realMath[f](x);
@@ -2546,6 +2685,26 @@ fn.complex = complex;
         return apply(function(x) {
             return realMath[f](x);
         }, x, false);
+    };
+});
+fn.atan2 = function(y, x) {
+    return apply2(function(y, x) {
+        return realMath.atan2(y, x);
+    }, y, x, false);
+};
+fn.sqrt = function(x) {
+    return apply(function(x) {
+        return is_complex(x) ? complexMath.sqrt(x) : (n_gt(O, x) ? new complex(O, realMath.sqrt(n_neg(x))) : realMath.sqrt(x));
+    }, x, true);
+};
+(['sqrt','pow','log']).forEach(function(f) {
+    fn['real'+f] = function(x) {
+        return apply(function(x) {
+            x = realify(x);
+            if (is_complex(x)) not_supported("real"+f);
+            var y = realMath[f](x);
+            return is_nan(y) || !is_real(y) ? not_supported("real"+f) : y;
+        }, x, true);
     };
 });
 function real(x)
@@ -2584,11 +2743,11 @@ function norm(x, p)
         }
         else if (is_vector(x))
         {
-            return n_lt(p, 0) ? min(abs(x)) : max(abs(x));
+            return n_lt(p, O) ? min(abs(x)) : max(abs(x));
         }
         else if (is_matrix(x))
         {
-            if (n_gt(p, 0))
+            if (n_gt(p, O))
             {
                 return max(sum(abs(transpose(x))));
             }
@@ -2596,7 +2755,7 @@ function norm(x, p)
     }
     else if (is_num(p))
     {
-        if (n_eq(p, 1))
+        if (n_eq(p, I))
         {
             if (is_scalar(x))
             {
@@ -2626,7 +2785,7 @@ function norm(x, p)
                 return max(svd(x, null, false, false));
             }
         }
-        else if (n_gt(p, 0))
+        else if (n_gt(p, O))
         {
             if (is_scalar(x))
             {
@@ -2661,7 +2820,7 @@ function zeros(rows, cols)
     {
         cols = rows;
     }
-    return matrix(_(rows), _(cols), __(0));
+    return matrix(_(rows), _(cols), O);
 }
 fn.zeros = zeros;
 function ones(rows, cols)
@@ -2676,19 +2835,21 @@ function ones(rows, cols)
     {
         cols = rows;
     }
-    return matrix(_(rows), _(cols), __(1));
+    return matrix(_(rows), _(cols), I);
 }
 fn.ones = ones;
-function eye(n)
+function eye(n, d)
 {
+    if (null == d) d = I;
     if (null == n) n = 1;
     n = sca(n, true);
-    var I = __(1), O = __(0);
     return matrix(_(n), _(n), function(i, j) {
-        return i === j ? I : O;
+        return i === j ? d : O;
     });
 }
-fn.eye = eye;
+fn.eye = function(n) {
+    return eye(n, I);
+};
 function rand(rows, cols)
 {
     if (null == rows)
@@ -2749,12 +2910,28 @@ function randn(rows, cols)
     });
 }
 fn.randn = randn;
+function shuffle(a)
+{
+    // adapted from https://github.com/foo123/Abacus
+    var offset = 0, a0 = 0, a1 = a.length-1,
+        N = a1-a0+1, perm, swap;
+    while (1 < N--)
+    {
+        perm = stdMath.round(stdMath.random()*(N-offset));
+        swap = a[a0+N];
+        a[a0+N] = a[a0+perm];
+        a[a0+perm] = swap;
+    }
+    return a;
+}
+fn.randperm = function(n) {
+    n = _(n || 0);
+    if (!is_int(n) || 0 >= n) not_supported("randperm");
+    return shuffle(array(n, function(i) {return i+1;}));
+};
 function magic(n)
 {
-    n = sca(n, true);
-    n = is_int(n) ? _(n) : null;
-    if (!is_int(n) || (2 >= n)) return 1 === n ? [[1]] : [];
-
+    // adapted from https://github.com/foo123/Abacus
     var odd = n & 1,
         even = 1 - odd,
         doubly_even = 0 === (/*n%4*/n&3),
@@ -2814,8 +2991,109 @@ function magic(n)
         return m;
     }
 }
-fn.magic = magic;
-function linspace(a, b, n)
+fn.magic = function(n) {
+    n = sca(n, true);
+    n = is_int(n) ? _(n) : null;
+    if (!is_int(n) || (2 >= n)) return 1 === n ? [[I]] : [];
+    var m = magic(n);
+    return matrix(n, n, function(i, j) {return __(m[i][j]);});
+};
+function pascal(n)
+{
+    // adapted from https://github.com/foo123/FILTER.js
+    return matrix(n, n, function(i, j, mat) {
+        return 0 === i ? 1 : (0 === j ? 1 : (mat[i-1][j]+mat[i][j-1]));
+    });
+}
+fn.pascal = function(n) {
+    if (1 < arguments.length) not_supported("pascal");
+    n = sca(n, true);
+    n = is_int(n) ? _(n) : null;
+    if (!is_int(n) || (0 >= n)) return [];
+    var p = pascal(n);
+    return matrix(n, n, function(i, j) {return __(p[i][j]);});
+};
+fn.rosser = function() {
+    return [
+    [ __(  611), __( 196),  __(-192), __( 407), __(  -8), __( -52),  __( -49),  __(  29)],
+    [ __(  196), __( 899),  __( 113), __(-192), __( -71), __( -43),  __(  -8),  __( -44)],
+    [ __( -192), __( 113),  __( 899), __( 196), __(  61), __(  49),  __(   8),  __(  52)],
+    [ __(  407), __(-192),  __( 196), __( 611), __(   8), __(  44),  __(  59),  __( -23)],
+    [ __(   -8), __( -71),  __(  61), __(   8), __( 411), __(-599),  __( 208),  __( 208)],
+    [ __(  -52), __( -43),  __(  49), __(  44), __(-599), __( 411),  __( 208),  __( 208)],
+    [ __(  -49), __(  -8),  __(   8), __(  59), __( 208), __( 208),  __(  99),  __(-911)],
+    [ __(   29), __( -44),  __(  52), __( -23), __( 208), __( 208),  __(-911),  __(  99)]
+    ];
+};fn.vander = function(v) {
+    v = vec(v);
+    if (!is_vector(v)) not_supported("vander");
+    return v.map(function(vi) {
+        return array(v.length, function(j, vij) {
+            return 0 === j ? I : scalar_mul(vij[j-1], vi);
+        }).reverse();
+    });
+};
+fn.toeplitz = function(c, r) {
+    if (1 === arguments.length)
+    {
+        r = vec(c);
+        return matrix(r.length, r.length, function(i, j) {
+            return i === j ? r[0] : (j > i ? r[stdMath.abs(i-j)] : scalar_conj(r[stdMath.abs(i-j)]));
+        });
+    }
+    else
+    {
+        c = vec(c);
+        r = vec(r);
+        return matrix(c.length, r.length, function(i, j) {
+            return i === j ? c[0] : (j > i ? r[stdMath.abs(i-j)] : c[stdMath.abs(i-j)]);
+        });
+    }
+};fn.hankel = function(c, r) {
+    var m, n, p;
+    if (1 === arguments.length)
+    {
+        c = vec(c);
+        m = c.length;
+        return matrix(m, m, function(i, j) {
+            return j > m-1-i ? O : c[(i+j) % m];
+        });
+    }
+    else
+    {
+        c = vec(c);
+        r = vec(r);
+        m = c.length;
+        n = r.length;
+        //p = c.concat(r.slice(1));
+        return matrix(n, n, function(i, j) {
+            return i+j-1 >= m ? r[i+j - m] : c[(i+j) % m];//p[i+j-1];
+        });
+    }
+};function hadamard(n)
+{
+    if (1 === n)
+    {
+        return [[I]];
+    }
+    if (2 === n)
+    {
+        return [[I, I], [I, J]];
+    }
+    if (4 === n)
+    {
+        return [[I, I, I, I], [I, J, I, J], [I, I, J, J], [I, J, J, I]];
+    }
+    if (0 === (n % 4))
+    {
+        var HH = hadamard(n/2);
+        return HH.length ? kron([[I, I], [I, J]], HH) : [];
+    }
+    return [];
+}
+fn.hadamard = function(n) {
+    return hadamard(_(n));
+};function linspace(a, b, n)
 {
     if (null == n) n = 100;
     n = _(n);
@@ -2828,8 +3106,8 @@ function logspace(a, b, n)
 {
     if (null == n) n = 100;
     n = _(n);
-    var step = realMath.pow(n_div(b, a), 1/(n-1)), ans = new Array(n);
-    for (var i=0,ai=a; i<n; ++i,ai=n_mul(ai, step)) ans[i] = ai;
+    var step = n_pow(n_div(b, a), 1/(n-1)), ans = new Array(n);
+    for (var i=0,ai=a; i<n; ++i,ai=scalar_mul(ai, step)) ans[i] = ai;
     return ans;
 }
 fn.logspace = logspace;
@@ -2856,7 +3134,7 @@ fn.meshgrid = meshgrid;
 function colon(a, b, c)
 {
     var ans;
-    if (1 === arguments.length)
+    if ((1 === arguments.length) && is_array(a))
     {
         // a(:)
         if (is_2d(a))
@@ -2885,24 +3163,24 @@ function colon(a, b, c)
         {
             // two inputs
             c = b;
-            b = 1;
+            b = I;
         }
         else
         {
             // one input
             c = a;
-            b = 1;
-            a = 1;
+            b = I;
+            a = I;
         }
         a = sca(a, true);
         b = sca(b, true);
         c = sca(c, true);
         ans = [];
-        if (n_gt(b, 0))
+        if (n_gt(b, O))
         {
             for (; n_le(a, c); a=n_add(a, b)) ans.push(a);
         }
-        else if (n_lt(b, 0))
+        else if (n_lt(b, O))
         {
             for (; n_ge(a, c); a=n_add(a, b)) ans.push(a);
         }
@@ -2912,15 +3190,29 @@ function colon(a, b, c)
 fn.colon = colon;
 function cat(type, A, B)
 {
-    if (("horz" === type) && is_2d(A) && is_2d(B) && (ROWS(A) === ROWS(B)))
+    if ("horz" === type)
     {
-        return A.map(function(Ai, i) {
-            return Ai.concat(B[i]);
-        });
+        if (is_1d(A) && is_1d(B))
+        {
+            return A.concat(B);
+        }
+        else if (is_2d(A) && is_2d(B) && (ROWS(A) === ROWS(B)))
+        {
+            return A.map(function(Ai, i) {
+                return Ai.concat(B[i]);
+            });
+        }
     }
-    if (("vert" === type) && is_2d(A) && is_2d(B) && (COLS(A) === COLS(B)))
+    if ("vert" === type)
     {
-        return A.concat(B);
+        if (is_1d(A) && is_1d(B))
+        {
+            return A.concat(B);
+        }
+        else if (is_2d(A) && is_2d(B) && (COLS(A) === COLS(B)))
+        {
+            return A.concat(B);
+        }
     }
     not_supported("cat");
 }
@@ -3009,7 +3301,7 @@ function diag(x, k)
     if (is_1d(x))
     {
         return matrix(x.length, x.length, function(i, j) {
-            return k === i - j ? x[i] : 0;
+            return k === i - j ? x[i] : O;
         });
     }
     if (is_2d(x))
@@ -3048,12 +3340,36 @@ function blkdiag(matrices)
             mat_rows = ROWS(mat);
             mat_cols = COLS(mat);
         }
-        return (col < offset_col) || (col >= offset_col+mat_cols) ? 0 : (mat[row-offset_row][col-offset_col]);
+        return (col < offset_col) || (col >= offset_col+mat_cols) ? O : (mat[row-offset_row][col-offset_col]);
     });
 }
 fn.blkdiag = function(/*..args*/) {
     return blkdiag([].slice.call(arguments));
 };
+function tril(x, k)
+{
+    if (is_2d(x))
+    {
+        k = _(k || 0);
+        return matrix(ROWS(x), COLS(x), function(i, j) {
+            return j <= i+k ? x[i][j] : O;
+        });
+    }
+    not_supported("tril");
+}
+fn.tril = tril;
+function triu(x, k)
+{
+    if (is_2d(x))
+    {
+        k = _(k || 0);
+        return matrix(ROWS(x), COLS(x), function(i, j) {
+            return j >= i+k ? x[i][j] : O;
+        });
+    }
+    not_supported("triu");
+}
+fn.triu = triu;
 function repmat(x, nr, nc)
 {
     if (is_vector(nr))
@@ -3299,20 +3615,6 @@ fn.sort = varargout(function(nargout, x, dim, dir/*, .. args*/) {
     dim = _(dim);
     return sort(x, dim, dir, cmp, 1 < nargout);
 });
-function mod(x, n)
-{
-    n = sca(n || 0);
-    return eq(n, 0) ? x : apply(function(x) {
-        if (is_num(x))
-        {
-            var m = n_mod(x, n);
-            if (n_lt(m, 0) && n_gt(n, 0)) m = n_add(m, n);
-            return m;
-        }
-        return x;
-    }, x, true);
-}
-fn.mod = mod;
 function min(x)
 {
     if (is_scalar(x))
@@ -3332,7 +3634,7 @@ function min(x)
             return min(COL(x, column));
         });
     }
-    return 0;
+    return nan;
 }
 fn.min = min;
 function max(x)
@@ -3354,7 +3656,7 @@ function max(x)
             return max(COL(x, column));
         });
     }
-    return 0;
+    return nan;
 }
 fn.max = max;
 function sum(x)
@@ -3367,7 +3669,7 @@ function sum(x)
     {
         return x.reduce(function(sum, xi) {
             return scalar_add(sum, xi);
-        }, __(0));
+        }, O);
     }
     else if (is_matrix(x))
     {
@@ -3388,7 +3690,7 @@ function prod(x)
     {
         return x.reduce(function(prod, xi) {
             return scalar_mul(prod, xi);
-        }, __(1));
+        }, I);
     }
     else if (is_matrix(x))
     {
@@ -3739,7 +4041,7 @@ fn.movmax = function(x, k, dim) {
 };
 function bitshift(x, k)
 {
-    return apply(function(x) {return is_int(x) ? (n_lt(k, 0) ? (_(x) >> (-_(k))) : (_(x) << _(k))) : x}, x, true);
+    return apply(function(x) {return is_int(x) ? (n_lt(k, O) ? (_(x) >> (-_(k))) : (_(x) << _(k))) : x}, x, true);
 }
 fn.bitshift = bitshift;
 function bitand(x, y)
@@ -3868,7 +4170,7 @@ function find(x, check)
 }
 $_.find = find;
 fn.find = function(x) {
-    return find(x, function(x) {return !eq(x, 0);});
+    return find(x, function(x) {return !eq(x, O);});
 };
 function all(x, check)
 {
@@ -3899,7 +4201,7 @@ function all(x, check)
 }
 $_.all = all;
 fn.all = function(x) {
-    return all(x, function(x) {return !eq(x, 0);});
+    return all(x, function(x) {return !eq(x, O);});
 };
 function any(x, check)
 {
@@ -3928,9 +4230,24 @@ function any(x, check)
 }
 $_.any = any;
 fn.any = function(x) {
-    return any(x, function(x) {return !eq(x, 0);});
+    return any(x, function(x) {return !eq(x, O);});
 };
-fn.isreal = function(x) {
+fn.isnan = function isnan(x) {
+    if (is_array(x)) return x.map(isnan);
+    if (is_nan(x)) return 1;
+    if (is_complex(x)) return is_nan(x.re) || is_nan(x.im) ? 1 : 0;
+    return 0;
+};fn.isinf = function isinf(x) {
+    if (is_array(x)) return x.map(isinf);
+    if (is_num(x)) return is_inf(x) ? 1 : 0;
+    if (is_complex(x)) return is_inf(x.re) || is_inf(x.im) ? 1 : 0;
+    return 0;
+};fn.isfinite = function isfinite(x) {
+    if (is_array(x)) return x.map(isfinite);
+    if (is_num(x)) return !is_inf(x) ? 1 : 0;
+    if (is_complex(x)) return !is_inf(x.re) && !is_inf(x.im) ? 1 : 0;
+    return 0;
+};fn.isreal = function(x) {
     return all(x, is_real);
 };
 fn.isempty = function(x) {
@@ -3972,8 +4289,8 @@ function ADDR(m, i, j, a, b, k0)
 {
     // add (a multiple of) row j to (a multiple of) row i
     var k, n = m[0].length;
-    if (null == a) a = 1;
-    if (null == b) b = 1;
+    if (null == a) a = I;
+    if (null == b) b = I;
     for (k=k0||0; k<n; ++k)
         m[i][k] = scalar_add(scalar_mul(b, m[i][k]), scalar_mul(a, m[j][k]));
     return m;
@@ -3982,8 +4299,8 @@ function ADDC(m, i, j, a, b, k0)
 {
     // add (a multiple of) column j to (a multiple of) column i
     var k, n = m.length;
-    if (null == a) a = 1;
-    if (null == b) b = 1;
+    if (null == a) a = I;
+    if (null == b) b = I;
     for (k=k0||0; k<n; ++k)
         m[k][i] = scalar_add(scalar_mul(b, m[k][i]), scalar_mul(a, m[k][j]));
     return m;
@@ -4066,9 +4383,9 @@ function concat(A, B, axis)
         // |  B  |
         return matrix(rA+rB, stdMath.max(cA, cB), function(i, j) {
             if (j >= cA)
-                return i < rA ? 0 : B[i-rA][j];
+                return i < rA ? O : B[i-rA][j];
             else if (j >= cB)
-                return i < rA ? A[i][j] : 0;
+                return i < rA ? A[i][j] : O;
             else
                 return i < rA ? A[i][j] : B[i-rA][j];
         });
@@ -4078,23 +4395,17 @@ function concat(A, B, axis)
         // | A | B |
         return matrix(stdMath.max(rA, rB), cA+cB, function(i, j) {
             if (i >= rA)
-                return j < cA ? 0 : B[i][j-cA];
+                return j < cA ? O : B[i][j-cA];
             else if (i >= rB)
-                return j < cA ? A[i][j] : 0;
+                return j < cA ? A[i][j] : O;
             else
                 return j < cA ? A[i][j] : B[i][j-cA];
         });
     }
 }
-function norm2(x)
-{
-    return x.reduce(function(n, xi) {
-        return scalar_add(n, scalar_mul(xi, scalar_conj(xi)));
-    }, __(0));
-}
 function is_tri(A, type, strict, eps)
 {
-    var nr = ROWS(A), nc = COLS(A), n, r, c, O;
+    var nr = ROWS(A), nc = COLS(A), n, r, c;
     if ((false !== strict) && (nr !== nc)) return false;
 
     eps = __(eps || 0);
@@ -4137,17 +4448,17 @@ function compute_givens(f, g)
     */
     // f, g may be real or complex
     var c, s, r, sf, af, n;
-    if (eq(g, 0))
+    if (eq(g, O))
     {
-        c = __(1);
-        s = __(0);
+        c = I;
+        s = O;
         //r = f;
     }
-    else if (eq(f, 0))
+    else if (eq(f, O))
     {
-        c = __(0);
+        c = O;
         s = scalar_sign(scalar_conj(g));
-        if (eq(s, 0)) s = __(1);
+        if (eq(s, O)) s = I;
         //r = scalar_abs(g);
     }
     else
@@ -4161,11 +4472,36 @@ function compute_givens(f, g)
     }
     return [c, s/*, r*/]; // skip r
 }
-function givens(n, p, q, f, g)
+function compute_jacobi(alpha, beta, gamma)
+{
+    // Compute the Jacobi/Givens rotation
+    //
+    //   [ c -s ] [ alpha beta  ] [  c s ] = [ alpha_new 0        ]
+    //   [ s  c ] [ beta  gamma ] [ -s c ]   [ 0         beta_new ]
+    //
+    if (eq(beta, O))
+    {
+        return [
+            [I, O],
+            [O, I]
+        ];
+    }
+    else
+    {
+        var b = scalar_div(scalar_sub(gamma, alpha), scalar_mul(beta, 2)),
+            t = scalar_div(scalar_sign(b), scalar_add(scalar_add(scalar_abs(b), fn.sqrt(scalar_pow(b, 2))), I));
+            c = scalar_inv(fn.sqrt(scalar_add(I, scalar_pow(t,2)))),
+            s = scalar_mul(c, t);
+        return [
+            [c,             s],
+            [scalar_neg(s), c]
+        ];
+    }
+}
+/*function givens(n, p, q, f, g)
 {
     var givens_rot = compute_givens(f, g),
-        c = givens_rot[0], s = givens_rot[1],
-        O = __(0), I = __(1);
+        c = givens_rot[0], s = givens_rot[1];
     return matrix(n, n, function(i, j) {
         if (i === j)
         {
@@ -4177,12 +4513,35 @@ function givens(n, p, q, f, g)
         }
         return O;
     });
-}
-function givensmul(type, G, p, q, A)
+}*/
+function rotmul(type, G, p, q, A)
 {
-    var i, j, n = ROWS(A),
-        B = copy(A),
-        Gpp, Gpq, Gqp, Gqq;
+    var n = ROWS(A), B = copy(A),
+        i, j, Gpp, Gpq, Gqp, Gqq;
+    if ((2 === G.length) && is_scalar(G[0]))
+    {
+        // c, s
+        Gpp = G[0];
+        Gpq = scalar_neg(G[1]);
+        Gqp = G[1];
+        Gqq = G[0];
+    }
+    else if ((2 === G.length) && (2 === G[0].length))
+    {
+        // jacobi/givens compact matrix
+        Gpp = G[0][0];
+        Gpq = G[0][1];
+        Gqp = G[1][0];
+        Gqq = G[1][1];
+    }
+    else
+    {
+        // jacobi/givens full matrix
+        Gpp = G[p][p];
+        Gpq = G[p][q];
+        Gqp = G[q][p];
+        Gqq = G[q][q];
+    }
     if ('right' === type)
     {
         /*
@@ -4191,22 +4550,7 @@ function givensmul(type, G, p, q, A)
         a3 b3 c3 d3 | 0 s  c 0  = a3 (G[:,i]*A[3,:]) c3 (G[:,j]*A[3,:])
         a4 b4 c4 d4 | 0 0  0 1  = a4 (G[:,i]*A[4,:]) c4 (G[:,j]*A[4,:])
         */
-        if ((2 === G.length) && is_scalar(G[0]))
-        {
-            // c, s
-            Gpp = G[0];
-            Gpq = scalar_neg(G[1]);
-            Gqp = G[1];
-            Gqq = G[0];
-        }
-        else
-        {
-            // matrix
-            Gpp = G[p][p];
-            Gpq = G[p][q];
-            Gqp = G[q][p];
-            Gqq = G[q][q];
-        }
+        // A(:, [k l]) = A(:, [k l])*G;
         for (i=0; i<n; ++i)
         {
             /*for (s=0,j=0; j<n; ++j)
@@ -4229,22 +4573,7 @@ function givensmul(type, G, p, q, A)
         0 s  c 0 | a3 b3 c3 d3 = (G[j,:]*A[:,1]) (G[j,:]*A[:,2]) (G[j,:]*A[:,3]) (G[j,:]*A[:,4])
         0 0  0 1 | a4 b4 c4 d4 = a4 b4 c4 d4
         */
-        if ((2 === G.length) && is_scalar(G[0]))
-        {
-            // c, s
-            Gpp = G[0];
-            Gpq = scalar_neg(G[1]);
-            Gqp = G[1];
-            Gqq = G[0];
-        }
-        else
-        {
-            // matrix
-            Gpp = G[p][p];
-            Gpq = G[p][q];
-            Gqp = G[q][p];
-            Gqq = G[q][q];
-        }
+        // A([k l], :) = G'*A([k l], :);
         for (i=0; i<n; ++i)
         {
             /*for (s=0,j=0; j<n; ++j)
@@ -4261,13 +4590,69 @@ function givensmul(type, G, p, q, A)
     }
     return B;
 }
-function ref(A, with_pivots, odim, eps)
+function jacobi_sweep(A, nsweeps)
+{
+    if (null == nsweeps) nsweeps = 1;
+    var n = ROWS(A), sweep, k, l, J;
+
+    for (sweep=1; sweep<=nsweeps; ++sweep)
+    {
+        for (k=1; k<n; ++k)
+        {
+            for (l=0; l<=k-1; ++l)
+            {
+                J = compute_jacobi(A[k][k], A[k][l], A[l][l]);
+                A = rotmul('right', J, k, l, rotmul('left', ctranspose(J), k, l, A));
+            }
+        }
+    }
+    return A;
+}
+function francis_poly(H)
+{
+    // Get shifts via trailing submatrix
+    var i = ROWS(H)-1, j = COLS(H)-1,
+        trHH  = scalar_add(H[i-1][j-1], H[i][j]),
+        detHH = scalar_sub(scalar_mul(H[i-1][j-1], H[i][j]), scalar_mul(H[i-1][j], H[i][j-1])),
+        f1, f2, f3, r1, r2, b, c
+    ;
+
+    f1 = scalar_pow(trHH, 2);
+    f2 = scalar_mul(detHH, 4);
+    if (gt(f1, f2)) // Real eigenvalues
+    {
+        // Use the one closer to H(n,n)
+        f3 = fn.sqrt(scalar_sub(f1, f2));
+        r1 = scalar_div(scalar_add(trHH, f3), 2);
+        r2 = scalar_div(scalar_sub(trHH, f3), 2);
+        if (lt(scalar_abs(scalar_sub(r1, H[i][j])), scalar_abs(scalar_sub(r2, H[i][j]))))
+        {
+            r2 = r1;
+        }
+        else
+        {
+            r1 = r2;
+        }
+        // z^2 + bz + c = (z-sigma_1)(z-sigma_2)
+        b = scalar_neg(scalar_add(r1, r2));
+        c = scalar_mul(r1, r2);
+    }
+    else
+    {
+        // In the complex case, we want the char poly for HH
+        b = scalar_neg(trHH);
+        c = detHH;
+    }
+    return [b, c];
+}
+function gauss_jordan(A, with_pivots, odim, eps)
 {
     // adapted from https://github.com/foo123/Abacus
-    var rows = ROWS(A), columns = COLS(A), dim = columns, pivots,
-        det, pl = 0, r, i, i0, p0, lead, leadc, imin, im, min,
-        a, z, m, aug, find_dupl,
-        O = __(0), I = __(1), J = __(-1);
+    var rows = ROWS(A), columns = COLS(A),
+        dim = columns, pivots,
+        det, pl = 0, r, i, i0, p0,
+        lead, leadc, imin, im, min,
+        a, z, m, aug, find_dupl;
     eps = __(eps || 0);
     // original dimensions, eg when having augmented matrix
     if (is_array(odim)) dim = stdMath.min(dim, odim[1]);
@@ -4363,7 +4748,67 @@ function ref(A, with_pivots, odim, eps)
 
     return with_pivots ? [m, pivots, det, aug] : m;
 }
-fn.ref = varargout(function(nargout, x, tol) {
+var ref = gauss_jordan;
+function largest_eig(A, N, eps, valueonly)
+{
+    // power method
+    var iter,
+        A_t,
+        k, prev_k,
+        v, prev_v,
+        w, prev_w;
+
+    k = O;
+    if (true === valueonly)
+    {
+        v = array(N, function() {return new complex(__(stdMath.random() || 0.1), O);});
+        v = dotdiv(v, norm(v));
+        for (iter=1; iter<=100; ++iter)
+        {
+            prev_k = k;
+            prev_v = v;
+            v = vec(mul(A, v));
+            k = dot(v, prev_v);
+            v = dotdiv(v, v[0].sign());
+            v = dotdiv(v, norm(v));
+            if (n_le(realMath.abs(n_sub(real(k), real(prev_k))), eps) && n_le(realMath.abs(n_sub(imag(k), imag(prev_k))), eps)) break;
+        }
+        return k;
+    }
+    else
+    {
+        A_t = ctranspose(A);
+        v = array(N, function() {return new complex(__(stdMath.random() || 0.1), O);});
+        v = dotdiv(v, norm(v));
+        w = array(N, function() {return new complex(__(stdMath.random() || 0.1), O);});
+        w = dotdiv(w, norm(w));
+        for (iter=1; iter<=100; ++iter)
+        {
+            prev_k = k;
+            prev_v = v;
+            prev_w = w;
+            v = vec(mul(A, v));
+            w = vec(mul(A_t, w));
+            k = dot(v, prev_v);
+            v = dotdiv(v, v[0].sign());
+            w = dotdiv(w, w[0].sign());
+            v = dotdiv(v, norm(v));
+            w = dotdiv(w, norm(w));
+            if (n_le(realMath.abs(n_sub(real(k), real(prev_k))), eps) && n_le(realMath.abs(n_sub(imag(k), imag(prev_k))), eps)) break;
+        }
+        return [k, v, w];
+    }
+}
+fn.planerot = varargout(function(nargout, x) {
+    x = vec(x);
+    if (!is_vector(x) || (2 !== x.length)) not_supported("planerot");
+    var g = compute_givens(x[0], x[1]),
+        G = [
+            [g[0],              g[1]],
+            [scalar_neg(g[1]),  g[0]]
+        ];
+    return 1 < nargout ? [G, mul(G, vec2col(x))] : G;
+});fn.ref = varargout(function(nargout, x, tol) {
     if (is_scalar(x)) x = [[x]];
     if (!is_matrix(x)) not_supported("ref");
     var ans = ref(x, true, null, tol);
@@ -4373,8 +4818,7 @@ function rref(A, with_pivots, odim, eps)
 {
     // adapted from https://github.com/foo123/Abacus
     var rows = ROWS(A), columns = COLS(A), dim = columns,
-        pivots, det, pl, lead, r, i, j, l, a, g, rf, aug,
-        O = __(0), I = __(1)/*, J = __(-1)*/;
+        pivots, det, pl, lead, r, i, j, l, a, g, rf, aug;
     eps = __(eps || 0);
     // original dimensions, eg when having augmented matrix
     if (is_array(odim)) dim = stdMath.min(dim, odim[1]);
@@ -4440,8 +4884,7 @@ function linsolve(A, b, opts)
     var tmp = ref(transpose(A), true),
         pivots = tmp[1],
         rank = pivots.length,
-        Tt, Rt, p, i, j, c, t,
-        O = __(0);
+        Tt, Rt, p, i, j, c, t;
 
     if (rank !== k) return []; // no solution
 
@@ -4453,7 +4896,7 @@ function linsolve(A, b, opts)
         p = array(k, O);
         for (i=0; i<k; ++i)
         {
-            if (eq(Rt[i][i], 0)) return []; // no solution
+            if (eq(Rt[i][i], O)) return []; // no solution
             for (t=O,j=0; j<i; ++j) t = scalar_add(t, scalar_mul(Rt[i][j], p[j]));
             p[i] = scalar_div(scalar_sub(b[i], t), Rt[i][i]);
         }
@@ -4498,8 +4941,7 @@ function nullspace(A, eps)
 {
     // adapted from https://github.com/foo123/Abacus
     var columns, ref, pivots,
-        free_vars, pl, tmp, LCM,
-        O = __(0), I = __(1);
+        free_vars, pl, tmp, LCM;
 
     columns = COLS(A);
     tmp = rref(A, true, null, eps);
@@ -4608,6 +5050,7 @@ fn.inv = function(A) {
 function rankf(A, ref)
 {
     // adapted from https://github.com/foo123/Abacus
+    // rank factorization
     var rows = ROWS(A), columns = COLS(A), pivots, rank, F, C;
     if (!ref) ref = rref(A, true);
     pivots = ref[1];
@@ -4616,12 +5059,17 @@ function rankf(A, ref)
     F = slice(ref[0], 0, 0, rank-1, columns-1).map(function(rref_i, i) {
         return rref_i.map(function(rref_ij, j) {
             j = i;
-            while ((j+1 < columns) && eq(ref[0][i][j], 0)) ++j;
-            return scalar_div(rref_ij, ref[0][i][j]);
+            while ((j+1 < columns) && eq(rref_i[j], O)) ++j;
+            return scalar_div(rref_ij, rref_i[j]);
         });
     });
     return [C, F];
 }
+fn.rankf = function(A) {
+    if (is_scalar(A)) A = [[A]];
+    if (!is_matrix(A)) not_supported("rankf");
+    return rankf(A);
+};
 function pinv(A, eps)
 {
     // adapted from https://github.com/foo123/Abacus
@@ -4721,7 +5169,7 @@ function trace(x)
     not_supported("trace");
 }
 fn.trace = trace;
-function detr(m, n, O, I, J)
+function detr(m, n)
 {
     var ii, zr, zc,
         s, det,
@@ -4781,7 +5229,7 @@ function detr(m, n, O, I, J)
             // expand along 1st col
             for (ii=0; ii<n; ++ii)
             {
-                if (!eq(m[ii][0], O)) det = scalar_add(det, scalar_mul(m[ii][0], scalar_mul(s, detr(reduce(m, n, ii, 0), n-1, O, I, J))));
+                if (!eq(m[ii][0], O)) det = scalar_add(det, scalar_mul(m[ii][0], scalar_mul(s, detr(reduce(m, n, ii, 0), n-1))));
                 s = I === s ? J : I;
             }
         }
@@ -4790,7 +5238,7 @@ function detr(m, n, O, I, J)
             // expand along 1st row
             for (ii=0; ii<n; ++ii)
             {
-                if (!eq(m[0][ii], O)) det = scalar_add(det, scalar_mul(m[0][ii], scalar_mul(s, detr(reduce(m, n, 0, ii), n-1, O, I, J))));
+                if (!eq(m[0][ii], O)) det = scalar_add(det, scalar_mul(m[0][ii], scalar_mul(s, detr(reduce(m, n, 0, ii), n-1))));
                 s = I === s ? J : I;
             }
         }
@@ -4823,7 +5271,7 @@ function det(A, explicit, eps)
     else
     {
         // compute either recursively or via ref
-        return true === explicit ? detr(A, n, __(0), __(1), __(-1)) : (ref(A, true, null, eps)[2]);
+        return true === explicit ? detr(A, n) : (ref(A, true, null, eps)[2]);
     }
 }
 fn.det = function(A) {
@@ -4839,7 +5287,7 @@ function charpoly(A)
     n = rows;
     coeff = new Array(n+1);
     M = zeros(n, n); // zero
-    coeff[n] = __(1);
+    coeff[n] = I;
     for (k=1; k<=n; ++k)
     {
         M = mul(A, M).map(function(vi, i) {
@@ -4881,8 +5329,7 @@ fn.adjoint = function(A) {
 function ldl(A, triangle)
 {
     // adapted from https://github.com/foo123/Abacus
-    var rows = ROWS(A), columns = COLS(A), i, j, jj,
-        k, sum, M, D, L, O = __(0);
+    var rows = ROWS(A), columns = COLS(A), i, j, jj, k, sum, D, L;
     if ((rows !== columns) || !EQU(A, ctranspose(A)))
     {
         not_supported("ldl");
@@ -4942,8 +5389,7 @@ function lu(A, without_d, eps)
     // adapted from https://github.com/foo123/Abacus
     var n, m, dim, P, L, U, DD,
         oldpivot, k, i, j, kpivot,
-        NotFound, Ukk, Uik, defficient,
-        O = __(0);
+        NotFound, Ukk, Uik, defficient;
     eps = __(eps || 0);
     n = ROWS(A);
     m = COLS(A);
@@ -5051,8 +5497,8 @@ function qr_givens(A, wantq)
             //G_t = ctranspose(G);
             G = compute_givens(R[i-1][j], R[i][j]);
             G_t = [scalar_conj(G[0]), scalar_neg(scalar_conj(G[1]))];
-            R = givensmul('left', G_t, i-1, i, R);//mul(ctranspose(G), R);
-            if (wantq) Q = givensmul('right', G, i-1, i, Q);//mul(Q, G);
+            R = rotmul('left', G_t, i-1, i, R);//mul(ctranspose(G), R);
+            if (wantq) Q = rotmul('right', G, i-1, i, Q);//mul(Q, G);
         }
     }
     return wantq ? [Q, R] : R;
@@ -5072,31 +5518,29 @@ function balance(A, pnorm, wantt)
     */
     var n = ROWS(A),
         B = copy(A),
-        T = wantt ? array(n, 1) : null,
+        T = wantt ? array(n, I) : null,
         i, j, f,
         col, row, c, r,
         eps = __(1e-10),
-        zero = __(0),
-        one = __(1),
         converged, iter;
     for (iter=1; iter<=10000; ++iter)
     {
         converged = 0;
         for (i=0; i<n; ++i)
         {
-            col = COL(B, i);
+            col = COL(B, i).map(__);
             col.splice(i, 1);
-            row = ROW(B, i).slice();
+            row = ROW(B, i).map(__);
             row.splice(i, 1);
             c = norm(col, pnorm);
             r = norm(row, pnorm);
-            if (n_eq(r, zero) || n_eq(c, zero))
+            if (n_eq(r, O) || n_eq(c, O))
             {
                 ++converged;
                 continue;
             }
             f = realMath.sqrt(n_div(r, c));
-            if (n_le(realMath.abs(n_sub(f, one)), eps)) ++converged;
+            if (n_le(realMath.abs(n_sub(f, I)), eps)) ++converged;
             if (wantt) T[i] = n_mul(f, T[i]);
             for (j=0; j<n; ++j)
             {
@@ -5134,8 +5578,8 @@ function hess(A, B, wantq)
                 //G_t = ctranspose(G);
                 G = compute_givens(H[i-1-1][k-1], H[i-1][k-1]);
                 G_t = [scalar_conj(G[0]), scalar_neg(scalar_conj(G[1]))];
-                if (wantq) Q = givensmul('right', G, i-1-1, i-1, Q);//mul(Q, G);
-                H = givensmul('left', G_t, i-1-1, i-1, givensmul('right', G, i-1-1, i-1, H));//mul(ctranspose(G), mul(H, G));
+                if (wantq) Q = rotmul('right', G, i-1-1, i-1, Q);//mul(Q, G);
+                H = rotmul('left', G_t, i-1-1, i-1, rotmul('right', G, i-1-1, i-1, H));//mul(ctranspose(G), mul(H, G));
             }
         }
         return wantq ? [Q, H] : H;
@@ -5157,15 +5601,15 @@ function hess(A, B, wantq)
                 //Rl_t = ctranspose(Rl);
                 Rl = compute_givens(AA[i-1-1][k-1], AA[i-1][k-1]);
                 Rl_t = [scalar_conj(Rl[0]), scalar_neg(scalar_conj(Rl[1]))];
-                Q = givensmul('right', Rl, i-1-1, i-1, Q);//mul(Q, Rl);
-                AA = givensmul('left', Rl_t, i-1-1, i-1, AA);//mul(Rl_t, AA);
-                BB = givensmul('left', Rl_t, i-1-1, i-1, BB);//mul(Rl_t, BB);
+                Q = rotmul('right', Rl, i-1-1, i-1, Q);//mul(Q, Rl);
+                AA = rotmul('left', Rl_t, i-1-1, i-1, AA);//mul(Rl_t, AA);
+                BB = rotmul('left', Rl_t, i-1-1, i-1, BB);//mul(Rl_t, BB);
 
                 //Rr = givens(n, i-1-1, i-1, scalar_neg(BB[i-1][i-1]), BB[i-1][i-1-1]);
                 Rr = compute_givens(scalar_neg(BB[i-1][i-1]), BB[i-1][i-1-1]);
-                Z = givensmul('right', Rr, i-1-1, i-1, Z);//mul(Z, Rr);
-                AA = givensmul('right', Rr, i-1-1, i-1, AA);//mul(AA, Rr);
-                BB = givensmul('right', Rr, i-1-1, i-1, BB);//mul(BB, Rr);
+                Z = rotmul('right', Rr, i-1-1, i-1, Z);//mul(Z, Rr);
+                AA = rotmul('right', Rr, i-1-1, i-1, AA);//mul(AA, Rr);
+                BB = rotmul('right', Rr, i-1-1, i-1, BB);//mul(BB, Rr);
             }
         }
         return [AA, BB, Q, Z];
@@ -5185,43 +5629,10 @@ fn.hess = varargout(function(nargout, A, B) {
         return hess(A, null, 1 < nargout);
     }
 });
-function largest_eig(A, N, eps, O, I)
-{
-    // power method
-    var iter,
-        A_t = ctranspose(A),
-        k, prev_k,
-        v, prev_v,
-        w, prev_w;
-
-    k = O;
-    v = array(N, function() {return new complex(__(stdMath.random() || 0.1), O);});
-    v = dotdiv(v, norm(v));
-    w = array(N, function() {return new complex(__(stdMath.random() || 0.1), O);});
-    w = dotdiv(w, norm(w));
-
-    for (iter=1; iter<=100; ++iter)
-    {
-        prev_k = k;
-        prev_v = v;
-        prev_w = w;
-        v = vec(mul(A, v));
-        w = vec(mul(A_t, w));
-        k = dot(v, prev_v);
-        v = dotdiv(v, v[0].sign());
-        w = dotdiv(w, w[0].sign());
-        v = dotdiv(v, norm(v));
-        w = dotdiv(w, norm(w));
-        if (n_le(realMath.abs(n_sub(real(k), real(prev_k))), eps) && n_le(realMath.abs(n_sub(imag(k), imag(prev_k))), eps)) break;
-    }
-    return [k, v, w];
-}
 function eig_power(A)
 {
     var e, d, v, w,
         eps = __(1e-10),
-        O = __(0),
-        I = __(1),
         n, N = ROWS(A),
         V = new Array(N),
         W = new Array(N),
@@ -5230,7 +5641,7 @@ function eig_power(A)
     A = copy(A);
     for (n=0; n<N; ++n)
     {
-        e = largest_eig(A, N, eps, O, I);
+        e = largest_eig(A, N, eps);
         d = e[0];
         v = e[1];
         w = e[2];
@@ -5294,10 +5705,9 @@ function svd(A, eta, wantu, wantv)
         p = 0,
         a = copy(A),
         u = nu ? zeros(m, nu) : null,
-        s = array(n, 0),
+        s = array(n, O),
         v = nv ? zeros(n, nv) : null,
-        tol = n_div(realmin, eta),
-        O = __(0), I = __(1),
+        tol = n_div(constant.realmin, eta),
         x, y, z, w, q,
         e, r, g, f, h, sn, cs,
         i, j, k, l,
@@ -5340,7 +5750,7 @@ function svd(A, eta, wantu, wantv)
         z = O;
         for (i=k; i<=m; ++i)
         {
-            z = n_add(z, n_add(n_pow(real(a[i-1][k-1]), 2), n_pow(imag(a[i-1][k-1]), 2)));
+            z = n_add(z, n_add(n_pow(realMath.abs(real(a[i-1][k-1])), two), n_pow(realMath.abs(imag(a[i-1][k-1])), two)));
         }
 
         b[k-1] = O;
@@ -5398,10 +5808,10 @@ function svd(A, eta, wantu, wantv)
             break;
         }
 
-        z = 0;
+        z = O;
         for (j=k1; j<=n; ++j)
         {
-            z = n_add(z, n_add(n_pow(real(a[k-1][j-1]), 2), n_pow(imag(a[k-1][j-1]), 2)));
+            z = n_add(z, n_add(n_pow(realMath.abs(real(a[k-1][j-1])), two), n_pow(realMath.abs(imag(a[k-1][j-1])), two)));
         }
 
         c[k1-1] = O;
@@ -5584,7 +5994,7 @@ function svd(A, eta, wantu, wantv)
             y = s[k-1-1];
             g = t[k-1-1];
             h = t[k-1];
-            f = n_div(n_add(n_mul(n_sub(y, w), n_add(y, w)), n_mul(n_sub(g, h), n_add(g, h))), n_mul(2, n_mul(h, y)));
+            f = n_div(n_add(n_mul(n_sub(y, w), n_add(y, w)), n_mul(n_sub(g, h), n_add(g, h))), n_mul(two, n_mul(h, y)));
             g = n_hypot(f, I);
             if (n_lt(f, O))
             {
@@ -5824,16 +6234,24 @@ fn.svd = varargout(function(nargout, x, eps) {
         return svd(x, eps, false, false);
     }
 });
-var __a1 = __( 0.254829592),
-    __a2 = __(-0.284496736),
-    __a3 = __( 1.421413741),
-    __a4 = __(-1.453152027),
-    __a5 = __( 1.061405429),
+var __a1 =  0.254829592,
+    __a2 = -0.284496736,
+    __a3 =  1.421413741,
+    __a4 = -1.453152027,
+    __a5 =  1.061405429,
+    __p  =  0.3275911;
+update.push(function() {
+    __a1 = __( 0.254829592);
+    __a2 = __(-0.284496736);
+    __a3 = __( 1.421413741);
+    __a4 = __(-1.453152027);
+    __a5 = __( 1.061405429);
     __p  = __( 0.3275911);
+});
 function erf(x)
 {
     x = real(x);
-    var t, sgn = realMath.sign(x) || 1, I = __(1);
+    var t, sgn = realMath.sign(x) || 1;
 
     if (sgn < 0) x = n_neg(x);
 
@@ -5964,11 +6382,11 @@ function moment(x, order, dim)
 {
     if (is_scalar(x))
     {
-        return __(0);
+        return O;
     }
     else if (is_vector(x))
     {
-        if (1 >= x.length) return x.length ? __(0) : nan;
+        if (1 >= x.length) return x.length ? O : nan;
         var N = x.length;
         return scalar_div(sum(dotpow(sub(x, mean(x)), order)), __(N));
     }
@@ -5999,11 +6417,11 @@ function std(x, w, dim)
     w = _(w || 0);
     if (is_scalar(x))
     {
-        return __(0);
+        return O;
     }
     else if (is_vector(x))
     {
-        return 0 === x.length ? nan : (1 === x.length ? __(0) : realMath.sqrt(scalar_div(sum(dotpow(abs(sub(x, mean(x))), __(2))), __(1 === w ? x.length : (x.length-1)))));
+        return 0 === x.length ? nan : (1 === x.length ? O : realMath.sqrt(scalar_div(sum(dotpow(abs(sub(x, mean(x))), __(2))), __(1 === w ? x.length : (x.length-1)))));
     }
     else if (is_matrix(x))
     {
@@ -6030,11 +6448,11 @@ function variance(x, w, dim)
     w = _(w || 0);
     if (is_scalar(x))
     {
-        return __(0);
+        return O;
     }
     else if (is_vector(x))
     {
-        if (1 >= x.length) return x.length ? __(0) : nan;
+        if (1 >= x.length) return x.length ? O : nan;
         var N = x.length,
             mu_x = mean(x),
             bar_x = sub(x, mu_x);
@@ -6072,11 +6490,11 @@ function cov(a, b, w)
     {
         if (is_scalar(a))
         {
-            return 0;
+            return O;
         }
         else if (is_vector(a))
         {
-            if (1 >= a.length) return a.length ? __(0) : nan;
+            if (1 >= a.length) return a.length ? O : nan;
             var N = a.length,
                 mu_a = mean(a),
                 bar_a = sub(a, mu_a);
@@ -6103,7 +6521,7 @@ function cov(a, b, w)
         if (is_vector(a) && is_vector(b))
         {
             if (a.length !== b.length) throw "cov: inputs not of same dimension";
-            if (1 >= a.length) return a.length ? __(0) : nan;
+            if (1 >= a.length) return a.length ? O : nan;
             var N = a.length;
             return scalar_div(sum(dotmul(conj(sub(a, mean(a))), sub(b, mean(b)))), __(1 === w ? N : (N-1)));
         }
@@ -6113,7 +6531,6 @@ function cov(a, b, w)
 fn.cov = cov;
 function corrcoef(a, b)
 {
-    var I = __(1);
     if (null == b)
     {
         if (is_scalar(a) || is_vector(a))
@@ -6156,8 +6573,7 @@ function conv(a, b)
     var i, j, ij, t,
         n = a.length,
         m = b.length,
-        nm = n + m - 1,
-        c, O = __(0);
+        nm = n + m - 1, c;
     if (!n || !m) return [];
     c = new Array(nm);
     if (n < m)
@@ -6198,33 +6614,33 @@ function deconv(n, d, pad)
         diff0, d0 = d;
     if (0 <= diff)
     {
-        q = array(diff+1, 0);
+        q = array(diff+1, O);
         while (0 <= diff)
         {
             diff0 = diff;
-            d = d0.concat(array(diff, 0));
+            d = d0.concat(array(diff, O));
             q[q.length-1-diff] = scalar_div(r[0], d[0]);
             r = addp(r, mulp(d, [scalar_neg(q[q.length-1-diff])]));
-            while (r.length && eq(r[0], 0)) r.shift();
+            while (r.length && eq(r[0], O)) r.shift();
             diff = r.length - d0.length;
             if (diff === diff0) break; // remainder won't change anymore
         }
         //q = q.reverse();
     }
-    return [q, pad ? (array(n.length-r.length, 0).concat(r)) : r];
+    return [q, pad ? (array(n.length-r.length, O).concat(r)) : r];
 }
 fn.deconv = varargout(function(nargout, a, b) {
     var ans;
     if (is_scalar(a) || is_scalar(b))
     {
-        ans = 1 < nargout ? [dotdiv(a, b), __(0)] : dotdiv(a, b);
+        ans = 1 < nargout ? [dotdiv(a, b), O] : dotdiv(a, b);
     }
     else
     {
         a = vec(a);
         b = vec(b);
         if (!is_vector(a) || !is_vector(b)) not_supported("deconv");
-        if (!b.length || (1 === b.length) && eq(b[0], 0)) throw "deconv: divisor is zero";
+        if (!b.length || (1 === b.length) && eq(b[0], O)) throw "deconv: divisor is zero";
         ans = deconv(a, b, true);
     }
     return 1 < nargout ? ans : ans[0];
@@ -6236,7 +6652,7 @@ function conv2(a, b)
         rB, cB,
         c, rC, cC,
         cjk, j, k,
-        p, q, t, O;
+        p, q, t;
 
     if (ROWS(a) < ROWS(b))
     {
@@ -6250,8 +6666,7 @@ function conv2(a, b)
     cB = COLS(b);
     rC = rA + rB - 1;
     cC = cA + cB - 1;
-    c = zeros(rC, cC),
-    O = __(0);
+    c = zeros(rC, cC);
 
     for (j=0; j<rC; ++j)
     {
@@ -6325,7 +6740,7 @@ function filter(b, a, x/*, zi, dim*/)
         nb = b.length,
         y = new Array(nx),
         n, k, m, yn,
-        a0 = a[0], O = __(0);
+        a0 = a[0];
 
     a = a.map(function(ai) {return scalar_div(ai, a0);});
     b = b.map(function(bi) {return scalar_div(bi, a0);});
@@ -6439,7 +6854,6 @@ function fft1_r(x, inv, output)
         output[0] = x[0];
         return;
     }
-    var O = __(0), I = __(1);
     for (i=0; i<n; ++i)
     {
         output[i] = new complex(O, O);
@@ -6492,6 +6906,10 @@ function fft1_r(x, inv, output)
         }
     }
 }
+var SQRT1_2 = stdMath.SQRT1_2;
+update.push(function() {
+    SQRT1_2 = __(stdMath.SQRT1_2);
+});
 function fft1_i(x, inv, output)
 {
     // Loops go like O(n log n):
@@ -6499,8 +6917,7 @@ function fft1_i(x, inv, output)
     var n = x.length, w = 1,
         del_f_r, del_f_i, i, k, j, t, s,
         f_r, f_i, l_index, r_index,
-        left_r, left_i, right_r, right_i,
-        O = __(0), I = __(1);
+        left_r, left_i, right_r, right_i;
     bitrev(x, output);
     while (w < n)
     {
@@ -6523,8 +6940,8 @@ function fft1_i(x, inv, output)
                 right_r = n_sub(n_mul(f_r, t), n_mul(f_i, s));
                 right_i = n_add(n_mul(f_i, t), n_mul(f_r, s));
 
-                output[l_index] = new complex(n_mul(n_add(left_r, right_r), stdMath.SQRT1_2), n_mul(n_add(left_i, right_i), stdMath.SQRT1_2));
-                output[r_index] = new complex(n_mul(n_sub(left_r, right_r), stdMath.SQRT1_2), n_mul(n_sub(left_i, right_i), stdMath.SQRT1_2));
+                output[l_index] = new complex(n_mul(n_add(left_r, right_r), SQRT1_2), n_mul(n_add(left_i, right_i), SQRT1_2));
+                output[r_index] = new complex(n_mul(n_sub(left_r, right_r), SQRT1_2), n_mul(n_sub(left_i, right_i), SQRT1_2));
 
                 t = n_sub(n_mul(f_r, del_f_r), n_mul(f_i, del_f_i));
                 s = n_add(n_mul(f_r, del_f_i), n_mul(f_i, del_f_r));
@@ -6643,7 +7060,6 @@ var mulp = conv, divp = deconv;
 function horner(p, x)
 {
     // adapted from https://github.com/foo123/Abacus
-    var O = __(0);
     if (!p.length) return O;
     x = x || O;
     var n = p.length, i = 0, v = p[0];
@@ -6658,14 +7074,14 @@ fn.polydiv = varargout(function(nargout, a, b) {
     var ans;
     if (is_scalar(a) || is_scalar(b))
     {
-        ans = 1 < nargout ? [dotdiv(a, b), __(0)] : dotdiv(a, b);
+        ans = 1 < nargout ? [dotdiv(a, b), O] : dotdiv(a, b);
     }
     else
     {
         a = vec(a);
         b = vec(b);
         if (!is_vector(a) || !is_vector(b)) not_supported("polydiv");
-        if (!b.length || (1 === b.length) && eq(b[0], 0)) throw "polydiv: divisor is zero";
+        if (!b.length || (1 === b.length) && eq(b[0], O)) throw "polydiv: divisor is zero";
         ans = divp(a, b, false);
     }
     return 1 < nargout ? ans : ans[0];
@@ -6680,14 +7096,12 @@ fn.polyval = function(p, x) {
 function hornerm(p, A)
 {
     // adapted from https://github.com/foo123/Abacus
-    var O = __(0);
-    if (!p.length) return O;
-    var n = p.length, i = 0, k = ROWS(A),
-        v = matrix(k, k, function(r, c) {return r === c ? p[0] : O;});
+    if (!p.length) return zeros(ROWS(A), COLS(A));
+    var n = p.length, i = 0, k = ROWS(A), v = eye(k, p[0]);
     while (i+1 < n)
     {
         ++i;
-        v = add(mul(v, A), matrix(k, k, function(r, c) {return r === c ? p[i] : O;}));
+        v = add(mul(v, A), eye(k, p[i]));
     }
     return v;
 }
@@ -6702,7 +7116,7 @@ fn.polyvalm = function(p, A) {
 function lagrange(x, y)
 {
     // adapted from https://github.com/foo123/Abacus
-    var p, i, n, d, f, vi, hash, dupl, O, I;
+    var p, i, n, d, f, vi, hash, dupl;
     if (!is_vector(x) || !x.length || !is_vector(y) || !y.length) return [];
     // check and filter out duplicate values
     x = x.slice();
@@ -6728,8 +7142,6 @@ function lagrange(x, y)
     hash = null;
     dupl = null;
     n = x.length;
-    //O = __(0);
-    I = __(1);
 
     // Set-up denominators
     d = array(n, function(j) {
@@ -6767,7 +7179,7 @@ fn.polyfit = function(x, y, n) {
         n = _(n);
         // least-squares fit
         return realify(mul(pinv(x.reduce(function(A, xi) {
-            for (var i=1,row=[__(1)]; i<=n; ++i)
+            for (var i=1,row=[I]; i<=n; ++i)
             {
                 row.unshift(scalar_mul(xi, row[0]));
             }
@@ -6789,7 +7201,6 @@ function roots(p)
         roots, found, i, j, m,
         ri, ratio, offset, iter,
         epsilon = __(1e-10),
-        O = __(0), I = __(1),
         epsilonz = new complex(epsilon, O),
         zero = new complex(O, O),
         one = new complex(I, O),
@@ -6855,7 +7266,6 @@ fn.roots = function(p) {
 function poly(r)
 {
     // adapted from https://github.com/foo123/Abacus
-    var I = __(1);
     return r.reduce(function(p, ri) {
         return mulp(p, [I, scalar_neg(ri)]);
     }, [I]);
@@ -6865,7 +7275,417 @@ fn.poly = function(r) {
     if (!is_vector(r)) not_supported("poly");
     return realify(poly(r));
 };
-fn.dec2bin = function dec2bin(x) {
+fn.cart2pol = function(x, y, z) {
+    return [
+        fn.atan2(y, x), // theta
+        fn.sqrt(add(dotpow(x, 2), dotpow(y, 2))), // rho
+        z // z
+    ];
+};fn.pol2cart = function(theta, rho, z) {
+    return [
+        dotmul(rho, fn.cos(theta)), // x
+        dotmul(rho, fn.sin(theta)), // y
+        z // z
+    ];
+};fn.cart2sph = function(x, y, z) {
+    var rxy = add(dotpow(x, 2), dotpow(y, 2));
+    return [
+        fn.atan2(y, x), // azimuth
+        fn.atan2(z, fn.sqrt(rxy)), // elevation
+        fn.sqrt(add(rxy, dotpow(z, 2))) // r
+    ];
+};fn.sph2cart = function(azimuth, elevation, r) {
+    return [
+        dotmul(r, dotmul(fn.cos(elevation), fn.cos(azimuth))), // x
+        dotmul(r, dotmul(fn.cos(elevation), fn.sin(azimuth))), // y
+        dotmul(r, fn.sin(elevation)) // z
+    ];
+};function polyarea(x, y)
+{
+    // adapted from https://github.com/foo123/Geometrize
+    var x1, y1, x2, y2, area = O,
+        i, n = stdMath.min(x.length, y.length)-1;
+    for (i=0; i<n; ++i)
+    {
+        x1 = x[i];
+        x2 = x[i+1];
+        y1 = y[i];
+        y2 = y[i+1];
+        // shoelace formula
+        area = n_add(area, n_div(n_sub(n_mul(x1, y2), n_mul(y1, x2)), two));
+    }
+    if (1 < n)
+    {
+        x1 = x[n];
+        x2 = x[0];
+        y1 = y[n];
+        y2 = y[0];
+        // shoelace formula
+        area = n_add(area, n_div(n_sub(n_mul(x1, y2), n_mul(y1, x2)), two));
+    }
+    return area;
+}
+fn.polyarea = function(x, y) {
+    x = vec(x);
+    y = vec(y);
+    if (is_matrix(x) && is_matrix(y))
+    {
+        if ((ROWS(x) !== ROWS(y)) || (COLS(x) !== COLS(y))) not_supported("polyarea");
+        return array(COLS(x), function(column) {
+            return polyarea(COL(x, column), COL(y, column));
+        });
+    }
+    if (is_vector(x) && is_vector(y))
+    {
+        if (x.length !== y.length) not_supported("polyarea");
+        return polyarea(x, y);
+    }
+    not_supported("polyarea");
+};
+function dir_angle(x1, y1, x2, y2, x3, y3)
+{
+    // adapted from https://github.com/foo123/Geometrize
+    var dx1 = n_sub(x1, x3),
+        dx2 = n_sub(x2, x3),
+        dy1 = n_sub(y1, y3),
+        dy2 = n_sub(y2, y3)
+    ;
+    return n_sub(n_mul(dx1, dy2), n_mul(dy1, dx2));
+}
+function polar_angle(x1, y1, x2, y2)
+{
+    // adapted from https://github.com/foo123/Geometrize
+    var a = realMath.atan2(n_sub(y2, y1), n_sub(x2, x1));
+    return lt(a, O) ? n_add(a, 2*pi) : a;
+}
+function convex_hull_2d(x, y)
+{
+    // adapted from https://github.com/foo123/Geometrize
+    var n = x.length, k = array(n, function(i) {return i;}),
+        i0, i, convexHull, hullSize;
+
+    // at least 3 points must define a non-trivial convex hull
+    if (3 > n) return k;
+
+    i0 = 0;
+    for (i=1; i<n; ++i)
+    {
+        if (n_lt(y[i], y[i0]) || (n_eq(y[i], y[i0]) && n_lt(x[i], x[i0])))
+        {
+            i0 = i;
+        }
+    }
+    k.splice(i0, 1);
+    --n;
+
+    k = k.map(function(i) {
+        return [polar_angle(x[i0], y[i0], x[i], y[i]), i];
+    }).sort(function(a, b) {
+        return n_lt(a[0], b[0]) ? -1 : (n_gt(a[0], b[0]) ? 1 : 0);
+    }).map(function(i) {
+        return i[1];
+    });
+
+    // pre-allocate array to avoid slow array size changing ops inside loop
+    convexHull = new Array(n + 1);
+    convexHull[0] = i0;
+    convexHull[1] = k[0];
+    convexHull[2] = k[1];
+    hullSize = 3;
+    for (i=2; i<n; ++i)
+    {
+        while ((1 < hullSize) && n_le(O, dir_angle(x[k[i]], y[k[i]], x[convexHull[hullSize-1]], y[convexHull[hullSize-1]], x[convexHull[hullSize-2]], y[convexHull[hullSize-2]]))) --hullSize;
+        convexHull[hullSize++] = k[i];
+    }
+    // truncate to actual size
+    convexHull.length = hullSize;
+    return convexHull;
+}
+fn.convhull = varargout(function(nargout, x, y, z) {
+    if (3 < arguments.length) not_supported("convhull");
+    if (is_matrix(x) && (2 === COLS(x)))
+    {
+        y = COL(x, 1);
+        x = COL(x, 0);
+    }
+    else
+    {
+        x = vec(x);
+        y = vec(y);
+    }
+    if (!is_vector(x) || !is_vector(y) || (x.length !== y.length)) not_supported("convhull");
+    var hull2d = convex_hull_2d(x, y);
+    return 1 < nargout ? [hull2d.map(function(i) {return i+1;}), polyarea(hull2d.map(function(i) {return x[i];}), hull2d.map(function(i) {return y[i];}))] : (hull2d.map(function(i) {return i+1;}));
+});
+function mod(x, n)
+{
+    n = sca(n || 0);
+    return eq(n, 0) ? x : apply(function(x) {
+        if (is_num(x))
+        {
+            var m = n_mod(x, n);
+            if (n_lt(m, 0) && n_gt(n, 0)) m = n_add(m, n);
+            return m;
+        }
+        return x;
+    }, x, true);
+}
+fn.mod = mod;
+function n_gcd(/* args */)
+{
+    // adapted from https://github.com/foo123/Abacus
+    var args = arguments, c = args.length, a, b, t, i;
+    if (0 === c) return O;
+
+    i = 0;
+    while ((i < c) && n_eq(O, a=args[i++]));
+    a = realMath.abs(a);
+    while (i < c)
+    {
+        // break early
+        if (n_eq(a, I)) return I;
+        while ((i < c) && n_eq(O, b=args[i++]));
+        b = realMath.abs(b);
+        // break early
+        if (n_eq(b, I)) return I;
+        else if (n_eq(b, a)) continue;
+        else if (n_eq(b, O)) break;
+        // swap them (a >= b)
+        if (n_lt(a, b)) {t = b; b = a; a = t;}
+        while (!n_eq(O, b)) {t = b; b = n_mod(a, t); a = t;}
+    }
+    return a;
+}
+function n_xgcd(args)
+{
+    // adapted from https://github.com/foo123/Abacus
+    var k = args.length, a, b, a1 = I, b1 = O, a2 = O, b2 = I, quot, gcd, asign = I, bsign = I;
+
+    if (0 === k) return;
+
+    a = args[0];
+    if (n_gt(O, a)) {a = realMath.abs(a); asign = J;}
+    if (1 === k)
+    {
+        return [a, asign];
+    }
+    else //if (2 <= k)
+    {
+        // recursive on number of arguments
+        // compute xgcd on rest arguments and combine with current
+        // based on recursive property: gcd(a,b,c,..) = gcd(a, gcd(b, c,..))
+        // for coefficients this translates to:
+        // gcd(a,b,c,..) = ax + by + cz + .. =
+        // gcd(a, gcd(b, c, ..)) = ax + k gcd(b,c,..) = (given gcd(b,c,..) = nb + mc + ..)
+        // gcd(a, gcd(b, c, ..)) = ax + k (nb + mc + ..) = ax + b(kn) + c(km) + .. = ax + by +cz + ..
+        // also for possible negative numbers we can do (note gcd(a,b,c,..) is always positive):
+        // a*(sign(a)*x) + b*(sign(b)*y) + c*(sign(c)*z) + .. = gcd(|a|,|b|,|c|,..) so factors are same only adjusted by sign(.) to match always positive GCD
+        // note: returns always positive gcd (even of negative numbers)
+        // note2: any zero arguments are skipped and do not break xGCD computation
+        // note3: gcd(0,0,..,0) is conventionaly set to 0 with 1's as factors
+        gcd = 2 === k ? [args[1], I] : n_xgcd(args.slice(1));
+        b = gcd[0];
+        if (n_gt(O, b)) {b = realMath.abs(b); bsign = J;}
+
+        // gcd with zero factor, take into account
+        if (n_eq(O, a))
+            return array(gcd.length+1,function(i) {
+                return 0 === i ? b : (1 === i ? asign : n_mul(bsign, gcd[i-1]));
+            });
+        else if (n_eq(O, b))
+            return array(gcd.length+1,function(i) {
+                return 0 === i ? a : (1 === i ? asign : n_mul(bsign, gcd[i-1]));
+            });
+
+        for (;;)
+        {
+            quot = realMath.floor(n_div(a, b));
+            a = n_mod(a, b);
+            a1 = n_sub(a1, n_mul(quot, a2));
+            b1 = n_sub(b1, n_mul(quot, b2));
+            if (n_eq(O, a))
+            {
+                a2 = n_mul(a2, asign); b2 = n_mul(b2, bsign);
+                return array(gcd.length+1,function(i) {
+                    return 0 === i ? b : (1 === i ? a2 : n_mul(b2, gcd[i-1]));
+                });
+            }
+
+            quot = realMath.floor(n_div(b, a));
+            b = n_mod(b, a);
+            a2 = n_sub(a2, n_mul(quot, a1));
+            b2 = n_sub(b2, n_mul(quot, b1));
+            if (n_eq(O, b))
+            {
+                a1 = n_mul(a1, asign); b1 = n_mul(b1, bsign);
+                return array(gcd.length+1, function(i) {
+                    return 0 === i ? a : (1 === i ? a1 : n_mul(b1, gcd[i-1]));
+                });
+            }
+        }
+    }
+}
+function gcd(a, b, want_bezout_coeffs)
+{
+    if (want_bezout_coeffs)
+    {
+        var u, v;
+        if (is_array(a))
+        {
+            u = new Array(a.length);
+            if (is_array(b))
+            {
+                if (a.length !== b.length) not_supported("gcd");
+                v = new Array(b.length)
+                return [a.map(function(ai, i) {
+                    var res = gcd(ai, b[i], want_bezout_coeffs);
+                    u[i] = res[1];
+                    v[i] = res[2];
+                    return res[0];
+                }), u, v];
+            }
+            if (is_int(b))
+            {
+                v = new Array(a.length)
+                return [a.map(function(ai, i) {
+                    var res = gcd(ai, b, want_bezout_coeffs);
+                    u[i] = res[1];
+                    v[i] = res[2];
+                    return res[0];
+                }), u, v];
+            }
+        }
+        if (is_int(a))
+        {
+            if (is_array(b))
+            {
+                u = new Array(b.length);
+                v = new Array(b.length);
+                return [b.map(function(bi, i) {
+                    var res = gcd(a, bi, want_bezout_coeffs);
+                    u[i] = res[1];
+                    v[i] = res[2];
+                    return res[0];
+                }), u, v];
+            }
+            if (is_int(b))
+            {
+                return n_xgcd([a, b]);
+            }
+        }
+    }
+    else
+    {
+        if (is_array(a))
+        {
+            if (is_array(b))
+            {
+                if (a.length !== b.length) not_supported("gcd");
+                return a.map(function(ai, i) {return gcd(ai, b[i]);});
+            }
+            if (is_int(b))
+            {
+                return a.map(function(ai) {return gcd(ai, b);});
+            }
+        }
+        if (is_int(a))
+        {
+            if (is_array(b))
+            {
+                return b.map(function(bi, i) {return gcd(a, bi);});
+            }
+            if (is_int(b))
+            {
+                return n_gcd(a, b);
+            }
+        }
+    }
+    not_supported("gcd");
+}
+fn.gcd = varargout(function(nargout, a, b) {
+    return gcd(a, b, 1 < nargout);
+});function n_lcm2(a, b)
+{
+    // adapted from https://github.com/foo123/Abacus
+    var aa = realMath.abs(a), bb = realMath.abs(b);
+    if (n_eq(aa, bb)) return n_eq(n_sign(a), n_sign(b)) ? aa : n_neg(aa);
+    return n_mul(n_div(a, n_gcd(a, b)), b);
+}
+function n_lcm(/* args */)
+{
+    // adapted from https://github.com/foo123/Abacus
+    var args = arguments, i, l = args.length, LCM;
+    if (1 >= l) return 1 === l ? args[0] : O;
+    if (n_eq(O, args[0]) || n_eq(O, args[1])) return O;
+    LCM = n_lcm2(args[0], args[1]);
+    for (i=2; i<l; ++i)
+    {
+        if (n_eq(O, args[i])) return O;
+        LCM = n_lcm2(LCM, args[i]);
+    }
+    return LCM;
+}
+function lcm(a, b)
+{
+    if (is_array(a))
+    {
+        if (is_array(b)) return a.map(function(ai, i) {return lcm(ai, b[i]);});
+        if (is_int(b)) return a.map(function(ai) {return lcm(ai, b);});
+    }
+    if (is_int(a))
+    {
+        if (is_array(b)) return b.map(function(bi, i) {return lcm(a, bi);});
+        if (is_int(b)) return n_lcm(a, b);
+    }
+    return a;
+}
+fn.lcm = lcm;var small_primes = [__(2),__(3),__(5),__(7),__(11),__(13),__(17),__(19),__(23),__(29),__(31),__(37),__(41),__(43),__(47),__(53),__(59),__(61),__(67),__(71),__(73),__(79),__(83),__(89),__(97),__(101),__(103),__(107),__(109)];
+
+update.push(function() {
+    small_primes = [__(2),__(3),__(5),__(7),__(11),__(13),__(17),__(19),__(23),__(29),__(31),__(37),__(41),__(43),__(47),__(53),__(59),__(61),__(67),__(71),__(73),__(79),__(83),__(89),__(97),__(101),__(103),__(107),__(109)];
+});
+
+function trial_div_fac(n, maxlimit)
+{
+    // adapted from https://github.com/foo123/Abacus
+    var factors = [], n0 = n, i, l, p, p2;
+
+    for (i=0,l=small_primes.length; i<l; ++i)
+    {
+        p = small_primes[i];
+        if (n_eq(n0, p)) return [p];
+
+        p2 = n_mul(p, p);
+
+        if (n_gt(p2, n) || ((null != maxlimit) && n_gt(p2, maxlimit))) break;
+
+        while (n_eq(O, n_mod(n, p)))
+        {
+            factors.push(p);
+            n = n_div(n, p);
+        }
+    }
+    if (i >= l)
+    {
+        p = n_add(p, two);
+        p2 = n_mul(p, p);
+        while (n_le(p2, n) && ((null == maxlimit) || n_le(p2, maxlimit)))
+        {
+            while (n_eq(O, n_mod(n, p)))
+            {
+                factors.push(p);
+                n = n_div(n, p);
+            }
+            p = n_add(p, two);
+            p2 = n_mul(p, p);
+        }
+    }
+    if (n_gt(n, I)) factors.push(n);
+    return factors;
+}
+fn.factor = function(n) {
+    return trial_div_fac(realMath.floor(realMath.abs(real(sca(n)))), __(1e30));
+};fn.dec2bin = function dec2bin(x) {
     if (is_array(x))
     {
         return x.map(dec2bin);
@@ -6956,11 +7776,11 @@ function TRUE(x)
     }
     else if (is_decimal(x))
     {
-        return !x.eq(0);
+        return !x.eq(O);
     }
     else if (is_complex(x))
     {
-        return !n_eq(x.re, 0) || !n_eq(x.im, 0);
+        return !n_eq(x.re, O) || !n_eq(x.im, O);
     }
     else if (is_array(x))
     {
@@ -7194,12 +8014,13 @@ var OP = {
     '-': {
      name         : 'sub'
     ,arity        : 2
+    ,arityalt     : 1
     ,fixity       : INFIX
     ,associativity: LEFT
     ,commutativity: ANTICOMMUTATIVE
     ,priority     : 25
     ,fn           : function(arg0, arg1) {
-                        return sub(arg0, arg1);
+                        return 1 === arguments.length ? neg(arg0) : sub(arg0, arg1);
                     }
     },
     '>=': {
@@ -7315,7 +8136,7 @@ var OP = {
     },
     '=': {
      name         : 'set'
-    ,breakpoint   : 'end'
+    ,breakpoint   : 'set'
     ,arity        : 2
     ,fixity       : INFIX
     ,associativity: LEFT
@@ -7598,14 +8419,14 @@ function parse(s, ctx, lineStart, posStart)
             terms = [], ops = [],
             statements = [];
 
-        function merge(to_end)
+        function merge(up_to_end)
         {
-            // extended shunting-yard algorithm
+            // generalized shunting-yard algorithm
             if (!ops.length) return;
             var o, op, opc,
                 o2, op2, opc2,
                 result, args;
-            if (to_end)
+            if (up_to_end)
             {
                 while (0 < ops.length)
                 {
@@ -7613,22 +8434,28 @@ function parse(s, ctx, lineStart, posStart)
                     op2 = o2[0];
                     opc2 = OP[op2];
 
-                    if (to_end === opc2.breakpoint)
+                    if (up_to_end === opc2.breakpoint)
                     {
                         ops.unshift(o2);
                         break;
                     }
-                    if (('-' === op2) && (1 === terms.length))
+                    if (opc2.arity > terms.length)
                     {
-                        terms[0] = expr(OP['*'].fn, [terms[0], expr(-1)]);
+                        if ((null != opc2.arityalt) && (opc2.arityalt <= terms.length))
+                        {
+                            args = terms.splice(0, opc2.arityalt).reverse();
+                        }
+                        else
+                        {
+                            throw error('invalid or missing argument for "'+op2+'"', o2[1], o2[2]);
+                        }
                     }
                     else
                     {
-                        if (opc2.arity > terms.length) throw error('invalid or missing argument for "'+op2+'"', o2[1], o2[2]);
                         args = terms.splice(0, opc2.arity).reverse();
-                        result = expr(opc2.fn, args);
-                        terms.unshift(result);
                     }
+                    result = expr(opc2.fn, args);
+                    terms.unshift(result);
                 }
             }
             else
@@ -7667,17 +8494,24 @@ function parse(s, ctx, lineStart, posStart)
                             LEFT === opc2.associativity))))
                         )
                         {
-                            if (('-' === op2) && (1 === terms.length))
+                            if (opc2.arity > terms.length)
                             {
-                                terms[0] = expr(OP['*'].fn, [terms[0], expr(-1)]);
+                                if ((null != opc2.arityalt) && (opc2.arityalt <= terms.length))
+                                {
+                                    args = terms.splice(0, opc2.arityalt).reverse();
+                                }
+                                else
+                                {
+                                    throw error('invalid or missing argument for "'+op2+'"', o2[1], o2[2]);
+
+                                }
                             }
                             else
                             {
-                                if (opc2.arity > terms.length) throw error('invalid or missing argument for "'+op2+'"', o2[1], o2[2]);
                                 args = terms.splice(0, opc2.arity).reverse();
-                                result = expr(opc2.fn, args);
-                                terms.unshift(result);
                             }
+                            result = expr(opc2.fn, args);
+                            terms.unshift(result);
                             ops.shift();
                         }
                         else
@@ -7704,8 +8538,9 @@ function parse(s, ctx, lineStart, posStart)
 
         function can_merge()
         {
-            return ops.reduce(function(sum, op) {
-                return sum + (('-' === op[0]) && (1 === terms.length) ? 1 : OP[op[0]].arity);
+            return ops.reduce(function(used_terms, op) {
+                var opc = OP[op[0]];
+                return used_terms + ((opc.arity > terms.length-used_terms) && (null != opc.arityalt) ? opc.arityalt : opc.arity);
             }, 0) <= terms.length;
         }
 
@@ -8041,13 +8876,6 @@ function parse(s, ctx, lineStart, posStart)
                 {
                     // statement end
                     eat(";");
-                    /*eat(/^[ \t\v\f]+/);
-                    if (eat("\n"))
-                    {
-                        // new line
-                        ++l;
-                        i = 0;
-                    }*/
                     // new statement
                     end(true);
                     continue;
@@ -8062,8 +8890,8 @@ function parse(s, ctx, lineStart, posStart)
                 else
                 {
                     // line end
-                    // new line
                     eat("\n");
+                    // new line
                     ++l;
                     i = 0;
                     // new statement
@@ -8088,7 +8916,7 @@ function parse(s, ctx, lineStart, posStart)
                 // comment
                 j = s.indexOf("\n");
                 s = s.slice(-1 < j ? j+1 : s.length);
-                ++l;
+                if (-1 < j) ++l;
                 i = 0;
                 end(true);
                 continue;
@@ -8236,6 +9064,31 @@ function parse(s, ctx, lineStart, posStart)
                 terms.unshift(term);
                 continue;
             }
+            if (match = eat(/^(-?\s*\.\d+([eE][+-]?\d+)?)([ij])?/))
+            {
+                // number, shorthand version
+                arg = match[1].split(/\s+/).join('');
+                arg = '-' === arg.charAt(0) ? ('-0'+arg.slice(1)) : ('0'+arg);
+                if (decimal)
+                {
+                    // prefer default number for small integers
+                    /*if (!/[\.eE]/.test(arg) && (arg.length < 6))
+                    {
+                        arg = parseFloat(arg, 10);
+                    }
+                    else
+                    {*/
+                        arg = decimal(arg);
+                    /*}*/
+                }
+                else
+                {
+                    arg = parseFloat(arg, 10);
+                }
+                term = expr(match[4] ? (new complex(0, arg)) : arg);
+                terms.unshift(term);
+                continue;
+            }
             c = s.charAt(0);
             if ('[' === c)
             {
@@ -8283,7 +9136,7 @@ function parse(s, ctx, lineStart, posStart)
                 {
                     if (terms.length && can_merge())
                     {
-                        merge('end');
+                        merge('set');
                         term = terms.shift();
                         arg = [];
                         for (;;)
@@ -8338,7 +9191,7 @@ function parse(s, ctx, lineStart, posStart)
                 s = s.slice(1);
                 i += 1;
                 tmp = [i, l];
-                merge('end');
+                merge('set');
                 if (terms.length)
                 {
                     arg = 1;

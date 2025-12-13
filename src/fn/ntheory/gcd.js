@@ -6,13 +6,13 @@ function n_gcd(/* args */)
 
     i = 0;
     while ((i < c) && n_eq(O, a=args[i++]));
-    a = n_abs(a);
+    a = realMath.abs(a);
     while (i < c)
     {
         // break early
         if (n_eq(a, I)) return I;
         while ((i < c) && n_eq(O, b=args[i++]));
-        b = n_abs(b);
+        b = realMath.abs(b);
         // break early
         if (n_eq(b, I)) return I;
         else if (n_eq(b, a)) continue;
@@ -31,7 +31,7 @@ function n_xgcd(args)
     if (0 === k) return;
 
     a = args[0];
-    if (n_gt(O, a)) {a = n_abs(a); asign = J;}
+    if (n_gt(O, a)) {a = realMath.abs(a); asign = J;}
     if (1 === k)
     {
         return [a, asign];
@@ -52,7 +52,7 @@ function n_xgcd(args)
         // note3: gcd(0,0,..,0) is conventionaly set to 0 with 1's as factors
         gcd = 2 === k ? [args[1], I] : n_xgcd(args.slice(1));
         b = gcd[0];
-        if (n_gt(O, b)) {b = n_abs(b); bsign = J;}
+        if (n_gt(O, b)) {b = realMath.abs(b); bsign = J;}
 
         // gcd with zero factor, take into account
         if (n_eq(O, a))
@@ -66,7 +66,7 @@ function n_xgcd(args)
 
         for (;;)
         {
-            quot = n_div(a, b);
+            quot = realMath.floor(n_div(a, b));
             a = n_mod(a, b);
             a1 = n_sub(a1, n_mul(quot, a2));
             b1 = n_sub(b1, n_mul(quot, b2));
@@ -78,7 +78,7 @@ function n_xgcd(args)
                 });
             }
 
-            quot = n_div(b, a);
+            quot = realMath.floor(n_div(b, a));
             b = n_mod(b, a);
             a2 = n_sub(a2, n_mul(quot, a1));
             b2 = n_sub(b2, n_mul(quot, b1));
@@ -92,18 +92,83 @@ function n_xgcd(args)
         }
     }
 }
-function gcd(a, b)
+function gcd(a, b, want_bezout_coeffs)
 {
-    if (is_array(a))
+    if (want_bezout_coeffs)
     {
-        if (is_array(b)) return a.map(function(ai, i) {return gcd(ai, b[i]);});
-        if (is_int(b)) return a.map(function(ai) {return gcd(ai, b);});
+        var u, v;
+        if (is_array(a))
+        {
+            u = new Array(a.length);
+            if (is_array(b))
+            {
+                if (a.length !== b.length) not_supported("gcd");
+                v = new Array(b.length)
+                return [a.map(function(ai, i) {
+                    var res = gcd(ai, b[i], want_bezout_coeffs);
+                    u[i] = res[1];
+                    v[i] = res[2];
+                    return res[0];
+                }), u, v];
+            }
+            if (is_int(b))
+            {
+                v = new Array(a.length)
+                return [a.map(function(ai, i) {
+                    var res = gcd(ai, b, want_bezout_coeffs);
+                    u[i] = res[1];
+                    v[i] = res[2];
+                    return res[0];
+                }), u, v];
+            }
+        }
+        if (is_int(a))
+        {
+            if (is_array(b))
+            {
+                u = new Array(b.length);
+                v = new Array(b.length);
+                return [b.map(function(bi, i) {
+                    var res = gcd(a, bi, want_bezout_coeffs);
+                    u[i] = res[1];
+                    v[i] = res[2];
+                    return res[0];
+                }), u, v];
+            }
+            if (is_int(b))
+            {
+                return n_xgcd([a, b]);
+            }
+        }
     }
-    if (is_int(a))
+    else
     {
-        if (is_array(b)) return b.map(function(bi, i) {return gcd(a, bi);});
-        if (is_int(b)) return n_gcd(a, b);
+        if (is_array(a))
+        {
+            if (is_array(b))
+            {
+                if (a.length !== b.length) not_supported("gcd");
+                return a.map(function(ai, i) {return gcd(ai, b[i]);});
+            }
+            if (is_int(b))
+            {
+                return a.map(function(ai) {return gcd(ai, b);});
+            }
+        }
+        if (is_int(a))
+        {
+            if (is_array(b))
+            {
+                return b.map(function(bi, i) {return gcd(a, bi);});
+            }
+            if (is_int(b))
+            {
+                return n_gcd(a, b);
+            }
+        }
     }
-    return a;
+    not_supported("gcd");
 }
-fn.gcd = gcd;
+fn.gcd = varargout(function(nargout, a, b) {
+    return gcd(a, b, 1 < nargout);
+});

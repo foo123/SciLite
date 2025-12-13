@@ -21,6 +21,11 @@ $_.decimal = function(Decimal) {
         O = decimal(0);
         I = decimal(1);
         J = decimal(-1);
+        half = decimal(0.5);
+        two = decimal(2);
+        ten = decimal(10);
+        log_10 = decimal(stdMath.log(10));
+        log_2 = decimal(stdMath.log(2));
         constant.pi = decimal(pi);
         constant.e = decimal(e);
         constant.realmax = decimal(realmax);
@@ -35,6 +40,11 @@ $_.decimal = function(Decimal) {
         O = 0;
         I = 1;
         J = -1;
+        half = 0.5;
+        two = 2;
+        ten = 10;
+        log_2 = stdMath.log(2);
+        log_10 = stdMath.log(10);
         constant.pi = pi;
         constant.e = e;
         constant.realmax = realmax;
@@ -263,10 +273,6 @@ function copy(x)
 $_.copy = copy;
 function apply(f, x, iscomplex)
 {
-    if (true === f)
-    {
-        return x;
-    }
     if (is_num(x))
     {
         return f(x);

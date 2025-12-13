@@ -10,7 +10,6 @@ function sqrtm(A)
         Y, Ynext,
         In, I34,
         one_fourth = __(0.25),
-        half = __(0.5),
         three_fourths = __(0.75),
         m, a, iter, eps = __(1e-10);
     // estimate of 2-norm of A for convergence test

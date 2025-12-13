@@ -1430,7 +1430,7 @@ function parse(s, ctx, lineStart, posStart)
                 s = s.slice(1);
                 i += 1;
                 tmp = [i, l];
-                merge('end');
+                merge('set');
                 if (terms.length)
                 {
                     arg = 1;
