@@ -8,13 +8,13 @@
     else if ('log10' === f)
     {
         realMath[f] = function(x) {
-            return is_number(x) ? stdMath.log10(x) : x.log(10);
+            return is_number(x) ? stdMath.log10(x) : x.log(ten);
         };
     }
     else if ('log2' === f)
     {
         realMath[f] = function(x) {
-            return is_number(x) ? stdMath.log2(x) : x.log(2);
+            return is_number(x) ? stdMath.log2(x) : x.log(two);
         };
     }
     else

@@ -1,4 +1,4 @@
-fn.tolower = function tolower(x) {
+fn.lower = fn.tolower = function tolower(x) {
     if (is_array(x))
     {
         return x.map(tolower);

@@ -70,7 +70,7 @@ function svd(A, eta, wantu, wantv)
         z = O;
         for (i=k; i<=m; ++i)
         {
-            z = n_add(z, n_add(n_pow(realMath.abs(real(a[i-1][k-1])), two), n_pow(realMath.abs(imag(a[i-1][k-1])), two)));
+            z = n_add(z, n_add(n_pow(real(a[i-1][k-1]), two), n_pow(imag(a[i-1][k-1]), two)));
         }
 
         b[k-1] = O;
@@ -131,7 +131,7 @@ function svd(A, eta, wantu, wantv)
         z = O;
         for (j=k1; j<=n; ++j)
         {
-            z = n_add(z, n_add(n_pow(realMath.abs(real(a[k-1][j-1])), two), n_pow(realMath.abs(imag(a[k-1][j-1])), two)));
+            z = n_add(z, n_add(n_pow(real(a[k-1][j-1]), two), n_pow(imag(a[k-1][j-1]), two)));
         }
 
         c[k1-1] = O;

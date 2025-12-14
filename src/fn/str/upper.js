@@ -1,4 +1,4 @@
-fn.toupper = function toupper(x) {
+fn.upper = fn.toupper = function toupper(x) {
     if (is_array(x))
     {
         return x.map(toupper);

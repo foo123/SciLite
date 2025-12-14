@@ -3,7 +3,7 @@
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
 * @version: 0.9.7
-* 2025-12-13 20:47:19
+* 2025-12-14 13:14:51
 * https://github.com/foo123/SciLite
 *
 **//**
@@ -11,7 +11,7 @@
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
 * @version: 0.9.7
-* 2025-12-13 20:47:19
+* 2025-12-14 13:14:51
 * https://github.com/foo123/SciLite
 *
 **/
@@ -107,6 +107,7 @@ $_.decimal = function(Decimal) {
         ten = decimal(10);
         log_10 = decimal(stdMath.log(10));
         log_2 = decimal(stdMath.log(2));
+        constant.eps = decimal(eps);
         constant.pi = decimal(pi);
         constant.e = decimal(e);
         constant.realmax = decimal(realmax);
@@ -126,6 +127,7 @@ $_.decimal = function(Decimal) {
         ten = 10;
         log_2 = stdMath.log(2);
         log_10 = stdMath.log(10);
+        constant.eps = eps;
         constant.pi = pi;
         constant.e = e;
         constant.realmax = realmax;
@@ -345,6 +347,13 @@ function tonumber(x)
     return x;
 }
 $_.tonumber = tonumber;
+function todecimal(x)
+{
+    if (is_array(x)) return x.map(todecimal);
+    else if (is_scalar(x)) return __(x);
+    return x;
+}
+$_.todecimal = todecimal;
 
 function copy(x)
 {
@@ -417,19 +426,22 @@ $_.exist = function(variable, ctx) {
     return is_obj(ctx) && is_string(variable) && HAS.call(ctx, variable) ? 1 : 0;
 };
 
-function varargout(f)
+function varargout(f, nargout_default)
 {
+    if (null == nargout_default) nargout_default = 1;
     var f_with_nargout = function(/*..args*/) {
-        var args = [].slice.call(arguments);
-        args.unshift(1); // nargout=1
-        return f.apply(null, args);
+        var args = [].slice.call(arguments), ans;
+        args.unshift(nargout_default); // nargout=nargout_default
+        ans = f.apply(null, args);
+        if ((1 < nargout_default) && is_array(ans)) ans.$scilitevarargout$ = true;
+        return ans;
     };
-    f_with_nargout.nargout = function(n) {
+    f_with_nargout.nargout = function(nargout) {
         return function(/*..args*/) {
             var args = [].slice.call(arguments), ans;
-            args.unshift(n); // nargout=n
+            args.unshift(nargout); // nargout=nargout
             ans = f.apply(null, args);
-            if ((1 < n) && is_array(ans)) ans.$scilitevarargout$ = true;
+            if ((1 < nargout) && is_array(ans)) ans.$scilitevarargout$ = true;
             return ans;
         };
     };
@@ -789,14 +801,14 @@ function n_pow(a, b)
     {
         if (is_number(b))
         {
-            return 0 > a ? realify((new complex(a)).pow(b)) : (stdMath.pow(a, b));
+            return (0 > a) && !is_int(b) ? (realify((new complex(a)).pow(b))) : (stdMath.pow(a, b));
         }
         else
         {
-            return 0 > a ? realify((new complex(decimal(a))).pow(b)) : (decimal(a).pow(b));
+            return (0 > a) && !is_int(b) ? realify((new complex(decimal(a))).pow(b)) : (decimal(a).pow(b));
         }
     }
-    return n_gt(O, a) ? realify((new complex(a)).pow(decimal(b))) : a.pow(b);
+    return n_gt(O, a) && !is_int(b) ? realify((new complex(a)).pow(decimal(b))) : a.pow(b);
 }
 $_.npow = n_pow;
 function n_mod(a, b)
@@ -2425,13 +2437,13 @@ fn.exist = nop;
     else if ('log10' === f)
     {
         realMath[f] = function(x) {
-            return is_number(x) ? stdMath.log10(x) : x.log(10);
+            return is_number(x) ? stdMath.log10(x) : x.log(ten);
         };
     }
     else if ('log2' === f)
     {
         realMath[f] = function(x) {
-            return is_number(x) ? stdMath.log2(x) : x.log(2);
+            return is_number(x) ? stdMath.log2(x) : x.log(two);
         };
     }
     else
@@ -2494,7 +2506,7 @@ complex.prototype = {
         var self = this;
         if (null == self._rho2)
         {
-            self._rho2 = n_pow(self.abs(), 2);
+            self._rho2 = n_pow(self.abs(), two);
         }
         return self._rho2;
 
@@ -5750,7 +5762,7 @@ function svd(A, eta, wantu, wantv)
         z = O;
         for (i=k; i<=m; ++i)
         {
-            z = n_add(z, n_add(n_pow(realMath.abs(real(a[i-1][k-1])), two), n_pow(realMath.abs(imag(a[i-1][k-1])), two)));
+            z = n_add(z, n_add(n_pow(real(a[i-1][k-1]), two), n_pow(imag(a[i-1][k-1]), two)));
         }
 
         b[k-1] = O;
@@ -5811,7 +5823,7 @@ function svd(A, eta, wantu, wantv)
         z = O;
         for (j=k1; j<=n; ++j)
         {
-            z = n_add(z, n_add(n_pow(realMath.abs(real(a[k-1][j-1])), two), n_pow(realMath.abs(imag(a[k-1][j-1])), two)));
+            z = n_add(z, n_add(n_pow(real(a[k-1][j-1]), two), n_pow(imag(a[k-1][j-1]), two)));
         }
 
         c[k1-1] = O;
@@ -7275,32 +7287,32 @@ fn.poly = function(r) {
     if (!is_vector(r)) not_supported("poly");
     return realify(poly(r));
 };
-fn.cart2pol = function(x, y, z) {
+fn.cart2pol = varargout(function(nargout, x, y, z) {
     return [
         fn.atan2(y, x), // theta
-        fn.sqrt(add(dotpow(x, 2), dotpow(y, 2))), // rho
+        fn.sqrt(add(dotpow(x, two), dotpow(y, two))), // rho
         z // z
     ];
-};fn.pol2cart = function(theta, rho, z) {
+}, 3);fn.pol2cart = varargout(function(nargout, theta, rho, z) {
     return [
         dotmul(rho, fn.cos(theta)), // x
         dotmul(rho, fn.sin(theta)), // y
         z // z
     ];
-};fn.cart2sph = function(x, y, z) {
-    var rxy = add(dotpow(x, 2), dotpow(y, 2));
+}, 3);fn.cart2sph = varargout(function(nargout, x, y, z) {
+    var rxy = add(dotpow(x, two), dotpow(y, two));
     return [
         fn.atan2(y, x), // azimuth
         fn.atan2(z, fn.sqrt(rxy)), // elevation
-        fn.sqrt(add(rxy, dotpow(z, 2))) // r
+        fn.sqrt(add(rxy, dotpow(z, two))) // r
     ];
-};fn.sph2cart = function(azimuth, elevation, r) {
+}, 3);fn.sph2cart = varargout(function(nargout, azimuth, elevation, r) {
     return [
         dotmul(r, dotmul(fn.cos(elevation), fn.cos(azimuth))), // x
         dotmul(r, dotmul(fn.cos(elevation), fn.sin(azimuth))), // y
         dotmul(r, fn.sin(elevation)) // z
     ];
-};function polyarea(x, y)
+}, 3);function polyarea(x, y)
 {
     // adapted from https://github.com/foo123/Geometrize
     var x1, y1, x2, y2, area = O,
@@ -7685,7 +7697,63 @@ function trial_div_fac(n, maxlimit)
 }
 fn.factor = function(n) {
     return trial_div_fac(realMath.floor(realMath.abs(real(sca(n)))), __(1e30));
-};fn.dec2bin = function dec2bin(x) {
+};fn.string = function string(x) {
+    if (is_array(x))
+    {
+        return x.map(string);
+    }
+    if (is_string(x))
+    {
+        return x;
+    }
+    return String(x);
+};
+fn.strlength = function(str) {
+    if (is_string(str))
+    {
+        return str.length;
+    }
+    not_supported("strlength");
+};
+fn['char'] = function tochar(x) {
+    x = vec(x);
+    if (is_array(x))
+    {
+        return x.map(tochar);
+    }
+    if (is_string(x))
+    {
+        return x.split('');
+    }
+    if (is_int(x))
+    {
+        return String.fromCharCode(_(x));
+    }
+    return String(x);
+};
+fn.lower = fn.tolower = function tolower(x) {
+    if (is_array(x))
+    {
+        return x.map(tolower);
+    }
+    else if (is_string(x))
+    {
+        return x.toLowerCase();
+    }
+    return x;
+};
+fn.upper = fn.toupper = function toupper(x) {
+    if (is_array(x))
+    {
+        return x.map(toupper);
+    }
+    else if (is_string(x))
+    {
+        return x.toUpperCase();
+    }
+    return x;
+};
+fn.dec2bin = function dec2bin(x) {
     if (is_array(x))
     {
         return x.map(dec2bin);
@@ -7734,28 +7802,6 @@ fn.hex2dec = function hex2dec(x) {
     else if (is_string(x))
     {
         return parseInt(x, 16);
-    }
-    return x;
-};
-fn.tolower = function tolower(x) {
-    if (is_array(x))
-    {
-        return x.map(tolower);
-    }
-    else if (is_string(x))
-    {
-        return x.toLowerCase();
-    }
-    return x;
-};
-fn.toupper = function toupper(x) {
-    if (is_array(x))
-    {
-        return x.map(toupper);
-    }
-    else if (is_string(x))
-    {
-        return x.toUpperCase();
     }
     return x;
 };

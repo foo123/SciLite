@@ -99,14 +99,14 @@ function n_pow(a, b)
     {
         if (is_number(b))
         {
-            return 0 > a ? realify((new complex(a)).pow(b)) : (stdMath.pow(a, b));
+            return (0 > a) && !is_int(b) ? (realify((new complex(a)).pow(b))) : (stdMath.pow(a, b));
         }
         else
         {
-            return 0 > a ? realify((new complex(decimal(a))).pow(b)) : (decimal(a).pow(b));
+            return (0 > a) && !is_int(b) ? realify((new complex(decimal(a))).pow(b)) : (decimal(a).pow(b));
         }
     }
-    return n_gt(O, a) ? realify((new complex(a)).pow(decimal(b))) : a.pow(b);
+    return n_gt(O, a) && !is_int(b) ? realify((new complex(a)).pow(decimal(b))) : a.pow(b);
 }
 $_.npow = n_pow;
 function n_mod(a, b)

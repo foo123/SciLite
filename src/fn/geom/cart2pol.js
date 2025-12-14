@@ -1,7 +1,7 @@
-fn.cart2pol = function(x, y, z) {
+fn.cart2pol = varargout(function(nargout, x, y, z) {
     return [
         fn.atan2(y, x), // theta
-        fn.sqrt(add(dotpow(x, 2), dotpow(y, 2))), // rho
+        fn.sqrt(add(dotpow(x, two), dotpow(y, two))), // rho
         z // z
     ];
-};
+}, 3);

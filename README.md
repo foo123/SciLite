@@ -4,7 +4,7 @@ A **scientific computing environment** in pure JavaScript
 
 ![SciLite](./scilite.png)
 
-**v.0.9.7** (91 kB minified)
+**v.0.9.7** (92 kB minified)
 
 [![SciLite](./scilite-live.png)](https://foo123.github.io/examples/scilite/)
 
@@ -50,7 +50,7 @@ let [Ref, Pivots] = fn.rref.nargout(2)(A); // variable output
 * implement matrix functions `sqrtm`, `expm`, `logm` (IN PROGRESS)
 * implement generalized/polynomial eigen decomposition (TODO)
 * support symbolic computations (IN PROGRESS)
-* add support for computations on GPU (TODO)
+* support GPU computations and mix of CPU/GPU computations (TODO)
 
 **see also:**
 

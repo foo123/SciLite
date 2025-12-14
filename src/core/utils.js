@@ -26,6 +26,7 @@ $_.decimal = function(Decimal) {
         ten = decimal(10);
         log_10 = decimal(stdMath.log(10));
         log_2 = decimal(stdMath.log(2));
+        constant.eps = decimal(eps);
         constant.pi = decimal(pi);
         constant.e = decimal(e);
         constant.realmax = decimal(realmax);
@@ -45,6 +46,7 @@ $_.decimal = function(Decimal) {
         ten = 10;
         log_2 = stdMath.log(2);
         log_10 = stdMath.log(10);
+        constant.eps = eps;
         constant.pi = pi;
         constant.e = e;
         constant.realmax = realmax;
@@ -264,6 +266,13 @@ function tonumber(x)
     return x;
 }
 $_.tonumber = tonumber;
+function todecimal(x)
+{
+    if (is_array(x)) return x.map(todecimal);
+    else if (is_scalar(x)) return __(x);
+    return x;
+}
+$_.todecimal = todecimal;
 
 function copy(x)
 {
@@ -336,19 +345,22 @@ $_.exist = function(variable, ctx) {
     return is_obj(ctx) && is_string(variable) && HAS.call(ctx, variable) ? 1 : 0;
 };
 
-function varargout(f)
+function varargout(f, nargout_default)
 {
+    if (null == nargout_default) nargout_default = 1;
     var f_with_nargout = function(/*..args*/) {
-        var args = [].slice.call(arguments);
-        args.unshift(1); // nargout=1
-        return f.apply(null, args);
+        var args = [].slice.call(arguments), ans;
+        args.unshift(nargout_default); // nargout=nargout_default
+        ans = f.apply(null, args);
+        if ((1 < nargout_default) && is_array(ans)) ans.$scilitevarargout$ = true;
+        return ans;
     };
-    f_with_nargout.nargout = function(n) {
+    f_with_nargout.nargout = function(nargout) {
         return function(/*..args*/) {
             var args = [].slice.call(arguments), ans;
-            args.unshift(n); // nargout=n
+            args.unshift(nargout); // nargout=nargout
             ans = f.apply(null, args);
-            if ((1 < n) && is_array(ans)) ans.$scilitevarargout$ = true;
+            if ((1 < nargout) && is_array(ans)) ans.$scilitevarargout$ = true;
             return ans;
         };
     };

@@ -44,7 +44,7 @@ complex.prototype = {
         var self = this;
         if (null == self._rho2)
         {
-            self._rho2 = n_pow(self.abs(), 2);
+            self._rho2 = n_pow(self.abs(), two);
         }
         return self._rho2;
 
