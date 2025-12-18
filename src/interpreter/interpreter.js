@@ -706,8 +706,21 @@ function parse(s, ctx, lineStart, posStart)
                 {
                     // postfix assumed to be already in correct order,
                     // no re-structuring needed
-                    if (opc.arity > terms.length) throw error('invalid or missing argument for "'+op+'"', o[1], o[2]);
-                    args = terms.splice(0, opc.arity).reverse();
+                    if (opc.arity > terms.length)
+                    {
+                        if ((null != opc.arityalt) && (opc.arityalt <= terms.length))
+                        {
+                            args = terms.splice(0, opc.arityalt).reverse();
+                        }
+                        else
+                        {
+                            throw error('invalid or missing argument for "'+op+'"', o[1], o[2]);
+                        }
+                    }
+                    else
+                    {
+                        args = terms.splice(0, opc.arity).reverse();
+                    }
                     result = expr(opc.fn, args);
                     terms.unshift(result);
                 }

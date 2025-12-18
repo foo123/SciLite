@@ -16,6 +16,6 @@ function charpoly(A)
         });
         coeff[n-k] = scalar_div(trace(mul(A, M)), -k);
     }
-    return coeff.reverse();
+    return realify(coeff.reverse());
 }
 fn.charpoly = charpoly;
