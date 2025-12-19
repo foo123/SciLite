@@ -463,6 +463,7 @@ async function for_end($arg, v, $)
         brk, is_break = false,
         cont, is_continue = false,
         values = await vale($arg.val, v, $),
+        values_is_2d = false,
         statements = $arg.statements;
     if (is_array(values))
     {
@@ -471,11 +472,12 @@ async function for_end($arg, v, $)
         cont = $.cont;
         $.brk = function() {is_break = true;};
         $.cont = function() {is_continue = true;};
-        for (j=0,k=values.length; j<k; ++j)
+        values_is_2d = is_2d(values);
+        for (j=0,k=values_is_2d?COLS(values):(values.length); j<k; ++j)
         {
             is_break = false;
             is_continue = false;
-            await $arg.ind.set(values[j]);
+            await $arg.ind.set(values_is_2d ? COL(values, j) : values[j]);
             for (i=0,n=statements.length; i<n; ++i)
             {
                 res = await vale(statements[i], v, $);

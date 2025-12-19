@@ -1,6 +1,6 @@
 function norm(x, p)
 {
-    if (null == p) p = 2;
+    if (null == p) p = two;
     if (is_inf(p))
     {
         if (is_scalar(x))
@@ -36,7 +36,7 @@ function norm(x, p)
                 return max(sum(abs(x)));
             }
         }
-        else if (n_eq(p, 2))
+        else if (n_eq(p, two))
         {
             if (is_scalar(x))
             {
