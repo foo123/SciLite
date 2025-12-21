@@ -12,7 +12,7 @@ function cum(x, f, dir, dim)
         {
             return x.slice().reverse().map(function(xi, i) {
                 accum = 0 === i ? xi : f(accum, xi);
-                return acc;
+                return accum;
             }).reverse();
         }
         else if ('forward' === dir)
