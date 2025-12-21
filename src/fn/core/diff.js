@@ -1,5 +1,6 @@
 function diff(x, dim)
 {
+    x = vec(x);
     if (is_vector(x))
     {
         return 1 < x.length ? array(x.length-1, function(i) {

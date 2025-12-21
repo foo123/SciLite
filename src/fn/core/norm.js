@@ -3,6 +3,7 @@ function norm(x, p)
     if (null == p) p = two;
     if (is_inf(p))
     {
+        x = vec(x);
         if (is_scalar(x))
         {
             return scalar_abs(x);
@@ -21,6 +22,7 @@ function norm(x, p)
     }
     else if (is_num(p))
     {
+        x = vec(x);
         if (n_eq(p, I))
         {
             if (is_scalar(x))

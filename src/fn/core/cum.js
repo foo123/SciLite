@@ -43,22 +43,22 @@ function cum(x, f, dir, dim)
     return false;
 }
 fn.cumsum = function(x, dim, dir) {
-    var ans = cum(x, scalar_add, dir, dim);
+    var ans = cum(vec(x), scalar_add, dir, dim);
     if (false === ans) not_supported("cumsum");
     return ans;
 };
 fn.cumprod = function(x, dim, dir) {
-    var ans = cum(x, scalar_mul, dir, dim);
+    var ans = cum(vec(x), scalar_mul, dir, dim);
     if (false === ans) not_supported("cumprod");
     return ans;
 };
 fn.cummin = function(x, dim, dir) {
-    var ans = cum(x, function(a, b) {return lt(a, b) ? a : b;}, dir, dim);
+    var ans = cum(vec(x), function(a, b) {return lt(a, b) ? a : b;}, dir, dim);
     if (false === ans) not_supported("cummin");
     return ans;
 };
 fn.cummax = function(x, dim, dir) {
-    var ans = cum(x, function(a, b) {return gt(a, b) ? a : b;}, dir, dim);
+    var ans = cum(vec(x), function(a, b) {return gt(a, b) ? a : b;}, dir, dim);
     if (false === ans) not_supported("cummax");
     return ans;
 };

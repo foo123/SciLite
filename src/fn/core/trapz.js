@@ -72,7 +72,7 @@ fn.trapz = function(x, y, dim) {
             x = null;
         }
     }
-    return trapz(x, y, dim);
+    return trapz(is_array(x) ? vec(x) : x, vec(y), dim);
 };
 function cumtrapz(x, y, dim)
 {
@@ -147,5 +147,5 @@ fn.cumtrapz = function(x, y, dim) {
             x = null;
         }
     }
-    return cumtrapz(x, y, dim);
+    return cumtrapz(is_array(x) ? vec(x) : x, vec(y), dim);
 };

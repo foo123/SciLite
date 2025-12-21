@@ -1,6 +1,8 @@
 function dot(a, b, asreal)
 {
     asreal = true === asreal;
+    a = vec(a);
+    b = vec(b);
     if (is_scalar(a) && is_scalar(b))
     {
         return scalar_mul(a, asreal ? b : scalar_conj(b));

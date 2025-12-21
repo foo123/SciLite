@@ -100,6 +100,6 @@ function snf(A, wantl, wantr)
 fn.smithForm = varargout(function(nargout, A) {
     if (is_scalar(A)) A = [[A]];
     if (!is_matrix(A)) not_supported('smithForm');
-    var ans = snf(fn.floor(fn.real(A)), 1 < nargout, 1 < nargout);
+    var ans = snf(fn.round(fn.real(A)), 1 < nargout, 1 < nargout);
     return 1 < nargout ? [ans[1], ans[2], ans[0]] : ans;
 });

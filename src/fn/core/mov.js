@@ -47,7 +47,7 @@ fn.movsum = function(x, k, dim) {
             kf = ((k-1) >> 1);
         }
     }
-    ans = mov(x, sum, kb, kf, dim);
+    ans = mov(vec(x), sum, kb, kf, dim);
     if (false === ans) not_supported("movsum");
     return ans;
 };
@@ -72,7 +72,7 @@ fn.movprod = function(x, k, dim) {
             kf = ((k-1) >> 1);
         }
     }
-    ans = mov(x, prod, kb, kf, dim);
+    ans = mov(vec(x), prod, kb, kf, dim);
     if (false === ans) not_supported("movprod");
     return ans;
 };
@@ -97,7 +97,7 @@ fn.movmean = function(x, k, dim) {
             kf = ((k-1) >> 1);
         }
     }
-    ans = mov(x, mean, kb, kf, dim);
+    ans = mov(vec(x), mean, kb, kf, dim);
     if (false === ans) not_supported("movmean");
     return ans;
 };
@@ -122,7 +122,7 @@ fn.movmin = function(x, k, dim) {
             kf = ((k-1) >> 1);
         }
     }
-    ans = mov(x, min, kb, kf, dim);
+    ans = mov(vec(x), min, kb, kf, dim);
     if (false === ans) not_supported("movmin");
     return ans;
 };
@@ -147,7 +147,7 @@ fn.movmax = function(x, k, dim) {
             kf = ((k-1) >> 1);
         }
     }
-    ans = mov(x, max, kb, kf, dim);
+    ans = mov(vec(x), max, kb, kf, dim);
     if (false === ans) not_supported("movmax");
     return ans;
 };

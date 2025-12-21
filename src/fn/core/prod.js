@@ -1,5 +1,6 @@
 function prod(x)
 {
+    x = vec(x);
     if (is_scalar(x))
     {
         return x;
