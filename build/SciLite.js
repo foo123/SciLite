@@ -3,7 +3,7 @@
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
 * @version: 0.9.8
-* 2025-12-23 00:31:13
+* 2025-12-23 00:43:33
 * https://github.com/foo123/SciLite
 *
 **//**
@@ -11,7 +11,7 @@
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
 * @version: 0.9.8
-* 2025-12-23 00:31:13
+* 2025-12-23 00:43:33
 * https://github.com/foo123/SciLite
 *
 **/
@@ -3193,6 +3193,7 @@ function meshgrid(x, y)
     {
         y = x;
     }
+    x = vec(x); y = vec(y);
     if (is_vector(x) && is_vector(y))
     {
         X = matrix(y.length, x.length, function(i, j) {
@@ -3210,12 +3211,13 @@ fn.meshgrid = varargout(function(nargout, x, y) {
 });
 function ndgrid(nargout, x)
 {
-    var ans = [],
+    x = x.map(function(xi) {return vec(xi);});
+    var k, ans = [],
         dims = array(nargout, function(i) {
             return (1 === x.length ? x[0] : x[i]).length;
         })
     ;
-    for (var k=0; k<nargout; ++k)
+    for (k=0; k<nargout; ++k)
     {
         ans.push(ndarray(dims, function(i) {
             return (1 === x.length ? x[0] : x[k])[i[k]];

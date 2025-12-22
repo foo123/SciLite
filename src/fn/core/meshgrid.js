@@ -5,6 +5,7 @@ function meshgrid(x, y)
     {
         y = x;
     }
+    x = vec(x); y = vec(y);
     if (is_vector(x) && is_vector(y))
     {
         X = matrix(y.length, x.length, function(i, j) {
