@@ -17,4 +17,6 @@ function randn(rows, cols)
         return __(normal());
     });
 }
-fn.randn = randn;
+fn.randn = function(rows, cols) {
+    return randn(fn.fix(rows), is_scalar(cols) ? fn.fix(cols) : cols);
+};

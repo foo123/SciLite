@@ -8,7 +8,7 @@ function hess(A, B, wantq)
             k, i;
         for (k=1; k<=n-2; ++k)
         {
-            // produces some entries with opposite sign from Octave's hess
+            // produces some reflected signs from Octave's hess
             for (i=n; i>=k+2; --i)
             {
                 //G = givens(n, i-1-1, i-1, H[i-1-1][k-1], H[i-1][k-1]);
@@ -54,11 +54,11 @@ function hess(A, B, wantq)
 }
 fn.hess = varargout(function(nargout, A, B) {
     if (is_scalar(A)) A = [[A]];
-    if (!is_matrix(A) || ROWS(A) !== COLS(A)) not_supported("hess");
+    if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("hess");
     if (2 < arguments.legnth)
     {
         if (is_scalar(B)) B = [[B]];
-        if (!is_matrix(B) || ROWS(B) !== COLS(B)) not_supported("hess");
+        if (!is_matrix(B) || (ROWS(B) !== COLS(B))) not_supported("hess");
         return hess(A, B);
     }
     else

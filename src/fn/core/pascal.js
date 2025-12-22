@@ -7,7 +7,7 @@ function pascal(n)
 }
 fn.pascal = function(n) {
     if (1 < arguments.length) not_supported("pascal");
-    n = sca(n, true);
+    n = fn.fix(sca(n, true));
     n = is_int(n) ? _(n) : null;
     if (!is_int(n) || (0 >= n)) return [];
     var p = pascal(n);

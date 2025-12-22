@@ -8,5 +8,5 @@ function eye(n, d)
     });
 }
 fn.eye = function(n) {
-    return eye(n, I);
+    return eye(fn.fix(n), I);
 };

@@ -1,5 +1,6 @@
 function randi(n, rows, cols)
 {
+    n = _(n);
     if (null == rows && null == cols)
     {
         return __(stdMath.ceil(stdMath.random()*n));
@@ -17,4 +18,6 @@ function randi(n, rows, cols)
         return __(stdMath.ceil(stdMath.random()*n));
     });
 }
-fn.randi = randi;
+fn.randi = function(n, rows, cols) {
+    return randi(fn.fix(n), fn.fix(rows), is_scalar(cols) ? fn.fix(cols) : cols);
+};

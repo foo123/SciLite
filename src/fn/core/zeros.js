@@ -12,4 +12,6 @@ function zeros(rows, cols)
     }
     return matrix(_(rows), _(cols), O);
 }
-fn.zeros = zeros;
+fn.zeros = function(rows, cols) {
+    return zeros(fn.fix(rows), is_scalar(cols) ? fn.fix(cols) : cols);
+};

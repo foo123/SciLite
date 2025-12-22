@@ -180,6 +180,19 @@ function matrix(rows, cols, v)
     return mat;
 }
 $_.matrix = matrix;
+function ndarray(d, v)
+{
+    return d.length ? array(d[0], function(i) {
+        if (d.length > 1)
+        {
+            return ndarray(d.slice(1), function(j) {
+                return is_callable(v) ? v([i].concat(j)) : v;
+            });
+        }
+        return is_callable(v) ? v([i]) : v;
+    }) : [];
+}
+$_.ndarray = ndarray;
 function rowvec(n, v)
 {
     return array(n, v);

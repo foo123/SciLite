@@ -22,7 +22,7 @@ function lu(A, without_d, eps)
     L = eye(n);
     DD = array(n, O);
     P = eye(n);
-    oldpivot = 1;
+    oldpivot = I;
     for (k=0; k<n-1; ++k)
     {
         if (le(scalar_abs(U[k][k]), eps))
@@ -65,10 +65,15 @@ function lu(A, without_d, eps)
     }
     if (defficient) throw "lu: defficient matrix";
     DD[n-1] = oldpivot;
-    return without_d ? [mul(L, diag(DD.map(function(di) {return scalar_inv(di);}))), U, P] : [DD, L, U, P];
+    if (without_d)
+    {
+        DD = diag(DD.map(function(di) {return scalar_inv(di);}));
+        return [mul(L, DD), U, P];
+    }
+    return [DD, L, U, P];
 }
 fn.lu = function(A) {
-    if (is_scalar(A)) x = [[A]];
+    if (is_scalar(A)) A = [[A]];
     if (!is_matrix(A)) not_supported("lu");
     return lu(A, true);
 };

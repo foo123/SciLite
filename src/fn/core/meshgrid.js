@@ -17,4 +17,6 @@ function meshgrid(x, y)
     }
     not_supported("meshgrid");
 }
-fn.meshgrid = meshgrid;
+fn.meshgrid = varargout(function(nargout, x, y) {
+    return meshgrid(x, y);
+});

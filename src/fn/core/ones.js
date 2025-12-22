@@ -12,4 +12,6 @@ function ones(rows, cols)
     }
     return matrix(_(rows), _(cols), I);
 }
-fn.ones = ones;
+fn.ones = function(rows, cols) {
+    return ones(fn.fix(rows), is_scalar(cols) ? fn.fix(cols) : cols);
+};

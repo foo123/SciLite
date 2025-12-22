@@ -17,4 +17,6 @@ function rand(rows, cols)
         return __(stdMath.random());
     });
 }
-fn.rand = rand;
+fn.rand = function(rows, cols) {
+    return rand(fn.fix(rows), is_scalar(cols) ? fn.fix(cols) : cols);
+};
