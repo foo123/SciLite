@@ -435,7 +435,8 @@ function gauss_jordan(A, with_pivots, odim, eps)
             if (le(a, eps)) ++z;
             else if ((null == min) || lt(a, min)) {min = a; imin = i;}
         }
-        do {
+        for (;;)
+        {
             if (-1 === imin) break; // all zero, nothing else to do
             if (rows-i0 === z+1)
             {
@@ -466,7 +467,7 @@ function gauss_jordan(A, with_pivots, odim, eps)
                 {
                     if (i === im) continue;
                     // subtract min row from other rows
-                    ADDR(m, i, im, scalar_neg(scalar_div(m[i][lead], m[im][lead])), 1, lead);
+                    ADDR(m, i, im, scalar_neg(scalar_div(m[i][lead], m[im][lead])), I, lead);
                     // determinant does not change for this operation
 
                     // find again row with min abs value for this column as well for next round
@@ -475,7 +476,7 @@ function gauss_jordan(A, with_pivots, odim, eps)
                     else if (lt(a, min)) {min = a; imin = i;}
                 }
             }
-        } while (1);
+        }
 
         ++lead; //++leadc;
     }

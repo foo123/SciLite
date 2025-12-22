@@ -1,93 +1,99 @@
-function gcdex(a, b)
-{
-    var gcd, g, x, y;
-    if (!n_eq(a, O) && n_eq(O, n_mod(b, a)))
-    {
-        g = realMath.abs(a);
-        y = O;
-        x = n_lt(a, O) ? J : I;
-    }
-    else if (!n_eq(b, O) && n_eq(O, n_mod(a, b)))
-    {
-        g = realMath.abs(b);
-        x = O;
-        y = n_lt(b, O) ? J : I;
-    }
-    else
-    {
-        gcd = n_xgcd([a, b]);
-        g = gcd[0];
-        x = gcd[1];
-        y = gcd[2];
-    }
-    return [x, y, g];
-}
-function add_columns(m, i, j, a, b, c, d)
-{
-    var k, n, e, f;
-    if (i === j)
-    {
-        for (k=0,n=ROWS(m); k<n; ++k)
-        {
-            m[k][i] = n_mul(a, m[k][i]);
-        }
-    }
-    else
-    {
-        for (k=0,n=ROWS(m); k<n; ++k)
-        {
-            e = m[k][i]; f = m[k][j];
-            m[k][i] = n_add(n_mul(a, e), n_mul(b, f));
-            m[k][j] = n_add(n_mul(c, e), n_mul(d, f));
-        }
-    }
-}
-function hnf(A, wantu)
+function int_gauss_jordan(A, hermite, wantu)
 {
     // adapted from https://github.com/foo123/Abacus
-    var m = ROWS(A), n = COLS(A),
-        U = wantu ? eye(n) : null,
-        k = n, i, j, b, q, gcd, r, s;
-    for (i=m-1; i>=0; --i)
+    var rows = ROWS(A), columns = COLS(A),
+        dim = columns, pl = 0, r, i, i0, p0,
+        lead, imin, im, min, a, z, m, eps = O;
+    m = wantu ? concat(A, eye(rows)) : A;
+    lead = 0;
+    for (r=0; r<rows; ++r)
     {
-        if (0 === k) break;
-        --k;
-        for (j=k-1; j>=0; --j)
+        if (dim <= lead) break;
+
+        i = r;
+        while (le(scalar_abs(m[i][lead]), eps))
         {
-            if (!n_eq(A[i][j], O))
+            ++i;
+            if (rows <= i)
             {
-                gcd = gcdex(A[i][k], A[i][j]);
-                r = n_div(A[i][k], gcd[2]);
-                s = n_neg(n_div(A[i][j], gcd[2]));
-                add_columns(A, k, j, gcd[0], gcd[1], s, r);
-                if (wantu) add_columns(U, k, j, gcd[0], gcd[1], s, r);
+                i = r; ++lead;
+                if (dim <= lead)
+                {
+                    lead = -1;
+                    break;
+                }
             }
         }
-        b = A[i][k];
-        if (n_eq(b, O))
+        if (-1 === lead) break; // nothing to do
+
+        i0 = i;
+        imin = -1; min = null; z = 0;
+        // find row with min abs leading value non-zero for current column lead
+        for (i=i0; i<rows; ++i)
         {
-            ++k;
+            a = scalar_abs(m[i][lead]);
+            if (le(a, eps)) ++z;
+            else if ((null == min) || lt(a, min)) {min = a; imin = i;}
         }
-        else
+        for (;;)
         {
-            if (n_lt(b, O))
+            if (-1 === imin) break; // all zero, nothing else to do
+            if (rows-i0 === z+1)
             {
-                add_columns(A, k, k, J, O, J, O);
-                if (wantu) add_columns(U, k, k, J, O, J, O);
-                b = n_neg(b);
+                // only one non-zero, swap row to put it first
+                if (r !== imin)
+                {
+                    SWAPR(m, r, imin);
+                }
+                if (lt(m[r][lead], O))
+                {
+                    // make it positive
+                    ADDR(m, r, r, O, J, lead);
+                }
+                if (hermite)
+                {
+                    a = m[r][lead];
+                    for (i=0; i<r; ++i)
+                    {
+                        if (ge(scalar_abs(m[i][lead]), a))
+                        {
+                            // make strictly smaller
+                            ADDR(m, i, r, scalar_neg(fn.floor(scalar_div(m[i][lead], a))), I, lead);
+                        }
+                        if (lt(m[i][lead], O))
+                        {
+                            // make positive
+                            ADDR(m, i, r, I, I, lead);
+                        }
+                    }
+                }
+                i = imin; i0 = r;
+                break;
             }
-            for (j=k+1; j<n; ++j)
+            else
             {
-                q = n_neg(realMath.floor(n_div(A[i][j], b)));
-                add_columns(A, j, k, I, q, O, I);
-                if (wantu) add_columns(U, j, k, I, q, O, I);
+                z = 0; im = imin;
+                for (i=i0; i<rows; ++i)
+                {
+                    if (i === im) continue;
+                    // subtract min row from other rows
+                    ADDR(m, i, im, scalar_neg(fn.floor(scalar_div(m[i][lead], m[im][lead]))), I, lead);
+
+                    // find again row with min abs value for this column as well for next round
+                    a = scalar_abs(m[i][lead]);
+                    if (le(a, eps)) ++z;
+                    else if (lt(a, min)) {min = a; imin = i;}
+                }
             }
         }
+
+        ++lead;
     }
-    return wantu ? [U, A] : A;
+    return wantu ? [slice(m, 0, columns, rows-1, rows+columns-1), slice(m, 0, 0, rows-1, columns-1)] : m;
 }
+var iref = int_gauss_jordan;
 fn.hermiteForm = varargout(function(nargout, A) {
     if (is_scalar(A)) A = [[A]];
-    if (!is_matrix(A)) not_supported('hermiteForm');
-    return hnf(fn.round(fn.real(A)), 1 < nargout);
+    if (!is_matrix(A)) not_supported("hermiteForm");
+    return iref(fn.round(fn.real(A)), true, 1 < nargout);
 });
