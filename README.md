@@ -51,6 +51,7 @@ let [Ref, Pivots] = fn.rref.nargout(2)(A); // variable output
 * implement matrix functions `sqrtm`, `expm`, `logm` (IN PROGRESS)
 * implement generalized/polynomial eigen decomposition (TODO)
 * implement more builtin functions from Octave/Matlab (IN PROGRESS)
+* implement some independent component analysis functions (eg `jade`) (TODO)
 * support symbolic computations (IN PROGRESS)
 * support GPU computations and mix of CPU/GPU computations (TODO)
 
