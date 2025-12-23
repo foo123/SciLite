@@ -1,7 +1,7 @@
 function meshgrid(x, y)
 {
     var X, Y;
-    if (1 === arguments.length)
+    if (null == y)
     {
         y = x;
     }
@@ -20,4 +20,4 @@ function meshgrid(x, y)
 }
 fn.meshgrid = varargout(function(nargout, x, y) {
     return meshgrid(x, y);
-});
+}, 2);

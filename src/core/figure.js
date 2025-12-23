@@ -192,19 +192,17 @@ figure.prototype = {
         return i;
     },
     parse: function(args, type, defaultEmpty) {
-        var fig = this, i = 0, j, kth = 0, n, x, y, z, s;
+        var fig = this, i = 0, j, kth = 0, n, v, x, y, z, s;
         if ('pie' === type)
         {
             while (i < args.length)
             {
-                if (is_vector(args[i]))
+                v = vec(args[i]);
+                if (is_vector(v))
                 {
-                    fig.data.push({y:tonumber(args[i++])});
+                    fig.data.push({y:tonumber(v)});
                 }
-                else
-                {
-                    i += 1;
-                }
+                i += 1;
             }
         }
         else if ('plot3' === type)
@@ -212,17 +210,20 @@ figure.prototype = {
             while (i < args.length)
             {
                 x = null; y = null; z = null;
-                if (is_vector(args[i]))
+                v = vec(args[i]);
+                if (is_vector(v))
                 {
-                    x = args[i];
+                    x = v;
                 }
-                if (is_vector(args[i+1]))
+                v = vec(args[i+1]);
+                if (is_vector(v))
                 {
-                    y = args[i+1];
+                    y = v;
                 }
-                if (is_vector(args[i+2]))
+                v = vec(args[i+2]);
+                if (is_vector(v))
                 {
-                    z = args[i+2];
+                    z = v;
                     i += 3;
                 }
                 if (x && y && z)
@@ -243,13 +244,14 @@ figure.prototype = {
             while (i < args.length)
             {
                 x = null; y = null;
-                if (is_vector(args[i]))
+                v = vec(args[i]);
+                if (is_vector(v))
                 {
-                    x = args[i];
+                    x = v;
                 }
                 if (is_vector(args[i+1]) || is_matrix(args[i+1]))
                 {
-                    y = args[i+1];
+                    y = vec(args[i+1]);
                     i += 2;
                 }
                 else if (x)
@@ -260,20 +262,21 @@ figure.prototype = {
                 }
                 if (x && y)
                 {
+                    x = tonumber(x);
                     s = {};
                     i = fig.option(s, args, i, kth);
                     if (is_matrix(y))
                     {
                         for (j=0,n=COLS(y); j<n; ++j)
                         {
-                            fig.data.push({x:tonumber(x), y:tonumber(COL(y, j)), style:s});
+                            fig.data.push({x:x, y:tonumber(COL(y, j)), style:s});
                             ++kth;
                             s = fig.option(s, args, i, kth);
                         }
                     }
                     else
                     {
-                        fig.data.push({x:tonumber(x), y:tonumber(y), style:s});
+                        fig.data.push({x:x, y:tonumber(y), style:s});
                         ++kth;
                     }
                 }

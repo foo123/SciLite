@@ -159,6 +159,10 @@ function is_2d(x)
 {
     return is_array(x) && is_array(x[0]);
 }
+function is_nd(x)
+{
+    return is_array(x) && is_array(x[0]) && is_array(x[0][0]);
+}
 function array(n, v)
 {
     var i, arr = new Array(n);
@@ -180,12 +184,12 @@ function matrix(rows, cols, v)
     return mat;
 }
 $_.matrix = matrix;
-function ndarray(d, v)
+function ndarray(dims, v)
 {
-    return d.length ? array(d[0], function(i) {
-        if (d.length > 1)
+    return dims.length ? array(dims[0], function(i) {
+        if (dims.length > 1)
         {
-            return ndarray(d.slice(1), function(j) {
+            return ndarray(dims.slice(1), function(j) {
                 return is_callable(v) ? v([i].concat(j)) : v;
             });
         }
@@ -234,7 +238,11 @@ function sca(x, real)
 $_.sca = sca;
 function vec(x)
 {
-    if (is_2d(x))
+    if (null == x)
+    {
+        return x;
+    }
+    else if (is_2d(x))
     {
         if (1 === ROWS(x)) return x[0];
         else if (1 === COLS(x)) return x.map(function(xi) {return xi[0];});
@@ -266,7 +274,7 @@ function COL(mat, j)
 
 function _(x)
 {
-    return ("number" === typeof x) ? x : (is_decimal(x) ? (x.$valueOf()) : (x.valueOf()));
+    return ("number" === typeof x) ? x : (is_decimal(x) ? (x.$valueOf()) : (is_complex(x) ? x.valueOf() : x));
 }
 function __(x)
 {

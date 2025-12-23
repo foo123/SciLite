@@ -3,7 +3,7 @@
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
 * @version: 0.9.8
-* 2025-12-23 00:43:33
+* 2025-12-23 12:04:13
 * https://github.com/foo123/SciLite
 *
 **//**
@@ -11,7 +11,7 @@
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
 * @version: 0.9.8
-* 2025-12-23 00:43:33
+* 2025-12-23 12:04:13
 * https://github.com/foo123/SciLite
 *
 **/
@@ -240,6 +240,10 @@ function is_2d(x)
 {
     return is_array(x) && is_array(x[0]);
 }
+function is_nd(x)
+{
+    return is_array(x) && is_array(x[0]) && is_array(x[0][0]);
+}
 function array(n, v)
 {
     var i, arr = new Array(n);
@@ -261,12 +265,12 @@ function matrix(rows, cols, v)
     return mat;
 }
 $_.matrix = matrix;
-function ndarray(d, v)
+function ndarray(dims, v)
 {
-    return d.length ? array(d[0], function(i) {
-        if (d.length > 1)
+    return dims.length ? array(dims[0], function(i) {
+        if (dims.length > 1)
         {
-            return ndarray(d.slice(1), function(j) {
+            return ndarray(dims.slice(1), function(j) {
                 return is_callable(v) ? v([i].concat(j)) : v;
             });
         }
@@ -315,7 +319,11 @@ function sca(x, real)
 $_.sca = sca;
 function vec(x)
 {
-    if (is_2d(x))
+    if (null == x)
+    {
+        return x;
+    }
+    else if (is_2d(x))
     {
         if (1 === ROWS(x)) return x[0];
         else if (1 === COLS(x)) return x.map(function(xi) {return xi[0];});
@@ -347,7 +355,7 @@ function COL(mat, j)
 
 function _(x)
 {
-    return ("number" === typeof x) ? x : (is_decimal(x) ? (x.$valueOf()) : (x.valueOf()));
+    return ("number" === typeof x) ? x : (is_decimal(x) ? (x.$valueOf()) : (is_complex(x) ? x.valueOf() : x));
 }
 function __(x)
 {
@@ -2335,19 +2343,17 @@ figure.prototype = {
         return i;
     },
     parse: function(args, type, defaultEmpty) {
-        var fig = this, i = 0, j, kth = 0, n, x, y, z, s;
+        var fig = this, i = 0, j, kth = 0, n, v, x, y, z, s;
         if ('pie' === type)
         {
             while (i < args.length)
             {
-                if (is_vector(args[i]))
+                v = vec(args[i]);
+                if (is_vector(v))
                 {
-                    fig.data.push({y:tonumber(args[i++])});
+                    fig.data.push({y:tonumber(v)});
                 }
-                else
-                {
-                    i += 1;
-                }
+                i += 1;
             }
         }
         else if ('plot3' === type)
@@ -2355,17 +2361,20 @@ figure.prototype = {
             while (i < args.length)
             {
                 x = null; y = null; z = null;
-                if (is_vector(args[i]))
+                v = vec(args[i]);
+                if (is_vector(v))
                 {
-                    x = args[i];
+                    x = v;
                 }
-                if (is_vector(args[i+1]))
+                v = vec(args[i+1]);
+                if (is_vector(v))
                 {
-                    y = args[i+1];
+                    y = v;
                 }
-                if (is_vector(args[i+2]))
+                v = vec(args[i+2]);
+                if (is_vector(v))
                 {
-                    z = args[i+2];
+                    z = v;
                     i += 3;
                 }
                 if (x && y && z)
@@ -2386,13 +2395,14 @@ figure.prototype = {
             while (i < args.length)
             {
                 x = null; y = null;
-                if (is_vector(args[i]))
+                v = vec(args[i]);
+                if (is_vector(v))
                 {
-                    x = args[i];
+                    x = v;
                 }
                 if (is_vector(args[i+1]) || is_matrix(args[i+1]))
                 {
-                    y = args[i+1];
+                    y = vec(args[i+1]);
                     i += 2;
                 }
                 else if (x)
@@ -2403,20 +2413,21 @@ figure.prototype = {
                 }
                 if (x && y)
                 {
+                    x = tonumber(x);
                     s = {};
                     i = fig.option(s, args, i, kth);
                     if (is_matrix(y))
                     {
                         for (j=0,n=COLS(y); j<n; ++j)
                         {
-                            fig.data.push({x:tonumber(x), y:tonumber(COL(y, j)), style:s});
+                            fig.data.push({x:x, y:tonumber(COL(y, j)), style:s});
                             ++kth;
                             s = fig.option(s, args, i, kth);
                         }
                     }
                     else
                     {
-                        fig.data.push({x:tonumber(x), y:tonumber(y), style:s});
+                        fig.data.push({x:x, y:tonumber(y), style:s});
                         ++kth;
                     }
                 }
@@ -3189,7 +3200,7 @@ fn.logspace = logspace;
 function meshgrid(x, y)
 {
     var X, Y;
-    if (1 === arguments.length)
+    if (null == y)
     {
         y = x;
     }
@@ -3208,7 +3219,7 @@ function meshgrid(x, y)
 }
 fn.meshgrid = varargout(function(nargout, x, y) {
     return meshgrid(x, y);
-});
+}, 2);
 function ndgrid(nargout, x)
 {
     x = x.map(function(xi) {return vec(xi);});
