@@ -696,9 +696,9 @@ $.fn.contour = function(x, y, z, v) {
     {
         Plotly.newPlot(el, [{
             type: 'contour',
-            x: $.fn.colon($._.tonumber(x)),
-            y: $.fn.colon($._.tonumber(y)),
-            z: $.fn.colon($._.tonumber(z)),
+            x: $._.tonumber($._.vec($.fn.colon(x))),
+            y: $._.tonumber($._.vec($.fn.colon(y))),
+            z: $._.tonumber($._.vec($.fn.colon(z))),
             autocontour: !(Array.isArray(v) || ('number' === typeof v)),
             contours: Array.isArray(v) ? {
                 coloring: 'lines',
@@ -876,9 +876,9 @@ $.fn.mesh = function(x, y, z) {
     document.body.appendChild(el);
     Plotly.newPlot(el, [{
         type: 'mesh3d',
-        x: $.fn.colon($._.tonumber(x)),
-        y: $.fn.colon($._.tonumber(y)),
-        z: $.fn.colon($._.tonumber(z))
+        x: $._.tonumber($._.vec($.fn.colon(x))),
+        y: $._.tonumber($._.vec($.fn.colon(y))),
+        z: $._.tonumber($._.vec($.fn.colon(z)))
     }], {
         margin: {t:0, b:0, l:0, r:0},
         paper_bgcolor: '#ffffff',
