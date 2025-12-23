@@ -179,7 +179,7 @@ window.BrowserREPL = function($, Decimal, MathJax, Plotly, CodeMirror, CodeMirro
     printCompleted = printCompleted.then(() => window.clear());
 };*/
 $.fn.exist = function(variable) {
-    return ctx ? $._.exist(variable, ctx) : false;
+    return ctx && $._.exist(variable, ctx) ? 1 : 0;
 };
 $.fn.clear = function() {
     ctx = null;
