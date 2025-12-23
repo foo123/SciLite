@@ -453,7 +453,7 @@ function texify(x)
         }
         if (ROWS(x) > $_.MAXPRINTSIZE)
         {
-            x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat([array($_.MAXPRINTSIZE, function(i) {return stdMath.round($_.MAXPRINTSIZE/2) === i ? (use_ddots ? '\\ddots' : '\\vdots') : '\\vdots';})]).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
+            x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat([array(stdMath.min(x[0].length, $_.MAXPRINTSIZE), function(i) {return stdMath.round($_.MAXPRINTSIZE/2) === i ? (use_ddots ? '\\ddots' : '\\vdots') : '\\vdots';})]).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
         }
         x = '\\begin{bmatrix}'+ x.map(function(xi) {return xi.map(texify).join(' & \\hskip 1em ');}).join(' \\\\ ') + '\\end{bmatrix}';
     }
@@ -553,7 +553,7 @@ function stringify(x)
         }
         if (ROWS(x) > $_.MAXPRINTSIZE)
         {
-            x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat([array($_.MAXPRINTSIZE, function(i) {return stdMath.round($_.MAXPRINTSIZE/2) === i ? (use_ddots ? '\\' : ':') : ':';})]).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
+            x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat([array(stdMath.min(x[0].length, $_.MAXPRINTSIZE), function(i) {return stdMath.round($_.MAXPRINTSIZE/2) === i ? (use_ddots ? '\\' : ':') : ':';})]).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
         }
         var ln = array(COLS(x), function(col) {
             return COL(x, col).reduce(function(l, xi) {

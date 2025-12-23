@@ -115,7 +115,7 @@ var OP = {
     ,commutativity: NONCOMMUTATIVE
     ,priority     : 30
     ,fn           : function(arg0) {
-                        return colon(arg0);
+                        return fn.colon(arg0);
                     }
     },
     ":": {

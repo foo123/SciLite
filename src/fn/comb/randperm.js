@@ -13,7 +13,7 @@ function shuffle(a)
     return a;
 }
 fn.randperm = function(n) {
-    n = _(n || 0);
+    n = stdMath.round(_(n || 0));
     if (!is_int(n) || 0 >= n) not_supported("randperm");
     return shuffle(array(n, function(i) {return i+1;}));
 };

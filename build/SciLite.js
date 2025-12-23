@@ -2,16 +2,16 @@
 *
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
-* @version: 0.9.8
-* 2025-12-23 12:45:26
+* @version: 0.9.9
+* 2025-12-23 16:35:22
 * https://github.com/foo123/SciLite
 *
 **//**
 *
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
-* @version: 0.9.8
-* 2025-12-23 12:45:26
+* @version: 0.9.9
+* 2025-12-23 16:35:22
 * https://github.com/foo123/SciLite
 *
 **/
@@ -56,7 +56,7 @@ var decimal = null,
 
     // lib
     $ = {
-        VERSION: "0.9.8",
+        VERSION: "0.9.9",
         // common functions
         _: {},
         // builtin functions
@@ -534,7 +534,7 @@ function texify(x)
         }
         if (ROWS(x) > $_.MAXPRINTSIZE)
         {
-            x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat([array($_.MAXPRINTSIZE, function(i) {return stdMath.round($_.MAXPRINTSIZE/2) === i ? (use_ddots ? '\\ddots' : '\\vdots') : '\\vdots';})]).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
+            x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat([array(stdMath.min(x[0].length, $_.MAXPRINTSIZE), function(i) {return stdMath.round($_.MAXPRINTSIZE/2) === i ? (use_ddots ? '\\ddots' : '\\vdots') : '\\vdots';})]).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
         }
         x = '\\begin{bmatrix}'+ x.map(function(xi) {return xi.map(texify).join(' & \\hskip 1em ');}).join(' \\\\ ') + '\\end{bmatrix}';
     }
@@ -634,7 +634,7 @@ function stringify(x)
         }
         if (ROWS(x) > $_.MAXPRINTSIZE)
         {
-            x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat([array($_.MAXPRINTSIZE, function(i) {return stdMath.round($_.MAXPRINTSIZE/2) === i ? (use_ddots ? '\\' : ':') : ':';})]).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
+            x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat([array(stdMath.min(x[0].length, $_.MAXPRINTSIZE), function(i) {return stdMath.round($_.MAXPRINTSIZE/2) === i ? (use_ddots ? '\\' : ':') : ':';})]).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
         }
         var ln = array(COLS(x), function(col) {
             return COL(x, col).reduce(function(l, xi) {
@@ -2959,25 +2959,6 @@ function randn(rows, cols)
 fn.randn = function(rows, cols) {
     return randn(fn.fix(rows), is_scalar(cols) ? fn.fix(cols) : cols);
 };
-function shuffle(a)
-{
-    // adapted from https://github.com/foo123/Abacus
-    var offset = 0, a0 = 0, a1 = a.length-1,
-        N = a1-a0+1, perm, swap;
-    while (1 < N--)
-    {
-        perm = stdMath.round(stdMath.random()*(N-offset));
-        swap = a[a0+N];
-        a[a0+N] = a[a0+perm];
-        a[a0+perm] = swap;
-    }
-    return a;
-}
-fn.randperm = function(n) {
-    n = _(n || 0);
-    if (!is_int(n) || 0 >= n) not_supported("randperm");
-    return shuffle(array(n, function(i) {return i+1;}));
-};
 function magic(n)
 {
     // adapted from Octave
@@ -3295,7 +3276,14 @@ function colon(a, b, c)
         return ans;
     }
 }
-fn.colon = colon;
+fn.colon = function(a, b, c) {
+    if ((1 === arguments.length) && is_array(a))
+    {
+        // a(:)
+        return vec2col(colon(a));
+    }
+    return colon.apply(null, arguments);
+};
 function cat(type, A, B)
 {
     if ("horz" === type)
@@ -5643,6 +5631,127 @@ fn.adjoint = function(A) {
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("adjoint");
     return adjoint(A);
 };
+function balance(A, pnorm, wantt)
+{
+    if (null == pnorm) pnorm = 2;
+    /*
+    "ON MATRIX BALANCING AND EIGENVECTOR COMPUTATION",
+    RODNEY JAMES, JULIEN LANGOU, BRADLEY R. LOWERY
+    https://arxiv.org/abs/1401.5766
+    */
+    var n = ROWS(A),
+        B = copy(A),
+        T = wantt ? array(n, I) : null,
+        i, j, f,
+        col, row, c, r,
+        eps = __(1e-10),
+        converged, iter;
+    for (iter=1; iter<=10000; ++iter)
+    {
+        converged = 0;
+        for (i=0; i<n; ++i)
+        {
+            col = COL(B, i).map(__);
+            col.splice(i, 1);
+            row = ROW(B, i).map(__);
+            row.splice(i, 1);
+            c = norm(col, pnorm);
+            r = norm(row, pnorm);
+            if (n_eq(r, O) || n_eq(c, O))
+            {
+                ++converged;
+                continue;
+            }
+            f = realMath.sqrt(n_div(r, c));
+            if (n_le(realMath.abs(n_sub(f, I)), eps)) ++converged;
+            if (wantt) T[i] = n_mul(f, T[i]);
+            for (j=0; j<n; ++j)
+            {
+                B[j][i] = scalar_mul(B[j][i], f);
+            }
+            for (j=0; j<n; ++j)
+            {
+                B[i][j] = scalar_div(B[i][j], f);
+            }
+        }
+        if (n === converged) break;
+    }
+    return wantt ? [T, B] : B;
+}
+fn.balance = varargout(function(nargout, A, noperm) {
+    if (is_scalar(A)) A = [[A]];
+    if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("balance");
+    var ans = balance(A, 2, 1 < nargout);
+    return 2 < nargout ? [ans[0], array(ROWS(A), function(i) {return i+1;})/*noperm*/, ans[1]] : (1 < nargout ? [diag(ans[0]), ans[1]] : ans);
+});
+function hess(A, B, wantq)
+{
+    var n = ROWS(A);
+    if (null == B)
+    {
+        var Q = wantq ? eye(n) : null,
+            H = A, G, G_t,
+            k, i;
+        for (k=1; k<=n-2; ++k)
+        {
+            // produces some reflected signs from Octave's hess
+            for (i=n; i>=k+2; --i)
+            {
+                //G = givens(n, i-1-1, i-1, H[i-1-1][k-1], H[i-1][k-1]);
+                //G_t = ctranspose(G);
+                G = compute_givens(H[i-1-1][k-1], H[i-1][k-1]);
+                G_t = [scalar_conj(G[0]), scalar_neg(scalar_conj(G[1]))];
+                if (wantq) Q = rotmul('right', G, i-1-1, i-1, Q);//mul(Q, G);
+                H = rotmul('left', G_t, i-1-1, i-1, rotmul('right', G, i-1-1, i-1, H));//mul(ctranspose(G), mul(H, G));
+            }
+        }
+        return wantq ? [Q, H] : H;
+    }
+    else
+    {
+        var QR = qr_givens(B, true),
+            Q = QR[0],
+            Q_t = ctranspose(Q),
+            Z = eye(n),
+            AA = mul(Q_t, A),
+            BB = mul(Q_t, B),
+            k, i, Rl, Rl_t, Rr;
+        for (k=1; k<=n-2; ++k)
+        {
+            for (i=n; i>=k+2; --i)
+            {
+                //Rl = givens(n, i-1-1, i-1, AA[i-1-1][k-1], AA[i-1][k-1]);
+                //Rl_t = ctranspose(Rl);
+                Rl = compute_givens(AA[i-1-1][k-1], AA[i-1][k-1]);
+                Rl_t = [scalar_conj(Rl[0]), scalar_neg(scalar_conj(Rl[1]))];
+                Q = rotmul('right', Rl, i-1-1, i-1, Q);//mul(Q, Rl);
+                AA = rotmul('left', Rl_t, i-1-1, i-1, AA);//mul(Rl_t, AA);
+                BB = rotmul('left', Rl_t, i-1-1, i-1, BB);//mul(Rl_t, BB);
+
+                //Rr = givens(n, i-1-1, i-1, scalar_neg(BB[i-1][i-1]), BB[i-1][i-1-1]);
+                Rr = compute_givens(scalar_neg(BB[i-1][i-1]), BB[i-1][i-1-1]);
+                Z = rotmul('right', Rr, i-1-1, i-1, Z);//mul(Z, Rr);
+                AA = rotmul('right', Rr, i-1-1, i-1, AA);//mul(AA, Rr);
+                BB = rotmul('right', Rr, i-1-1, i-1, BB);//mul(BB, Rr);
+            }
+        }
+        return [AA, BB, Q, Z];
+    }
+}
+fn.hess = varargout(function(nargout, A, B) {
+    if (is_scalar(A)) A = [[A]];
+    if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("hess");
+    if (2 < arguments.legnth)
+    {
+        if (is_scalar(B)) B = [[B]];
+        if (!is_matrix(B) || (ROWS(B) !== COLS(B))) not_supported("hess");
+        return hess(A, B);
+    }
+    else
+    {
+        return hess(A, null, 1 < nargout);
+    }
+});
 function ldl(A, triangle)
 {
     // adapted from https://github.com/foo123/Abacus
@@ -5893,127 +6002,6 @@ fn.schur = varargout(function(nargout, A) {
     if (is_scalar(A)) A = [[A]];
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("schur");
     return schur(A, 1 < nargout);
-});
-function balance(A, pnorm, wantt)
-{
-    if (null == pnorm) pnorm = 2;
-    /*
-    "ON MATRIX BALANCING AND EIGENVECTOR COMPUTATION",
-    RODNEY JAMES, JULIEN LANGOU, BRADLEY R. LOWERY
-    https://arxiv.org/abs/1401.5766
-    */
-    var n = ROWS(A),
-        B = copy(A),
-        T = wantt ? array(n, I) : null,
-        i, j, f,
-        col, row, c, r,
-        eps = __(1e-10),
-        converged, iter;
-    for (iter=1; iter<=10000; ++iter)
-    {
-        converged = 0;
-        for (i=0; i<n; ++i)
-        {
-            col = COL(B, i).map(__);
-            col.splice(i, 1);
-            row = ROW(B, i).map(__);
-            row.splice(i, 1);
-            c = norm(col, pnorm);
-            r = norm(row, pnorm);
-            if (n_eq(r, O) || n_eq(c, O))
-            {
-                ++converged;
-                continue;
-            }
-            f = realMath.sqrt(n_div(r, c));
-            if (n_le(realMath.abs(n_sub(f, I)), eps)) ++converged;
-            if (wantt) T[i] = n_mul(f, T[i]);
-            for (j=0; j<n; ++j)
-            {
-                B[j][i] = scalar_mul(B[j][i], f);
-            }
-            for (j=0; j<n; ++j)
-            {
-                B[i][j] = scalar_div(B[i][j], f);
-            }
-        }
-        if (n === converged) break;
-    }
-    return wantt ? [T, B] : B;
-}
-fn.balance = varargout(function(nargout, A, noperm) {
-    if (is_scalar(A)) A = [[A]];
-    if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("balance");
-    var ans = balance(A, 2, 1 < nargout);
-    return 2 < nargout ? [ans[0], array(ROWS(A), function(i) {return i+1;})/*noperm*/, ans[1]] : (1 < nargout ? [diag(ans[0]), ans[1]] : ans);
-});
-function hess(A, B, wantq)
-{
-    var n = ROWS(A);
-    if (null == B)
-    {
-        var Q = wantq ? eye(n) : null,
-            H = A, G, G_t,
-            k, i;
-        for (k=1; k<=n-2; ++k)
-        {
-            // produces some reflected signs from Octave's hess
-            for (i=n; i>=k+2; --i)
-            {
-                //G = givens(n, i-1-1, i-1, H[i-1-1][k-1], H[i-1][k-1]);
-                //G_t = ctranspose(G);
-                G = compute_givens(H[i-1-1][k-1], H[i-1][k-1]);
-                G_t = [scalar_conj(G[0]), scalar_neg(scalar_conj(G[1]))];
-                if (wantq) Q = rotmul('right', G, i-1-1, i-1, Q);//mul(Q, G);
-                H = rotmul('left', G_t, i-1-1, i-1, rotmul('right', G, i-1-1, i-1, H));//mul(ctranspose(G), mul(H, G));
-            }
-        }
-        return wantq ? [Q, H] : H;
-    }
-    else
-    {
-        var QR = qr_givens(B, true),
-            Q = QR[0],
-            Q_t = ctranspose(Q),
-            Z = eye(n),
-            AA = mul(Q_t, A),
-            BB = mul(Q_t, B),
-            k, i, Rl, Rl_t, Rr;
-        for (k=1; k<=n-2; ++k)
-        {
-            for (i=n; i>=k+2; --i)
-            {
-                //Rl = givens(n, i-1-1, i-1, AA[i-1-1][k-1], AA[i-1][k-1]);
-                //Rl_t = ctranspose(Rl);
-                Rl = compute_givens(AA[i-1-1][k-1], AA[i-1][k-1]);
-                Rl_t = [scalar_conj(Rl[0]), scalar_neg(scalar_conj(Rl[1]))];
-                Q = rotmul('right', Rl, i-1-1, i-1, Q);//mul(Q, Rl);
-                AA = rotmul('left', Rl_t, i-1-1, i-1, AA);//mul(Rl_t, AA);
-                BB = rotmul('left', Rl_t, i-1-1, i-1, BB);//mul(Rl_t, BB);
-
-                //Rr = givens(n, i-1-1, i-1, scalar_neg(BB[i-1][i-1]), BB[i-1][i-1-1]);
-                Rr = compute_givens(scalar_neg(BB[i-1][i-1]), BB[i-1][i-1-1]);
-                Z = rotmul('right', Rr, i-1-1, i-1, Z);//mul(Z, Rr);
-                AA = rotmul('right', Rr, i-1-1, i-1, AA);//mul(AA, Rr);
-                BB = rotmul('right', Rr, i-1-1, i-1, BB);//mul(BB, Rr);
-            }
-        }
-        return [AA, BB, Q, Z];
-    }
-}
-fn.hess = varargout(function(nargout, A, B) {
-    if (is_scalar(A)) A = [[A]];
-    if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("hess");
-    if (2 < arguments.legnth)
-    {
-        if (is_scalar(B)) B = [[B]];
-        if (!is_matrix(B) || (ROWS(B) !== COLS(B))) not_supported("hess");
-        return hess(A, B);
-    }
-    else
-    {
-        return hess(A, null, 1 < nargout);
-    }
 });
 function eig_power(A)
 {
@@ -8288,6 +8276,113 @@ function trial_div_fac(n, maxlimit)
 }
 fn.factor = function(n) {
     return trial_div_fac(realMath.floor(realMath.abs(real(sca(n)))), __(1e30));
+};function shuffle(a)
+{
+    // adapted from https://github.com/foo123/Abacus
+    var offset = 0, a0 = 0, a1 = a.length-1,
+        N = a1-a0+1, perm, swap;
+    while (1 < N--)
+    {
+        perm = stdMath.round(stdMath.random()*(N-offset));
+        swap = a[a0+N];
+        a[a0+N] = a[a0+perm];
+        a[a0+perm] = swap;
+    }
+    return a;
+}
+fn.randperm = function(n) {
+    n = stdMath.round(_(n || 0));
+    if (!is_int(n) || 0 >= n) not_supported("randperm");
+    return shuffle(array(n, function(i) {return i+1;}));
+};
+function next_perm(item)
+{
+    // adapted from https://github.com/foo123/Abacus
+    // LEX
+    var n = item.length,
+        k, kl, s, l, r,
+        MIN = 0, MAX = n-1,
+        DK = 1, k0 = MAX,
+        a = 1, b = 0,
+        da = 1, db = 0;
+
+    //Find the largest index k such that a[k] < a[k + 1].
+    // taking into account equal elements, generates multiset permutations
+    k = k0-DK;
+    while ((MIN <= k) && (k <= MAX) && (a*item[k] >= a*item[k+DK])) k -= DK;
+    // If no such index exists, the permutation is the last permutation.
+    if ((MIN <= k) && (k <= MAX))
+    {
+        //Find the largest index kl greater than k such that a[k] < a[kl].
+        kl = k0;
+        while ((MIN <= kl) && (kl <= MAX) && (DK*(kl-k) > 0) && (a*item[k] >= a*item[kl])) kl -= DK;
+        //Swap the value of a[k] with that of a[l].
+        s = item[k]; item[k] = item[kl]; item[kl] = s;
+        //Reverse the sequence from a[k + 1] up to and including the final element a[n].
+        l = k+DK; r = k0;
+        while ((MIN <= l) && (l <= MAX) && (MIN <= r) && (r <= MAX) && (DK*(r-l) > 0))
+        {
+            s = item[l]; item[l] = item[r]; item[r] = s;
+            l += DK; r -= DK;
+        }
+    }
+    //else last item
+    else item = null;
+
+    return item;
+}
+function perms(v)
+{
+    // adapted from https://github.com/foo123/Abacus
+    v = vec(v);
+    if (!is_vector(v)) not_supported("perms");
+    var n = v.length,
+        perm = array(n, function(i) {return i;}),
+        ans = [];
+    while (perm && perm.length)
+    {
+        ans.push(perm.map(function(i) {return v[i];}));
+        perm = next_perm(perm);
+    }
+    return ans;
+}
+fn.perms = perms;function next_tensor(item, n)
+{
+    // adapted from https://github.com/foo123/Abacus
+    var k = n.length, i, j, i0, i1, DI, a, b, MIN, MAX;
+    // LEX
+    MIN = 0; MAX = k-1;
+    DI = 1; i0 = MAX; i1 = MIN;
+    a = 1; b = 0;
+
+    i = i0;
+    while ((MIN <= i) && (MAX >= i) && (item[i]+1 === n[a*i+b])) i -= DI;
+    if ((MIN <= i) && (MAX >= i))
+        for (item[i]=item[i]+1,j=i+DI; MIN<=j && MAX>=j; j+=DI) item[j] = 0;
+    //else last item
+    else item = null;
+
+    return item;
+}
+function combinations(A)
+{
+    // adapted from https://github.com/foo123/Abacus
+    A = [].map.call(A, function(Ak) {
+        if (!is_array(Ak)) not_supported("combinations");
+        return colon(Ak);
+    });
+    var n = A.map(function(Ak) {return Ak.length;}),
+        comb = array(n.length, 0),
+        ans = [];
+    while (comb && comb.length)
+    {
+        ans.push(comb.map(function(i, k) {return A[k][i];}));
+        comb = next_tensor(comb, n);
+    }
+    return ans;
+}
+fn.combinations = function() {
+    return combinations(arguments);
 };fn.string = function string(x) {
     if (is_array(x))
     {
@@ -8513,7 +8608,7 @@ var OP = {
     ,commutativity: NONCOMMUTATIVE
     ,priority     : 30
     ,fn           : function(arg0) {
-                        return colon(arg0);
+                        return fn.colon(arg0);
                     }
     },
     ":": {

@@ -10,7 +10,7 @@ let ctx = null;
 
 // extend with plugins
 $.fn.exist = function(variable) {
-    return ctx ? $._.exist(variable, ctx) : false;
+    return ctx && $._.exist(variable, ctx) ? 1 : 0;
 };
 $.fn.clear = function() {
     ctx = null;

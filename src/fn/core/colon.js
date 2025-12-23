@@ -54,4 +54,11 @@ function colon(a, b, c)
         return ans;
     }
 }
-fn.colon = colon;
+fn.colon = function(a, b, c) {
+    if ((1 === arguments.length) && is_array(a))
+    {
+        // a(:)
+        return vec2col(colon(a));
+    }
+    return colon.apply(null, arguments);
+};
