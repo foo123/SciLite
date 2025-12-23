@@ -148,7 +148,7 @@ var OP = {
     ,commutativity: NONCOMMUTATIVE
     ,priority     : 10
     ,fn           : function(arg0) {
-                        return ctranspose(arg0);
+                        return fn.ctranspose(arg0);
                     }
     },
     ".'": {
@@ -159,7 +159,7 @@ var OP = {
     ,commutativity: NONCOMMUTATIVE
     ,priority     : 10
     ,fn           : function(arg0) {
-                        return transpose(arg0);
+                        return fn.transpose(arg0);
                     }
     },
     '^': {

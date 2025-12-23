@@ -8,7 +8,10 @@ function transpose(x)
     }
     return x;
 }
-fn.transpose = transpose;
+fn.transpose = function(x) {
+    if (is_1d(x)) x = vec2row(x);
+    return transpose(x);
+};
 function ctranspose(x)
 {
     if (is_2d(x))
@@ -29,4 +32,7 @@ function ctranspose(x)
     }
     return x;
 }
-fn.ctranspose = ctranspose;
+fn.ctranspose = function(x) {
+    if (is_1d(x)) x = vec2row(x);
+    return ctranspose(x);
+};
