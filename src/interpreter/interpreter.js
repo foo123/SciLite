@@ -225,6 +225,9 @@ var OP = {
     ,commutativity: COMMUTATIVE
     ,priority     : 20
     ,fn           : function(arg0, arg1) {
+                        // arrays represent row vectors
+                        if (is_1d(arg0)) arg0 = vec2row(arg0);
+                        if (is_1d(arg1)) arg1 = vec2row(arg1);
                         return mul(arg0, arg1);
                     }
     },
@@ -459,12 +462,13 @@ async function if_end($arg, v, $)
 
 async function for_end($arg, v, $)
 {
-    var i, n, j, k, res, ans = null,
+    var i, n, j, k, res, ans = [],
         brk, is_break = false,
         cont, is_continue = false,
         values = await vale($arg.val, v, $),
         values_is_2d = false,
         statements = $arg.statements;
+    ans.$scilitevarargout$ = true;
     if (is_array(values))
     {
         $ = $ || {};
@@ -472,6 +476,7 @@ async function for_end($arg, v, $)
         cont = $.cont;
         $.brk = function() {is_break = true;};
         $.cont = function() {is_continue = true;};
+        values = vec(values);
         values_is_2d = is_2d(values);
         for (j=0,k=values_is_2d?COLS(values):(values.length); j<k; ++j)
         {
@@ -482,7 +487,7 @@ async function for_end($arg, v, $)
             {
                 res = await vale(statements[i], v, $);
                 if (is_break || is_continue) break;
-                if (null != res) ans = res;
+                if (null != res) ans.push(res);
             }
             if (is_break) break;
             else if (is_continue) continue;
@@ -495,10 +500,11 @@ async function for_end($arg, v, $)
 
 async function while_end($arg, v, $)
 {
-    var i, n, res, ans = null,
+    var i, n, res, ans = [],
         brk, is_break = false,
         cont, is_continue = false,
         statements = $arg.statements;
+    ans.$scilitevarargout$ = true;
     $ = $ || {};
     brk = $.brk;
     cont = $.cont;
@@ -512,7 +518,7 @@ async function while_end($arg, v, $)
         {
             res = await vale(statements[i], v, $);
             if (is_break || is_continue) break;
-            if (null != res) ans = res;
+            if (null != res) ans.push(res);
         }
         if (is_break) break;
         else if (is_continue) continue;

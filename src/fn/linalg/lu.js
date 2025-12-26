@@ -1,4 +1,4 @@
-function lu(A, without_d, eps)
+function lu(A, eps)
 {
     // adapted from https://github.com/foo123/Abacus
     var n, m, dim, P, L, U, DD,
@@ -63,17 +63,15 @@ function lu(A, without_d, eps)
         }
         oldpivot = U[k][k];
     }
-    if (defficient) throw "lu: defficient matrix";
+    if (defficient) return [];
     DD[n-1] = oldpivot;
-    if (without_d)
-    {
-        DD = diag(DD.map(function(di) {return scalar_inv(di);}));
-        return [mul(L, DD), U, P];
-    }
     return [DD, L, U, P];
 }
-fn.lu = function(A) {
+fn.lu = varargout(function(nargout, A) {
     if (is_scalar(A)) A = [[A]];
     if (!is_matrix(A)) not_supported("lu");
-    return lu(A, true);
-};
+    var ans = lu(A), invD;
+    if (!ans.length) throw "lu: defficient matrix";
+    invD = diag(ans[0].map(function(di) {return scalar_inv(di);}));
+    return 2 < nargout ? [mul(ans[1], invD), ans[2], ans[3]] : [mul(transpose(ans[3]), mul(ans[1], invD)), ans[2]];
+}, 2);

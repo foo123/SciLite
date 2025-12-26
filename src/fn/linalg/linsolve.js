@@ -4,6 +4,7 @@ function linsolve(A, b, opts)
     if (is_scalar(A) && is_scalar(b)) return scalar_div(b, A);
 
     if (!is_matrix(A)) return []; // invalid
+    b = vec(b);
     if (!is_vector(b) && !is_matrix(b)) return []; // invalid
 
     // solve linear system, when exactly solvable

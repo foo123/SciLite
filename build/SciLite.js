@@ -2,16 +2,16 @@
 *
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
-* @version: 0.9.9
-* 2025-12-23 16:44:17
+* @version: 0.9.10
+* 2025-12-26 19:02:39
 * https://github.com/foo123/SciLite
 *
 **//**
 *
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
-* @version: 0.9.9
-* 2025-12-23 16:44:17
+* @version: 0.9.10
+* 2025-12-26 19:02:39
 * https://github.com/foo123/SciLite
 *
 **/
@@ -56,7 +56,7 @@ var decimal = null,
 
     // lib
     $ = {
-        VERSION: "0.9.9",
+        VERSION: "0.9.10",
         // common functions
         _: {},
         // builtin functions
@@ -462,7 +462,7 @@ function varargout(f, nargout_default)
             var args = [].slice.call(arguments), ans;
             args.unshift(nargout); // nargout=nargout
             ans = f.apply(null, args);
-            if ((1 < nargout) && is_array(ans)) ans.$scilitevarargout$ = true;
+            if (((1 < nargout) || (1 < nargout_default)) && is_array(ans)) ans.$scilitevarargout$ = true;
             return ans;
         };
     };
@@ -4941,6 +4941,10 @@ function gauss_jordan(A, with_pivots, odim, eps)
         lead, leadc, imin, im, min,
         a, z, m, aug, find_dupl;
     eps = __(eps || 0);
+    if (is_tri(A, "upper", false, eps))
+    {
+        return with_pivots ? [A, array(dim, function(col) {return [col, col];}).filter(function(pivot) {return (pivot[0] < rows) && (pivot[1] < columns) && !le(scalar_abs(A[pivot[0]][pivot[1]]), eps);}), prod(diag(A)), eye(rows)] : A;
+    }
     // original dimensions, eg when having augmented matrix
     if (is_array(odim)) dim = stdMath.min(dim, odim[1]);
     m = concat(A, eye(rows));
@@ -5149,6 +5153,7 @@ function linsolve(A, b, opts)
     if (is_scalar(A) && is_scalar(b)) return scalar_div(b, A);
 
     if (!is_matrix(A)) return []; // invalid
+    b = vec(b);
     if (!is_vector(b) && !is_matrix(b)) return []; // invalid
 
     // solve linear system, when exactly solvable
@@ -5755,62 +5760,52 @@ fn.hess = varargout(function(nargout, A, B) {
 function ldl(A, triangle)
 {
     // adapted from https://github.com/foo123/Abacus
-    var rows = ROWS(A), columns = COLS(A), i, j, jj, k, sum, D, L;
-    if ((rows !== columns) || !EQU(A, ctranspose(A)))
-    {
-        not_supported("ldl");
-    }
-    else
-    {
-        D = zeros(rows, rows);
-        L = eye(rows);
+    var rows = ROWS(A), columns = COLS(A),
+        i, j, jj, k, sum, D, L,
+        upper_triangle = "upper" === triangle;
+    D = zeros(rows, rows);
+    L = eye(rows);
 
-        for (i=0; i<rows; ++i)
+    for (i=0; i<rows; ++i)
+    {
+        for (j=0; j<i; ++j)
         {
-            if ("upper" === triangle)
-            {
-                for (j=i+1; j<rows; ++j)
-                {
-                    for (k=i+1,sum=O; k<j; ++k)
-                        sum = scalar_add(sum, scalar_mul(scalar_mul(L[i][k], scalar_conj(L[j][k])), D[k][k]));
+            for (k=0,sum=O; k<j; ++k)
+                sum = scalar_add(sum, scalar_mul(scalar_mul(L[i][k], scalar_conj(L[j][k])), D[k][k]));
 
-                    L[i][j] = scalar_div(scalar_sub(A[i][j], sum), D[j][j]);
-                }
-
-                for (k=i+1,sum=O; k<rows; ++k)
-                    sum = scalar_add(sum, scalar_mul(scalar_mul(L[i][k], scalar_conj(L[i][k])), D[k][k]));
-            }
-            else
-            {
-                for (j=0; j<i; ++j)
-                {
-                    for (k=0,sum=O; k<j; ++k)
-                        sum = scalar_add(sum, scalar_mul(scalar_mul(L[i][k], scalar_conj(L[j][k])), D[k][k]));
-
-                    L[i][j] = scalar_div(scalar_sub(A[i][j], sum), D[j][j]);
-                }
-
-                for (k=0,sum=O; k<i; ++k)
-                    sum = scalar_add(sum, scalar_mul(scalar_mul(L[i][k], scalar_conj(L[i][k])), D[k][k]));
-            }
-
-            D[i][i] = scalar_sub(A[i][i], sum);
-
-            if (le(D[i][i], O))
-            {
-                // not positive-definite
-                not_supported("ldl");
-            }
+            L[i][j] = scalar_div(scalar_sub(upper_triangle ? A[j][i] : A[i][j], sum), D[j][j]);
         }
-        return [L, D];
+
+        for (k=0,sum=O; k<i; ++k)
+            sum = scalar_add(sum, scalar_mul(scalar_mul(L[i][k], scalar_conj(L[i][k])), D[k][k]));
+
+        D[i][i] = scalar_sub(A[i][i], sum);
+
+        if (le(D[i][i], O))
+        {
+            // not positive-definite
+            return [];
+        }
     }
+    return [L, D];
 }
-fn.ldl = function(A, triangle) {
+fn.ldl = varargout(function(nargout, A, triangle) {
     if (is_scalar(A)) A = [[A]];
-    if (!is_matrix(A)) not_supported("ldl");
-    return ldl(A, triangle);
-};
-function lu(A, without_d, eps)
+    if (!is_matrix(A) || (ROWS(A) !== COLS(A)) /*|| !EQU(A, ctranspose(A))*/) not_supported("ldl");
+    var ans = ldl(A, triangle);
+    if (!ans.length) not_supported("ldl");
+    if (2 < nargout) ans.push(eye(ROWS(A)));
+    return ans;
+}, 2);
+fn.chol = varargout(function(nargout, A, triangle) {
+    if (is_scalar(A)) A = [[A]];
+    if (!is_matrix(A) || (ROWS(A) !== COLS(A)) /*|| !EQU(A, ctranspose(A))*/) not_supported("chol");
+    triangle = triangle || "upper";
+    var ans = ldl(A, triangle);
+    if (!ans.length) not_supported("chol");
+    return "lower" === triangle ? (mul(ans[0], fn.sqrt(ans[1]))) : ctranspose(mul(ans[0], fn.sqrt(ans[1])));
+});
+function lu(A, eps)
 {
     // adapted from https://github.com/foo123/Abacus
     var n, m, dim, P, L, U, DD,
@@ -5875,20 +5870,18 @@ function lu(A, without_d, eps)
         }
         oldpivot = U[k][k];
     }
-    if (defficient) throw "lu: defficient matrix";
+    if (defficient) return [];
     DD[n-1] = oldpivot;
-    if (without_d)
-    {
-        DD = diag(DD.map(function(di) {return scalar_inv(di);}));
-        return [mul(L, DD), U, P];
-    }
     return [DD, L, U, P];
 }
-fn.lu = function(A) {
+fn.lu = varargout(function(nargout, A) {
     if (is_scalar(A)) A = [[A]];
     if (!is_matrix(A)) not_supported("lu");
-    return lu(A, true);
-};
+    var ans = lu(A), invD;
+    if (!ans.length) throw "lu: defficient matrix";
+    invD = diag(ans[0].map(function(di) {return scalar_inv(di);}));
+    return 2 < nargout ? [mul(ans[1], invD), ans[2], ans[3]] : [mul(transpose(ans[3]), mul(ans[1], invD)), ans[2]];
+}, 2);
 function qr(A, wantq, wantp)
 {
     var m = ROWS(A), n = COLS(A),
@@ -8718,6 +8711,9 @@ var OP = {
     ,commutativity: COMMUTATIVE
     ,priority     : 20
     ,fn           : function(arg0, arg1) {
+                        // arrays represent row vectors
+                        if (is_1d(arg0)) arg0 = vec2row(arg0);
+                        if (is_1d(arg1)) arg1 = vec2row(arg1);
                         return mul(arg0, arg1);
                     }
     },
@@ -8952,12 +8948,13 @@ async function if_end($arg, v, $)
 
 async function for_end($arg, v, $)
 {
-    var i, n, j, k, res, ans = null,
+    var i, n, j, k, res, ans = [],
         brk, is_break = false,
         cont, is_continue = false,
         values = await vale($arg.val, v, $),
         values_is_2d = false,
         statements = $arg.statements;
+    ans.$scilitevarargout$ = true;
     if (is_array(values))
     {
         $ = $ || {};
@@ -8965,6 +8962,7 @@ async function for_end($arg, v, $)
         cont = $.cont;
         $.brk = function() {is_break = true;};
         $.cont = function() {is_continue = true;};
+        values = vec(values);
         values_is_2d = is_2d(values);
         for (j=0,k=values_is_2d?COLS(values):(values.length); j<k; ++j)
         {
@@ -8975,7 +8973,7 @@ async function for_end($arg, v, $)
             {
                 res = await vale(statements[i], v, $);
                 if (is_break || is_continue) break;
-                if (null != res) ans = res;
+                if (null != res) ans.push(res);
             }
             if (is_break) break;
             else if (is_continue) continue;
@@ -8988,10 +8986,11 @@ async function for_end($arg, v, $)
 
 async function while_end($arg, v, $)
 {
-    var i, n, res, ans = null,
+    var i, n, res, ans = [],
         brk, is_break = false,
         cont, is_continue = false,
         statements = $arg.statements;
+    ans.$scilitevarargout$ = true;
     $ = $ || {};
     brk = $.brk;
     cont = $.cont;
@@ -9005,7 +9004,7 @@ async function while_end($arg, v, $)
         {
             res = await vale(statements[i], v, $);
             if (is_break || is_continue) break;
-            if (null != res) ans = res;
+            if (null != res) ans.push(res);
         }
         if (is_break) break;
         else if (is_continue) continue;

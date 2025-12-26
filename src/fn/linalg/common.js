@@ -394,6 +394,10 @@ function gauss_jordan(A, with_pivots, odim, eps)
         lead, leadc, imin, im, min,
         a, z, m, aug, find_dupl;
     eps = __(eps || 0);
+    if (is_tri(A, "upper", false, eps))
+    {
+        return with_pivots ? [A, array(dim, function(col) {return [col, col];}).filter(function(pivot) {return (pivot[0] < rows) && (pivot[1] < columns) && !le(scalar_abs(A[pivot[0]][pivot[1]]), eps);}), prod(diag(A)), eye(rows)] : A;
+    }
     // original dimensions, eg when having augmented matrix
     if (is_array(odim)) dim = stdMath.min(dim, odim[1]);
     m = concat(A, eye(rows));

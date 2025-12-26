@@ -381,7 +381,7 @@ function varargout(f, nargout_default)
             var args = [].slice.call(arguments), ans;
             args.unshift(nargout); // nargout=nargout
             ans = f.apply(null, args);
-            if ((1 < nargout) && is_array(ans)) ans.$scilitevarargout$ = true;
+            if (((1 < nargout) || (1 < nargout_default)) && is_array(ans)) ans.$scilitevarargout$ = true;
             return ans;
         };
     };
