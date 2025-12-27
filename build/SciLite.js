@@ -3,7 +3,7 @@
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
 * @version: 0.9.10
-* 2025-12-26 19:02:39
+* 2025-12-27 17:53:33
 * https://github.com/foo123/SciLite
 *
 **//**
@@ -11,7 +11,7 @@
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
 * @version: 0.9.10
-* 2025-12-26 19:02:39
+* 2025-12-27 17:53:33
 * https://github.com/foo123/SciLite
 *
 **/
@@ -534,7 +534,7 @@ function texify(x)
         }
         if (ROWS(x) > $_.MAXPRINTSIZE)
         {
-            x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat([array(stdMath.min(x[0].length, $_.MAXPRINTSIZE), function(i) {return stdMath.round($_.MAXPRINTSIZE/2) === i ? (use_ddots ? '\\ddots' : '\\vdots') : '\\vdots';})]).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
+            x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat([array(x[0].length, function(i) {return stdMath.round($_.MAXPRINTSIZE/2) === i ? (use_ddots ? '\\ddots' : '\\vdots') : '\\vdots';})]).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
         }
         x = '\\begin{bmatrix}'+ x.map(function(xi) {return xi.map(texify).join(' & \\hskip 1em ');}).join(' \\\\ ') + '\\end{bmatrix}';
     }
@@ -634,7 +634,7 @@ function stringify(x)
         }
         if (ROWS(x) > $_.MAXPRINTSIZE)
         {
-            x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat([array(stdMath.min(x[0].length, $_.MAXPRINTSIZE), function(i) {return stdMath.round($_.MAXPRINTSIZE/2) === i ? (use_ddots ? '\\' : ':') : ':';})]).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
+            x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat([array(x[0].length, function(i) {return stdMath.round($_.MAXPRINTSIZE/2) === i ? (use_ddots ? '\\' : ':') : ':';})]).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
         }
         var ln = array(COLS(x), function(col) {
             return COL(x, col).reduce(function(l, xi) {
@@ -4378,32 +4378,40 @@ function bitxor(x, y)
 fn.bitxor = bitxor;
 function size(x)
 {
-    var dims = [].slice.call(arguments, 1);
+    var dims = [].slice.call(arguments, 1), sizeofx;
     if (is_array(dims[0])) dims = dims[0];
     if (is_0d(x))
     {
-        return dims.length ? dims.map(function(dim) {return ([1, 1])[_(dim)-1];}) : [1, 1];
+        sizeofx = [1, 1];
+        return dims.length ? dims.map(function(dim) {return sizeofx[_(dim)-1];}) : sizeofx;
     }
     else if (is_1d(x))
     {
-        return dims.length ? dims.map(function(dim) {return ([1, x.length])[_(dim)-1];}) : [1, x.length];
+        sizeofx = [1, x.length];
+        return dims.length ? dims.map(function(dim) {return sizeofx[_(dim)-1];}) : sizeofx;
+    }
+    else if (is_nd(x))
+    {
+        sizeofx = [x.length].concat(size(x[0]));
+        return dims.length ? dims.map(function(dim) {return sizeofx[_(dim)-1];}) : sizeofx;
     }
     else if (is_2d(x))
     {
-        return dims.length ? dims.map(function(dim) {return ([ROWS(x), COLS(x)])[_(dim)-1];}) : [ROWS(x), COLS(x)];
+        sizeofx = [ROWS(x), COLS(x)];
+        return dims.length ? dims.map(function(dim) {return sizeofx[_(dim)-1];}) : sizeofx;
     }
     return [];
 }
 fn.size = size;
 function length(x)
 {
-    if (is_array(x)) return stdMath.max.apply(null, size(x));
+    if (is_array(x)) return x.length ? stdMath.max.apply(null, size(x)) : 0;
     return null == x ? 0 : 1;
 }
 fn.length = length;
 function ndims(x)
 {
-    return length(size(x));
+    return (2 + size(x).slice(2).filter(function(d) {return 1 < d;}).length);
 }
 fn.ndims = ndims;
 function numel(x)
