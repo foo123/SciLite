@@ -215,13 +215,24 @@ complexMath = {
     tanh: function(z) {
         return complexMath.sinh(z).div(complexMath.cosh(z));
     },
-    // TODO
-    asin: null,
-    acos: null,
-    atan: null,
-    asinh: null,
-    acosh: null,
-    atanh: null
+    asin: function(z) {
+        return i.neg().mul( complexMath.log( i.mul(z).add( complexMath.sqrt( complex(I, O).sub(z.pow(two)) ) ) ) );
+    },
+    acos: function(z) {
+        return i.neg().mul( complexMath.log( z.add( i.mul( complexMath.sqrt( complex(I, O).sub(z.pow(two)) ) ) ) ) );
+    },
+    atan: function(z) {
+        return i.div(two).mul( complexMath.log( i.add(z).div(i.sub(z)) ) );
+    },
+    asinh: function(z) {
+        return complexMath.log( z.add( complexMath.sqrt( z.pow(two).add(I) ) ) );
+    },
+    acosh: function(z) {
+        return complexMath.log( z.add( complexMath.sqrt( z.pow(two).sub(I) ) ) );
+    },
+    atanh: function(z) {
+        return complexMath.log( z.add(I).div(z.neg().add(I)) ).div(two);
+    }
 };
 $_.complexMath = complexMath;
 fn.complex = complex;

@@ -368,6 +368,14 @@ $_.exist = function(variable, ctx) {
 
 function varargout(f, nargout_default)
 {
+    if (!is_callable(f))
+    {
+        if (is_array(f))
+        {
+            f.$scilitevarargout$ = true;
+        }
+        return f;
+    }
     if (null == nargout_default) nargout_default = 1;
     var f_with_nargout = function(/*..args*/) {
         var args = [].slice.call(arguments), ans;

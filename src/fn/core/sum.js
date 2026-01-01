@@ -1,4 +1,4 @@
-function sum(x)
+function sum(x, dim)
 {
     x = vec(x);
     if (is_scalar(x))
@@ -13,9 +13,20 @@ function sum(x)
     }
     else if (is_matrix(x))
     {
-        return array(COLS(x), function(column) {
-            return sum(COL(x, column));
-        });
+        if (null == dim) dim = 1;
+        dim = _(dim);
+        if (1 === dim)
+        {
+            return array(COLS(x), function(column) {
+                return sum(COL(x, column));
+            });
+        }
+        else if (2 === dim)
+        {
+            return array(ROWS(x), function(row) {
+                return sum(ROW(x, row));
+            });
+        }
     }
     return nan;
 }

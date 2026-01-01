@@ -1,7 +1,7 @@
 function size(x)
 {
     var dims = [].slice.call(arguments, 1), sizeofx;
-    if (is_array(dims[0])) dims = dims[0];
+    if (is_array(dims[0])) dims = vec(dims[0]);
     if (is_0d(x))
     {
         sizeofx = [1, 1];
@@ -24,4 +24,6 @@ function size(x)
     }
     return [];
 }
-fn.size = size;
+fn.size = function(x) {
+    return varargout(size.apply(null, [].slice.call(arguments)));
+};

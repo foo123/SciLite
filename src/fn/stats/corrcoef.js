@@ -22,8 +22,7 @@ function corrcoef(a, b)
         else if (is_vector(a) && is_vector(b))
         {
             if (a.length !== b.length) throw "corrcoef: inputs not of same dimension";
-            var N = a.length;
-            return 1 < N ? scalar_div(sum(dotmul(dotdiv(sub(a, mean(a)), std(a)), dotdiv(sub(b, mean(b)), std(b)))), __(N-1)) : I;
+            return pearson(a, b);
         }
         else if (is_matrix(a) && is_matrix(b))
         {

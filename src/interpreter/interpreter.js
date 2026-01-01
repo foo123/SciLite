@@ -43,6 +43,7 @@ var PREFIX = -1,
     ANTICOMMUTATIVE = -1
 ;
 
+// adapted from https://github.com/foo123/Xpresion
 var OP = {
     "[]": {
      name         : 'literal_array'
@@ -339,7 +340,7 @@ var OP = {
     ,commutativity: COMMUTATIVE
     ,priority     : 32
     ,fn           : function(arg0, arg1) {
-                        return TRUE(arg0) && TRUE(arg1) ? 1 : 0;
+                        return TRUE(arg0) && TRUE(arg1) ? I : O;
                     }
     },
     '||': {
@@ -350,7 +351,7 @@ var OP = {
     ,commutativity: COMMUTATIVE
     ,priority     : 33
     ,fn           : function(arg0, arg1) {
-                        return TRUE(arg0) || TRUE(arg1) ? 1 : 0;
+                        return TRUE(arg0) || TRUE(arg1) ? I : O;
                     }
     },
     'xor': {
@@ -362,7 +363,7 @@ var OP = {
     ,priority     : 33
     ,fn           : function(arg0, arg1) {
                         var a = TRUE(arg0), b = TRUE(arg1);
-                        return (a && !b) || (b && !a) ? 1 : 0;
+                        return (a && !b) || (b && !a) ? I : O;
                     }
     },
     '~': {
@@ -373,7 +374,7 @@ var OP = {
     ,commutativity: ANTICOMMUTATIVE
     ,priority     : 31
     ,fn           : function(arg0) {
-                        return TRUE(arg0) ? 0 : 1;
+                        return TRUE(arg0) ? O : I;
                     }
     },
     '=': {
@@ -543,7 +544,11 @@ variable.prototype = {
     i: null,
     get: async function(orig) {
         var self = this, val, s, i;
-        if (is_instance(self.v, expr))
+        if ('' === self.v)
+        {
+            return null; // dummy variable, ignored
+        }
+        else if (is_instance(self.v, expr))
         {
             val = await vale(self.v);
         }
@@ -567,7 +572,11 @@ variable.prototype = {
     },
     set: async function(value) {
         var self = this, val, s, i;
-        if (null != self.i)
+        if ('' === self.v)
+        {
+            return self; // dummy variable, ignored
+        }
+        else if (null != self.i)
         {
             if (is_instance(self.v, expr))
             {
@@ -931,7 +940,16 @@ function parse(s, ctx, lineStart, posStart)
                     arg = tmp.trim().split(/[;\n]/g).reduce(function(arg, row) {
                         var hasrow = arg.length, hascol = 0;
                         return row.trim().split(-1 < row.indexOf(',') ? ',' : /\s+/g).reduce(function(arg, col) {
-                            col = parse(col.trim(), ctx, l+lineStart, i);
+                            col = col.trim();
+                            if ("~" === col)
+                            {
+                                // dummy variable
+                                col = expr('v', variable(ctx, ''));
+                            }
+                            else
+                            {
+                                col = parse(col, ctx, l+lineStart, i);
+                            }
                             if (col)
                             {
                                 if (hascol) arg.push(expr(','));

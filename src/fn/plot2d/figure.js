@@ -1,4 +1,5 @@
 // plotting functions
+// adapted from https://github.com/foo123/Plot.js
 figure.prototype.render = function(type, canvas) {
     var self = this;
     if (canvas)

@@ -2,16 +2,16 @@
 *
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
-* @version: 0.9.10
-* 2025-12-27 17:53:33
+* @version: 0.9.11
+* 2026-01-01 23:44:25
 * https://github.com/foo123/SciLite
 *
 **//**
 *
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
-* @version: 0.9.10
-* 2025-12-27 17:53:33
+* @version: 0.9.11
+* 2026-01-01 23:44:25
 * https://github.com/foo123/SciLite
 *
 **/
@@ -56,7 +56,7 @@ var decimal = null,
 
     // lib
     $ = {
-        VERSION: "0.9.10",
+        VERSION: "0.9.11",
         // common functions
         _: {},
         // builtin functions
@@ -449,6 +449,14 @@ $_.exist = function(variable, ctx) {
 
 function varargout(f, nargout_default)
 {
+    if (!is_callable(f))
+    {
+        if (is_array(f))
+        {
+            f.$scilitevarargout$ = true;
+        }
+        return f;
+    }
     if (null == nargout_default) nargout_default = 1;
     var f_with_nargout = function(/*..args*/) {
         var args = [].slice.call(arguments), ans;
@@ -2074,55 +2082,7 @@ function hypotn(args)
         }
     }, 0)));
 }
-function d_euclidean(a, b)
-{
-    var d = 1 === arguments.length ? a : sub(a, b);
-    return d.reduce(function(n, di) {
-        return n && (is_number(di) || (is_complex(di) && is_number(di.re) && is_number(di.im)));
-    }, true) ? hypotn(d) : realMath.sqrt(real(dot(d, d)));
-}
-function d_sqeuclidean(a, b)
-{
-    var d = 1 === arguments.length ? a : sub(a, b);
-    return real(dot(d, d));
-}
-function d_cityblock(a, b)
-{
-    // manhattan
-    return sum(abs(1 === arguments.length ? a : sub(a, b)));
-}
-function d_cosine(a, b)
-{
-    return scalar_sub(I, scalar_div(scalar_div(dot(a, b), realMath.sqrt(real(dot(a, a)))), realMath.sqrt(real(dot(b, b)))));
-}
-function d_hamming(a, b)
-{
-    return __(a.reduce(function(d, ai, i) {
-        return d + 1 - eq(ai, b[i]);
-    }, 0) / a.length);
-}
-function d_jaccard(a, b)
-{
-    return __(a.reduce(function(d, ai, i) {
-        return d + eq(ai, b[i]);
-    }, 0) / a.length);
-}
-function d_minkowski(a, b, p)
-{
-    // p-norm
-    if (2 === arguments.length) p = b;
-    return scalar_pow(sum(dotpow(abs(2 === arguments.length ? a : sub(a, b)), p)), n_inv(p));
-}
-function d_chebyshev(a, b)
-{
-    return max(abs(1 === arguments.length ? a : sub(a, b)));
-}
-function norm2(x)
-{
-    return x.reduce(function(n, xi) {
-        return scalar_add(n, scalar_mul(xi, scalar_conj(xi)));
-    }, O);
-}
+
 /*function zsin(side, hypotenuse)
 {
     return scalar_div(imag(scalar_mul(side, scalar_conj(hypotenuse))), scalar_mul(abs(side), abs(hypotenuse)));
@@ -2131,6 +2091,7 @@ function zcos(side, hypotenuse)
 {
     return scalar_div(real(scalar_mul(side, scalar_conj(hypotenuse))), scalar_mul(abs(side), abs(hypotenuse)));
 }*/
+
 function normal()
 {
     // Box-Muller
@@ -2148,6 +2109,165 @@ function normal()
     z1 = r*stdMath.sin(2.0*pi*u2);
     normal.z1 = z1;
     return z0;
+}
+
+function d_euclidean(a, b)
+{
+    var d = 1 === arguments.length ? a : sub(a, b);
+    return d.reduce(function(n, di) {
+        return n && (is_number(di) || (is_complex(di) && is_number(di.re) && is_number(di.im)));
+    }, true) ? hypotn(d) : realMath.sqrt(real(dot(d, d)));
+}
+function d_sqeuclidean(a, b)
+{
+    var d = 1 === arguments.length ? a : sub(a, b);
+    return real(dot(d, d));
+}
+function d_seuclidean(a, b, std)
+{
+    var d = dotdiv(sub(a, b), std);
+    return real(dot(d, d));
+}
+function d_mahalanobis(a, mean, invCov)
+{
+    var d = sub(a, mean);
+    return real(dot(vec(mul(d, invCov)), d));
+}
+function d_minkowski(a, b, p)
+{
+    // p-norm
+    if (2 === arguments.length) p = b;
+    if (n_eq(p, I))
+    {
+        return 2 === arguments.length ? d_cityblock(a) : d_cityblock(a, b);
+    }
+    else if (n_eq(p, two))
+    {
+        return 2 === arguments.length ? d_euclidean(a) : d_euclidean(a, b);
+    }
+    else if (is_inf(p))
+    {
+        return 2 === arguments.length ? d_chebychev(a) : d_chebychev(a, b);
+    }
+    return scalar_pow(sum(dotpow(abs(2 === arguments.length ? a : sub(a, b)), p)), n_inv(p));
+}
+function d_chebychev(a, b)
+{
+    return max(abs(1 === arguments.length ? a : sub(a, b)));
+}
+function d_cityblock(a, b)
+{
+    // manhattan
+    return sum(abs(1 === arguments.length ? a : sub(a, b)));
+}
+function d_cosine(a, b)
+{
+    return scalar_sub(I, scalar_div(scalar_div(dot(a, b), realMath.sqrt(real(dot(a, a)))), realMath.sqrt(real(dot(b, b)))));
+}
+function d_correlation(a, b)
+{
+    return d_cosine(sub(a, mean(a)), sub(b, mean(b)));
+}
+function d_hamming(a, b)
+{
+    return __(a.reduce(function(d, ai, i) {
+        return d + 1 - eq(ai, b[i]);
+    }, 0) / a.length);
+}
+function d_jaccard(a, b)
+{
+    return __(1 - a.reduce(function(d, ai, i) {
+        return d + eq(ai, b[i]);
+    }, 0) / a.length);
+}
+function d_kullbackleibler(a, b, symmetric)
+{
+    // compute the Kullback-Leibler divergence
+    // normalize A and B to sum to unity (make them represent probability density functions)
+    var d, p;
+    if (is_matrix(a) && is_matrix(b))
+    {
+        a = add(sub(a, min(min(a))), eps);
+        b = add(sub(b, min(min(b))), eps);
+        a = dotdiv(a, sum(sum(a)));
+        b = dotdiv(b, sum(sum(b)));
+        d = sum(sum(add(sub(dotmul(a, fn.log(dotdiv(a, b))), a), b)));
+        if (symmetric)
+        {
+            p = sum(sum(add(sub(dotmul(b, fn.log(dotdiv(b, a))), b), a)));
+            d = scalar_mul(scalar_add(d, p), half);
+        }
+    }
+    else
+    {
+        a = add(sub(a, min(a)), eps);
+        b = add(sub(b, min(b)), eps);
+        a = dotdiv(a, sum(a));
+        b = dotdiv(b, sum(b));
+        d = sum(add(sub(dotmul(a, fn.log(dotdiv(a, b))), a), b));
+        if (symmetric)
+        {
+            p = sum(add(sub(dotmul(b, fn.log(dotdiv(b, a))), b), a));
+            d = scalar_mul(scalar_add(d, p), half);
+        }
+    }
+    return d;
+}
+
+function norm2(x)
+{
+    return x.reduce(function(n, xi) {
+        return scalar_add(n, scalar_mul(xi, scalar_conj(xi)));
+    }, O);
+}
+
+function tiedrank(x, symmetric)
+{
+    var n = x.length,
+        ord = x.map(function(xi, i) {return [xi, i];}).sort(function(a, b) {
+            return eq(a[0], b[0]) ? a[1] - b[1] : (lt(a[0], b[0]) ? -1 : 1);
+        }),
+        rank = new Array(n), i, j, k;
+    for (i=0; i<n;)
+    {
+        k = 1;
+        j = i;
+        while ((j+k < n) && eq(ord[j][0], ord[j+k][0])) ++k;
+        while (j < i+k)
+        {
+            rank[ord[j][1]] = is_nan(ord[j][0]) ? nan : (symmetric ? __((2*i <= n ? i+1 : n-i) + (1 < k ? 1/k : 0)) : __(i+1 + (1 < k ? 1/k : 0)));
+            ++j;
+        }
+        i = j;
+    }
+    return rank;
+}
+function pearson(a, b)
+{
+    var N = a.length;
+    return 1 < N ? scalar_div(sum(dotmul(dotdiv(sub(a, mean(a)), std(a)), dotdiv(sub(b, mean(b)), std(b)))), __(N-1)) : I;
+}
+function spearman(a, b)
+{
+    return pearson(tiedrank(a), tiedrank(b));
+}
+function kendall(a, b)
+{
+    if (1 < a.length)
+    {
+        var n = a.length, i, j, sa, sb, tau = O;
+        for (i=0; i<n; ++i)
+        {
+            for (j=i+1; j<n; ++j)
+            {
+                sa = scalar_sign(scalar_sub(a[i], a[j]));
+                sb = scalar_sign(scalar_sub(b[i], b[j]));
+                tau = scalar_add(tau, scalar_mul(sa, sb));
+            }
+        }
+        return scalar_div(scalar_div(scalar_mul(tau, two), n), n-1);
+    }
+    return I;
 }
 // plotting functions
 $_.PALETTE = [
@@ -2701,13 +2821,24 @@ complexMath = {
     tanh: function(z) {
         return complexMath.sinh(z).div(complexMath.cosh(z));
     },
-    // TODO
-    asin: null,
-    acos: null,
-    atan: null,
-    asinh: null,
-    acosh: null,
-    atanh: null
+    asin: function(z) {
+        return i.neg().mul( complexMath.log( i.mul(z).add( complexMath.sqrt( complex(I, O).sub(z.pow(two)) ) ) ) );
+    },
+    acos: function(z) {
+        return i.neg().mul( complexMath.log( z.add( i.mul( complexMath.sqrt( complex(I, O).sub(z.pow(two)) ) ) ) ) );
+    },
+    atan: function(z) {
+        return i.div(two).mul( complexMath.log( i.add(z).div(i.sub(z)) ) );
+    },
+    asinh: function(z) {
+        return complexMath.log( z.add( complexMath.sqrt( z.pow(two).add(I) ) ) );
+    },
+    acosh: function(z) {
+        return complexMath.log( z.add( complexMath.sqrt( z.pow(two).sub(I) ) ) );
+    },
+    atanh: function(z) {
+        return complexMath.log( z.add(I).div(z.neg().add(I)) ).div(two);
+    }
 };
 $_.complexMath = complexMath;
 fn.complex = complex;
@@ -3790,7 +3921,7 @@ function max(x)
     return nan;
 }
 fn.max = max;
-function sum(x)
+function sum(x, dim)
 {
     x = vec(x);
     if (is_scalar(x))
@@ -3805,14 +3936,25 @@ function sum(x)
     }
     else if (is_matrix(x))
     {
-        return array(COLS(x), function(column) {
-            return sum(COL(x, column));
-        });
+        if (null == dim) dim = 1;
+        dim = _(dim);
+        if (1 === dim)
+        {
+            return array(COLS(x), function(column) {
+                return sum(COL(x, column));
+            });
+        }
+        else if (2 === dim)
+        {
+            return array(ROWS(x), function(row) {
+                return sum(ROW(x, row));
+            });
+        }
     }
     return nan;
 }
 fn.sum = sum;
-function prod(x)
+function prod(x, dim)
 {
     x = vec(x);
     if (is_scalar(x))
@@ -3827,9 +3969,20 @@ function prod(x)
     }
     else if (is_matrix(x))
     {
-        return array(COLS(x), function(column) {
-            return prod(COL(x, column));
-        });
+        if (null == dim) dim = 1;
+        dim = _(dim);
+        if (1 === dim)
+        {
+            return array(COLS(x), function(column) {
+                return prod(COL(x, column));
+            });
+        }
+        else if (2 === dim)
+        {
+            return array(ROWS(x), function(row) {
+                return prod(ROW(x, row));
+            });
+        }
     }
     return nan;
 }
@@ -4379,7 +4532,7 @@ fn.bitxor = bitxor;
 function size(x)
 {
     var dims = [].slice.call(arguments, 1), sizeofx;
-    if (is_array(dims[0])) dims = dims[0];
+    if (is_array(dims[0])) dims = vec(dims[0]);
     if (is_0d(x))
     {
         sizeofx = [1, 1];
@@ -4402,7 +4555,9 @@ function size(x)
     }
     return [];
 }
-fn.size = size;
+fn.size = function(x) {
+    return varargout(size.apply(null, [].slice.call(arguments)));
+};
 function length(x)
 {
     if (is_array(x)) return x.length ? stdMath.max.apply(null, size(x)) : 0;
@@ -4411,7 +4566,7 @@ function length(x)
 fn.length = length;
 function ndims(x)
 {
-    return (2 + size(x).slice(2).filter(function(d) {return 1 < d;}).length);
+    return 2 + size(x).slice(2).filter(function(d) {return 1 < d;}).length;
 }
 fn.ndims = ndims;
 function numel(x)
@@ -4527,7 +4682,57 @@ $_.any = any;
 fn.any = function(x) {
     return any(x, function(x) {return !eq(x, O);});
 };
-fn.isnan = function isnan(x) {
+function isequal(a, b, with_nan)
+{
+    if (is_string(a) && is_string(b))
+    {
+        return a === b ? 1 : 0;
+    }
+    else if (is_nan(a) && is_nan(b))
+    {
+        return with_nan ? 1 : 0;
+    }
+    else if (is_scalar(a) && is_scalar(b))
+    {
+        return eq(a, b) ? 1 : 0;
+    }
+    else if (is_array(a) && is_array(b))
+    {
+        if (a.length !== b.length) return 0;
+        for (var i=0,n=a.length; i<n; ++i)
+        {
+            if (!isequal(a[i], b[i], with_nan)) return 0;
+        }
+        return 1;
+    }
+    return 0;
+}
+fn.isequal = function(/*args*/) {
+    var n = arguments.length, i = 0, ans = 1;
+    if (1 < n)
+    {
+        ans = isequal(arguments[0], arguments[1], false);
+        i = 2;
+    }
+    while (ans && (i < n))
+    {
+        ans = isequal(arguments[0], arguments[i++], false);
+    }
+    return ans;
+};
+fn.isequaln = function(/*args*/) {
+    var n = arguments.length, i = 0, ans = 1;
+    if (1 < n)
+    {
+        ans = isequal(arguments[0], arguments[1], true);
+        i = 2;
+    }
+    while (ans && (i < n))
+    {
+        ans = isequal(arguments[0], arguments[i++], true);
+    }
+    return ans;
+};fn.isnan = function isnan(x) {
     if (is_array(x)) return x.map(isnan);
     if (is_nan(x)) return 1;
     if (is_complex(x)) return is_nan(x.re) || is_nan(x.im) ? 1 : 0;
@@ -7132,8 +7337,7 @@ function corrcoef(a, b)
         else if (is_vector(a) && is_vector(b))
         {
             if (a.length !== b.length) throw "corrcoef: inputs not of same dimension";
-            var N = a.length;
-            return 1 < N ? scalar_div(sum(dotmul(dotdiv(sub(a, mean(a)), std(a)), dotdiv(sub(b, mean(b)), std(b)))), __(N-1)) : I;
+            return pearson(a, b);
         }
         else if (is_matrix(a) && is_matrix(b))
         {
@@ -7146,7 +7350,521 @@ function corrcoef(a, b)
     not_supported("corrcoef");
 }
 fn.corrcoef = corrcoef;
-function conv(a, b)
+fn.corr = varargout(function(nargout, X) {
+    if (1 < nargout) throw "corr: only one output is supported";
+    if (is_scalar(X)) X = [[X]];
+    if (!is_matrix(X)) not_supported("corr");
+    var i = 2, corrfunc = pearson, Y;
+    if ((i < arguments.length) && is_array(arguments[i]))
+    {
+        Y = arguments[i];
+        ++i;
+    }
+    else
+    {
+        Y = X;
+    }
+    if ((i < arguments.length) && ("Type" === arguments[i]))
+    {
+        switch (arguments[i+1])
+        {
+            case "Spearman":
+            corrfunc = spearman;
+            break;
+            case "Kendall":
+            corrfunc = kendall;
+            break;
+            case "Pearson":
+            default:
+            corrfunc = pearson;
+            break;
+        }
+    }
+    if (!is_matrix(Y) || (ROWS(X) !== ROWS(Y))) not_supported("corr");
+    return matrix(COLS(X), COLS(Y), function(i, j) {
+        return corrfunc(COL(X, i), COL(Y, j));
+    });
+});fn.tiedrank = varargout(function(nargout, x, a, b) {
+    if (1 < nargout) throw "tiedrank: only one output is supported";
+    if (is_scalar(x)) x = [x];
+    x = vec(x);
+    var symmetric = eq(O, a) && eq(I, b);
+    if (is_matrix(x))
+    {
+        return transpose(array(COLS(x), function(col) {
+            return tiedrank(COL(x, col), symmetric);
+        }));
+    }
+    else
+    {
+        return tiedrank(x, symmetric);
+    }
+});fn.pdist = function(X) {
+    var dist = d_euclidean, m, p;
+    if (is_vector(X)) X = vec2col(X);
+    if (!is_matrix(X)) not_supported("pdist");
+    if (1 < arguments.length)
+    {
+        switch (arguments[1])
+        {
+            case "fasteuclidean":
+            case "euclidean":
+            dist = d_euclidean;
+            break;
+            case "fastsquaredeuclidean":
+            case "squaredeuclidean":
+            dist = d_sqeuclidean;
+            break;
+            case "fastseuclidean":
+            case "seuclidean":
+            p = is_array(arguments[2]) ? vec(arguments[2]) : std(X);
+            dist = function(a, b, i, j) {return d_seuclidean(a, b, p[i]);};
+            break;
+            case "mahalanobis":
+            p = is_array(arguments[2]) ? arguments[2] : cov(ctranspose(X));
+            p = inv(p);
+            m = mean(ctranspose(X));
+            dist = function(a, b, i, j) {return realMath.sqrt(d_mahalanobis(b, m, p));};
+            break;
+            case "cityblock":
+            dist = d_cityblock;
+            break;
+            case "minkowski":
+            p = is_scalar(arguments[2]) ? arguments[2] : two;
+            dist = function(a, b, i, j) {return d_minkowski(a, b, p);};
+            break;
+            case "chebychev":
+            dist = d_chebychev;
+            break;
+            case "cosine":
+            dist = d_cosine;
+            break;
+            case "correlation":
+            dist = d_correlation;
+            break;
+            case "hamming":
+            dist = d_hamming;
+            break;
+            case "jaccard":
+            dist = d_jaccard;
+            break;
+        }
+    }
+    var ans = [], n = COLS(X), i, j;
+    for (i=0; i<n; ++i)
+    {
+        for (j=i+1; j<n; ++j)
+        {
+            ans.push(dist(COL(X, j), COL(X, i), j, i));
+        }
+    }
+    return ans;
+};
+fn.pdist2 = function(X, Y) {
+    var dist = d_euclidean, m, p;
+    if (is_vector(X)) X = vec2col(X);
+    if (is_vector(Y)) Y = vec2col(Y);
+    if (!is_matrix(X) || !is_matrix(Y) || (ROWS(X) !== ROWS(Y))) not_supported("pdist2");
+    if (2 < arguments.length)
+    {
+        switch (arguments[2])
+        {
+            case "fasteuclidean":
+            case "euclidean":
+            dist = d_euclidean;
+            break;
+            case "fastsquaredeuclidean":
+            case "squaredeuclidean":
+            dist = d_sqeuclidean;
+            break;
+            case "fastseuclidean":
+            case "seuclidean":
+            p = is_array(arguments[3]) ? vec(arguments[3]) : std(X);
+            dist = function(a, b, i, j) {return d_seuclidean(a, b, p[i]);};
+            break;
+            case "mahalanobis":
+            p = is_array(arguments[3]) ? arguments[3] : cov(ctranspose(X));
+            p = inv(p);
+            m = mean(ctranspose(X));
+            dist = function(a, b, i, j) {return realMath.sqrt(d_mahalanobis(b, m, p));};
+            break;
+            case "cityblock":
+            dist = d_cityblock;
+            break;
+            case "minkowski":
+            p = is_scalar(arguments[3]) ? arguments[3] : two;
+            dist = function(a, b, i, j) {return d_minkowski(a, b, p);};
+            break;
+            case "chebychev":
+            dist = d_chebychev;
+            break;
+            case "cosine":
+            dist = d_cosine;
+            break;
+            case "correlation":
+            dist = d_correlation;
+            break;
+            case "hamming":
+            dist = d_hamming;
+            break;
+            case "jaccard":
+            dist = d_jaccard;
+            break;
+        }
+    }
+    return matrix(COLS(X), COLS(Y), function(i, j, mat) {
+        return i <= j ? dist(COL(X, i), COL(Y, j), i, j) : mat[j][i];
+    });
+};
+fn.mahal = function(Y, X) {
+    if (is_vector(X)) X = vec2col(X);
+    if (is_vector(Y)) Y = vec2col(Y);
+    if (!is_matrix(X) || !is_matrix(Y) || (ROWS(X) !== ROWS(Y))) not_supported("mahal");
+    var Xt = ctranspose(X), invCov = inv(cov(Xt)), mu = mean(Xt);
+    return matrix(COLS(Y), COLS(X), function(i, j, mat) {
+        return i <= j ? d_mahalanobis(COL(Y, i), mu, invCov) : mat[j][i];
+    });
+};
+fn.squareform = function(d, output) {
+    var ans, n, m, i, j, k;
+    d = vec(d);
+    if (is_vector(d) || ('tomatrix' === output))
+    {
+        if (is_scalar(d)) d = [d];
+        else if (is_matrix(d)) return d;
+        n = d.length;
+        m = stdMath.round(((stdMath.sqrt(1 + 8*n)) + 1)/2);
+        ans = matrix(m, m, O);
+        for (k=0,i=0; i<m; ++i)
+        {
+            for (j=i+1; j<m; ++j)
+            {
+                ans[j][i] = d[k++];
+                ans[i][j] = ans[j][i];
+            }
+        }
+    }
+    else if (is_matrix(d) || ('tovector' === output))
+    {
+        if (is_scalar(d)) d = [[O, d], [d, O]];
+        else if (is_vector(d)) return d;
+        n = ROWS(d);
+        ans = [];
+        for (i=0; i<n; ++i)
+        {
+            for (j=i+1; j<n; ++j)
+            {
+                ans.push(d[j][i]);
+            }
+        }
+    }
+    return ans;
+};function kmeans(X, k, C, D, max_iter, speedup)
+{
+    // https://en.wikipedia.org/wiki/K-means_clustering
+    // Lloyd's algorithm with triangle speedup heuristic
+
+    var n = ROWS(X), p = COLS(X), iter,
+        i, ci, idx, centroids_changed;
+
+    idx = X.map(function(Xi) {return closest_cluster(Xi, C, D)[0];});
+    C = compute_centroids(X, k, idx);
+
+    for (iter=1; iter<=max_iter; ++iter)
+    {
+        // Assign each point to the nearest centroid
+        centroids_changed = 0;
+        for (i=0; i<n; ++i)
+        {
+            ci = closest_cluster(X[i], C, D)[0];
+            if (idx[i] !== ci) ++centroids_changed;
+            idx[i] = ci;
+        }
+
+        // Check for convergence
+        if (0 === centroids_changed)
+        {
+            break; // converged
+        }
+        else
+        {
+            // Recalculate centroids
+            C = compute_centroids(X, k, idx);
+        }
+    }
+    return [idx, C];
+}
+function closest_cluster(x, C, D)
+{
+    var k = C.length, i, d, idx = 0, min = inf;
+    for (i=0; i<k; ++i)
+    {
+        if (!C[i] || !C[i].length) continue;
+        d = D(x, C[i]);
+        if (n_lt(d, min))
+        {
+            min = d;
+            idx = i;
+        }
+    }
+    return [idx, min];
+}
+function compute_centroid(cluster)
+{
+    return cluster.length ? mean(cluster) : cluster;
+}
+function compute_centroids(X, k, idx)
+{
+    return array(k, function(cluster_index) {
+        return compute_centroid(idx.reduce(function(cluster, index, i) {
+            if (index === cluster_index) cluster.push(X[i]);
+            return cluster;
+        }, []));
+    });
+}
+function kmeans_init_forgy(X, k, dist)
+{
+    X = X.slice();
+    return array(k, function(cluster) {
+        var i = X.length ? stdMath.round(stdMath.random()*(X.length-1)) : -1;
+        return -1 < i ? X.splice(i, 1)[0] : [];
+    });
+}
+function kmeans_init_random_partition(X, k, dist)
+{
+    var n = X.length;
+    return shuffle(X.slice()).reduce(function(clusters, xi) {
+        if (!clusters.length) clusters.push([xi]);
+        else if (clusters[clusters.length-1].length+1 > n/k) clusters.push([xi]);
+        else clusters[clusters.length-1].push(xi);
+        return clusters;
+    }, []).map(compute_centroid);
+}
+function kmeans_init_plusplus(X, k, dist)
+{
+    // https://en.wikipedia.org/wiki/K-means%2B%2B
+    // Initialize list of centroids with one randomly selected point
+    var n = X.length,
+        centroids = [X[stdMath.round(stdMath.random()*(n-1))]],
+        D2 = new Array(n), d, i, total, thresh, cum;
+
+    // Choose remaining k - 1 centroids
+    while (centroids.length < k)
+    {
+        // For each point, compute squared distance to nearest selected centroid
+        total = O;
+        for (i=0; i<n; ++i)
+        {
+            d = closest_cluster(X[i], centroids, dist)[1];
+            D2[i] = scalar_abs(scalar_mul(d, scalar_conj(d)));
+            total = n_add(total, D2[i]);
+        }
+
+        // Choose next centroid with probability proportional to D(x)^2
+        thresh = n_mul(total, stdMath.random());
+        cum = O;
+        for (i=0; i<n; ++i)
+        {
+            cum = n_add(cum, D2[i]);
+            if (n_ge(cum, thresh))
+            {
+                centroids.push(X[i]);
+                break;
+            }
+        }
+    }
+    return centroids;
+}
+fn.kmeans = varargout(function(nargout, X, k) {
+    var i = 3,
+        init = kmeans_init_plusplus,
+        dist = d_sqeuclidean,
+        max_iter = 100,
+        ans;
+    if (!is_matrix(X)) not_supported("kmeans");
+    while (i < arguments.length)
+    {
+        if ("Start" === arguments[i])
+        {
+            if (is_matrix(arguments[i+1]))
+            {
+                init = arguments[i+1];
+                k = ROWS(init);
+            }
+            else
+            {
+                switch (arguments[i+1])
+                {
+                    case "cluster":
+                    // not used
+                    break;
+                    case "uniform":
+                    init = kmeans_init_random_partition;
+                    break;
+                    case "sample":
+                    init = kmeans_init_forgy;
+                    break;
+                    case "plus":
+                    default:
+                    init = kmeans_init_plusplus;
+                    break;
+                }
+            }
+        }
+        else if ("Distance" === arguments[i])
+        {
+            switch (arguments[i+1])
+            {
+                case "kullbackleibler":
+                dist = d_kullbackleibler;
+                break;
+                case "hamming":
+                dist = d_hamming;
+                break;
+                case "correlation":
+                dist = d_correlation;
+                break;
+                case "cosine":
+                dist = d_cosine;
+                break;
+                case "cityblock":
+                dist = d_cityblock;
+                break;
+                case "euclidean":
+                dist = d_euclidean;
+                break;
+                case "sqeuclidean":
+                default:
+                dist = d_sqeuclidean;
+                break;
+            }
+        }
+        else if ("MaxIter" === arguments[i])
+        {
+            max_iter = stdMath.ceil(stdMath.abs(_(sca(arguments[i+1], true))));
+        }
+        i += 2;
+    }
+    ans = kmeans(X, k, is_matrix(init) ? init : init(X, k, dist), dist, max_iter);
+    ans[0] = ans[0].map(function(idx) {return idx+1;});
+    if (1 === nargout)
+    {
+        ans = ans[0];
+    }
+    else if (2 < nargout)
+    {
+        // sumd
+        ans.push(array(k, function(cluster) {
+            return idx.reduce(function(s, index, i) {
+                if (index === cluster) s = scalar_add(s, dist(X[i], C[cluster]));
+                return s;
+            }, O);
+        }));
+        if (3 < nargout)
+        {
+            // D
+            ans.push(matrix(ROWS(X), k, function(i, j) {
+                return dist(X[i], C[j]);
+            }));
+        }
+    }
+    return ans;
+});function danneal(D, k)
+{
+    // "Pairwise Data Clustering by Deterministic Annealing",
+    // Thomas Hofmann, Joachim M. Buhmann, 1997
+    // D is the square distance or dissimilarity matrix
+    // M is the assignment matrix which consists of the
+    // a posteriori probabilities of a component zi for a given class ck
+
+    var n = ROWS(D), M, prevE, E,
+        T, Tstart, Tfinal, a = 0.5,
+        i, j, v, iter, delta, eps = 1e-4,
+        m, e, f, summa, sum, DM;
+
+    // at the worst case the components cannot be grouped
+    //max_classes=n;
+
+    // initialize in (0,1) uniformly
+    M = matrix(n, k, function() {return stdMath.random();});
+    // normalize each row to sum to unity
+    for (i=0; i<n; ++i)
+    {
+        for (summa=0,v=0; v<k; ++v) summa += M[i][v];
+        for (v=0; v<k; ++v) M[i][v] /= summa;
+    }
+    prevE = matrix(n, k, function() {return stdMath.random();});
+
+    // how to choose initial temperature? [corresponds to initial energy==>eigenvalues]
+    Tstart = _(realMath.sqrt(n_mul(norm(D, 1), norm(D, inf)))); // estimate
+    Tfinal = Tstart/1000;
+    a = 0.5;
+    D = D.map(function(di) {return di.map(_);});
+    T = Tstart;
+    while (T > Tfinal)
+    {
+        for (iter=1; iter<=100; ++iter)
+        {
+            for (i=0; i<n; ++i)
+            {
+                m = M[i];
+                e = prevE[i];
+                for (summa=0,v=0; v<k; ++v)
+                {
+                    summa += stdMath.exp(-e[v] / T);
+                }
+                for (v=0; v<k; ++v)
+                {
+                    // E-lke step: estimate M(t+1) from E(t) eq.(25)
+                    m[v] = stdMath.exp(-e[v] / T) / summa;
+                }
+            }
+
+            E = matrix(n, k, 0);
+            sum = array(k, function(v) {
+                for (var summa=0,j=0; j<n; ++j) summa += M[j][v];
+                return summa;
+            });
+            DM = mul(D, M).map(function(dm) {return dm.map(_);});
+            delta = 0;
+
+            for (i=0; i<n; ++i)
+            {
+                m = M[i];
+                e = E[i];
+                for (v=0; v<k; ++v)
+                {
+                    f = sum[v] - m[v];
+                    for (summa=0,j=0; j<n; ++j)
+                    {
+                        summa += M[j][v] * (D[i][j] - DM[j][v]/(2*f));
+                    }
+                    // M-like step: calculate new E(t+1) from M(t+1) eq.(26)
+                    e[v] = summa / (f + 1);
+
+                    delta = stdMath.max(delta, stdMath.abs(e[v] - prevE[i][v]));
+                }
+            }
+
+            prevE = E;
+            if (delta <= eps) break; // converged
+        }
+        T = a*T;   // decrease temperature exponentially
+    }
+    return M;
+}
+fn.danneal = function(D, k) {
+    k = stdMath.round(_(sca(k, true)));
+    if ((0 >= k) || !is_matrix(D) || (ROWS(D) !== COLS(D))) not_supported("danneal");
+    var M = danneal(D, k);
+    return array(ROWS(M), function(i) {
+        for (var Mi=M[i],cluster=0,c=1; c<k; ++c)
+        {
+            if (Mi[c] > Mi[cluster]) cluster = c;
+        }
+        return cluster+1;
+    });
+};function conv(a, b)
 {
     // adapted from https://github.com/foo123/FILTER.js
     var i, j, ij, t,
@@ -8537,6 +9255,7 @@ var PREFIX = -1,
     ANTICOMMUTATIVE = -1
 ;
 
+// adapted from https://github.com/foo123/Xpresion
 var OP = {
     "[]": {
      name         : 'literal_array'
@@ -8833,7 +9552,7 @@ var OP = {
     ,commutativity: COMMUTATIVE
     ,priority     : 32
     ,fn           : function(arg0, arg1) {
-                        return TRUE(arg0) && TRUE(arg1) ? 1 : 0;
+                        return TRUE(arg0) && TRUE(arg1) ? I : O;
                     }
     },
     '||': {
@@ -8844,7 +9563,7 @@ var OP = {
     ,commutativity: COMMUTATIVE
     ,priority     : 33
     ,fn           : function(arg0, arg1) {
-                        return TRUE(arg0) || TRUE(arg1) ? 1 : 0;
+                        return TRUE(arg0) || TRUE(arg1) ? I : O;
                     }
     },
     'xor': {
@@ -8856,7 +9575,7 @@ var OP = {
     ,priority     : 33
     ,fn           : function(arg0, arg1) {
                         var a = TRUE(arg0), b = TRUE(arg1);
-                        return (a && !b) || (b && !a) ? 1 : 0;
+                        return (a && !b) || (b && !a) ? I : O;
                     }
     },
     '~': {
@@ -8867,7 +9586,7 @@ var OP = {
     ,commutativity: ANTICOMMUTATIVE
     ,priority     : 31
     ,fn           : function(arg0) {
-                        return TRUE(arg0) ? 0 : 1;
+                        return TRUE(arg0) ? O : I;
                     }
     },
     '=': {
@@ -9037,7 +9756,11 @@ variable.prototype = {
     i: null,
     get: async function(orig) {
         var self = this, val, s, i;
-        if (is_instance(self.v, expr))
+        if ('' === self.v)
+        {
+            return null; // dummy variable, ignored
+        }
+        else if (is_instance(self.v, expr))
         {
             val = await vale(self.v);
         }
@@ -9061,7 +9784,11 @@ variable.prototype = {
     },
     set: async function(value) {
         var self = this, val, s, i;
-        if (null != self.i)
+        if ('' === self.v)
+        {
+            return self; // dummy variable, ignored
+        }
+        else if (null != self.i)
         {
             if (is_instance(self.v, expr))
             {
@@ -9425,7 +10152,16 @@ function parse(s, ctx, lineStart, posStart)
                     arg = tmp.trim().split(/[;\n]/g).reduce(function(arg, row) {
                         var hasrow = arg.length, hascol = 0;
                         return row.trim().split(-1 < row.indexOf(',') ? ',' : /\s+/g).reduce(function(arg, col) {
-                            col = parse(col.trim(), ctx, l+lineStart, i);
+                            col = col.trim();
+                            if ("~" === col)
+                            {
+                                // dummy variable
+                                col = expr('v', variable(ctx, ''));
+                            }
+                            else
+                            {
+                                col = parse(col, ctx, l+lineStart, i);
+                            }
                             if (col)
                             {
                                 if (hascol) arg.push(expr(','));
