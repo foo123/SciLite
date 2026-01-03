@@ -6,7 +6,7 @@ function kmeans(X, k, C, D, max_iter, speedup)
     var n = ROWS(X), p = COLS(X), iter,
         i, ci, idx, centroids_changed;
 
-    idx = X.map(function(Xi) {return closest_cluster(Xi, C, D)[0];});
+    idx = X.map(function(Xi) {return closest_cluster(Xi, C, D, speedup)[0];});
     C = compute_centroids(X, k, idx);
 
     for (iter=1; iter<=max_iter; ++iter)
@@ -15,7 +15,7 @@ function kmeans(X, k, C, D, max_iter, speedup)
         centroids_changed = 0;
         for (i=0; i<n; ++i)
         {
-            ci = closest_cluster(X[i], C, D)[0];
+            ci = closest_cluster(X[i], C, D, speedup)[0];
             if (idx[i] !== ci) ++centroids_changed;
             idx[i] = ci;
         }
@@ -33,7 +33,7 @@ function kmeans(X, k, C, D, max_iter, speedup)
     }
     return [idx, C];
 }
-function closest_cluster(x, C, D)
+function closest_cluster(x, C, D, speedup)
 {
     var k = C.length, i, d, idx = 0, min = inf;
     for (i=0; i<k; ++i)
@@ -61,7 +61,7 @@ function compute_centroids(X, k, idx)
         }, []));
     });
 }
-function kmeans_init_forgy(X, k, dist)
+function kmeans_init_forgy(X, k, dist, speedup)
 {
     X = X.slice();
     return array(k, function(cluster) {
@@ -69,7 +69,7 @@ function kmeans_init_forgy(X, k, dist)
         return -1 < i ? X.splice(i, 1)[0] : [];
     });
 }
-function kmeans_init_random_partition(X, k, dist)
+function kmeans_init_random_partition(X, k, dist, speedup)
 {
     var n = X.length;
     return shuffle(X.slice()).reduce(function(clusters, xi) {
@@ -79,7 +79,7 @@ function kmeans_init_random_partition(X, k, dist)
         return clusters;
     }, []).map(compute_centroid);
 }
-function kmeans_init_plusplus(X, k, dist)
+function kmeans_init_plusplus(X, k, dist, speedup)
 {
     // https://en.wikipedia.org/wiki/K-means%2B%2B
     // Initialize list of centroids with one randomly selected point
@@ -94,7 +94,7 @@ function kmeans_init_plusplus(X, k, dist)
         total = O;
         for (i=0; i<n; ++i)
         {
-            d = closest_cluster(X[i], centroids, dist)[1];
+            d = closest_cluster(X[i], centroids, dist, speedup)[1];
             D2[i] = scalar_abs(scalar_mul(d, scalar_conj(d)));
             total = n_add(total, D2[i]);
         }
@@ -119,6 +119,7 @@ fn.kmeans = varargout(function(nargout, X, k) {
         init = kmeans_init_plusplus,
         dist = d_sqeuclidean,
         max_iter = 100,
+        speedup = false,
         ans;
     if (!is_matrix(X)) not_supported("kmeans");
     while (i < arguments.length)
@@ -128,6 +129,7 @@ fn.kmeans = varargout(function(nargout, X, k) {
             if (is_matrix(arguments[i+1]))
             {
                 init = arguments[i+1];
+                if (COLS(init) !== COLS(X)) throw "kmeans: centroids and input must have same number of columns";
                 k = ROWS(init);
             }
             else
@@ -154,9 +156,6 @@ fn.kmeans = varargout(function(nargout, X, k) {
         {
             switch (arguments[i+1])
             {
-                case "kullbackleibler":
-                dist = d_kullbackleibler;
-                break;
                 case "hamming":
                 dist = d_hamming;
                 break;
@@ -184,7 +183,7 @@ fn.kmeans = varargout(function(nargout, X, k) {
         }
         i += 2;
     }
-    ans = kmeans(X, k, is_matrix(init) ? init : init(X, k, dist), dist, max_iter);
+    ans = kmeans(X, k, is_matrix(init) ? init : init(X, k, dist, speedup), dist, max_iter, speedup);
     ans[0] = ans[0].map(function(idx) {return idx+1;});
     if (1 === nargout)
     {

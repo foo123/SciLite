@@ -1,14 +1,18 @@
-function danneal(D, k)
+function pwcdanneal(D, k, alpha, max_iter)
 {
     // "Pairwise Data Clustering by Deterministic Annealing",
-    // Thomas Hofmann, Joachim M. Buhmann, 1997
+    // Thomas Hofmann, Joachim M. Buhmann,
+    // IEEE Transactions on Pattern Analysis and Machine Intelligence, 1997
     // D is the square distance or dissimilarity matrix
     // M is the assignment matrix which consists of the
     // a posteriori probabilities of a component zi for a given class ck
 
+    if (null == max_iter) max_iter = 100;
+    if (null == alpha) alpha = 0.75;
+
     var n = ROWS(D), M, prevE, E,
-        T, Tstart, Tfinal, a = 0.5,
-        i, j, v, iter, delta, eps = 1e-4,
+        T, Tstart, Tfinal, i, j, v,
+        tmp, iter, delta, eps = 1e-6,
         m, e, f, summa, sum, DM;
 
     // at the worst case the components cannot be grouped
@@ -22,18 +26,23 @@ function danneal(D, k)
         for (summa=0,v=0; v<k; ++v) summa += M[i][v];
         for (v=0; v<k; ++v) M[i][v] /= summa;
     }
-    prevE = matrix(n, k, function() {return stdMath.random();});
+    E = matrix(n, k, function() {return stdMath.random();});
+    prevE = matrix(n, k, 0);
 
-    // how to choose initial temperature? [corresponds to initial energy==>eigenvalues]
-    Tstart = _(realMath.sqrt(n_mul(norm(D, 1), norm(D, inf)))); // estimate
+    // how to choose initial temperature? [corresponds to initial energy==>max eigenvalue]
+    Tstart = _(realMath.sqrt(n_mul(norm(D, I), norm(D, inf)))); // max eig estimate
     Tfinal = Tstart/1000;
-    a = 0.5;
-    D = D.map(function(di) {return di.map(_);});
+    D = tonumber(D);
+    DM = matrix(n, k, 0);
+    sum = array(k, 0);
     T = Tstart;
-    while (T > Tfinal)
+    while ((alpha < 1) && (T > Tfinal))
     {
-        for (iter=1; iter<=100; ++iter)
+        for (iter=1; iter<=max_iter; ++iter)
         {
+            tmp = prevE;
+            prevE = E;
+            E = tmp;
             for (i=0; i<n; ++i)
             {
                 m = M[i];
@@ -49,12 +58,21 @@ function danneal(D, k)
                 }
             }
 
-            E = matrix(n, k, 0);
-            sum = array(k, function(v) {
-                for (var summa=0,j=0; j<n; ++j) summa += M[j][v];
-                return summa;
-            });
-            DM = mul(D, M).map(function(dm) {return dm.map(_);});
+            for (v=0; v<k; ++v)
+            {
+                for (summa=0,j=0; j<n; ++j) summa += M[j][v];
+                sum[v] = summa;
+            }
+            for (i=0; i<n; ++i)
+            {
+                m = DM[i];
+                for (v=0; v<k; ++v)
+                {
+                    for (summa=0,j=0; j<n; ++j) summa += D[i][j]*M[j][v];
+                    m[v] = summa;
+                }
+            }
+
             delta = 0;
 
             for (i=0; i<n; ++i)
@@ -75,17 +93,29 @@ function danneal(D, k)
                 }
             }
 
-            prevE = E;
             if (delta <= eps) break; // converged
         }
-        T = a*T;   // decrease temperature exponentially
+        T = alpha*T;   // decrease temperature exponentially
     }
     return M;
 }
-fn.danneal = function(D, k) {
+fn.pwcdanneal = function(D, k) {
     k = stdMath.round(_(sca(k, true)));
-    if ((0 >= k) || !is_matrix(D) || (ROWS(D) !== COLS(D))) not_supported("danneal");
-    var M = danneal(D, k);
+    if ((0 >= k) || !is_matrix(D) || (ROWS(D) !== COLS(D))) not_supported("pwcdanneal");
+    var i = 2, alpha = 0.75, max_iter = 100;
+    while (i < arguments.length)
+    {
+        if ("Alpha" === arguments[i])
+        {
+            alpha = stdMath.abs(_(sca(arguments[i+1], true)));
+        }
+        else if ("MaxIter" === arguments[i])
+        {
+            max_iter = stdMath.ceil(stdMath.abs(_(sca(arguments[i+1], true))));
+        }
+        i += 2;
+    }
+    var M = pwcdanneal(D, k, alpha, max_iter);
     return array(ROWS(M), function(i) {
         for (var Mi=M[i],cluster=0,c=1; c<k; ++c)
         {

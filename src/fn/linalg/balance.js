@@ -1,26 +1,26 @@
 function balance(A, pnorm, wantt)
 {
-    if (null == pnorm) pnorm = 2;
+    if (null == pnorm) pnorm = two;
     /*
     "ON MATRIX BALANCING AND EIGENVECTOR COMPUTATION",
     RODNEY JAMES, JULIEN LANGOU, BRADLEY R. LOWERY
     https://arxiv.org/abs/1401.5766
     */
     var n = ROWS(A),
-        B = copy(A),
+        B = todecimal(A),
         T = wantt ? array(n, I) : null,
         i, j, f,
         col, row, c, r,
         eps = __(1e-10),
         converged, iter;
-    for (iter=1; iter<=10000; ++iter)
+    for (iter=1; iter<=100; ++iter)
     {
         converged = 0;
         for (i=0; i<n; ++i)
         {
-            col = COL(B, i).map(__);
+            col = COL(B, i);
             col.splice(i, 1);
-            row = ROW(B, i).map(__);
+            row = ROW(B, i);
             row.splice(i, 1);
             c = norm(col, pnorm);
             r = norm(row, pnorm);
@@ -48,6 +48,6 @@ function balance(A, pnorm, wantt)
 fn.balance = varargout(function(nargout, A, noperm) {
     if (is_scalar(A)) A = [[A]];
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("balance");
-    var ans = balance(A, 2, 1 < nargout);
+    var ans = balance(A, two, 1 < nargout);
     return 2 < nargout ? [ans[0], array(ROWS(A), function(i) {return i+1;})/*noperm*/, ans[1]] : (1 < nargout ? [diag(ans[0]), ans[1]] : ans);
 });

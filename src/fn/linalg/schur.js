@@ -20,7 +20,7 @@ function schur(A, wantu)
         {
             sigma = H[m][m];
             Isigma = eye(n, sigma);
-            QR = qr(sub(H, Isigma), null, true);
+            QR = qr(sub(H, Isigma), true);
             H = add(mul(QR[1], QR[0]), Isigma);
             if (wantu) U = mul(U, QR[0]);
             if (n_le(scalar_abs(H[m][m-1]), eps)) break;

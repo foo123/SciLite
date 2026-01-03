@@ -3,7 +3,7 @@
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
 * @version: 0.9.11
-* 2026-01-01 23:44:25
+* 2026-01-03 18:08:48
 * https://github.com/foo123/SciLite
 *
 **//**
@@ -11,7 +11,7 @@
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
 * @version: 0.9.11
-* 2026-01-01 23:44:25
+* 2026-01-03 18:08:48
 * https://github.com/foo123/SciLite
 *
 **/
@@ -4988,9 +4988,9 @@ function compute_jacobi(alpha, beta, gamma)
     }
     else
     {
-        var b = scalar_div(scalar_sub(gamma, alpha), scalar_mul(beta, 2)),
-            t = scalar_div(scalar_sign(b), scalar_add(scalar_add(scalar_abs(b), fn.sqrt(scalar_pow(b, 2))), I));
-            c = scalar_inv(fn.sqrt(scalar_add(I, scalar_pow(t,2)))),
+        var b = scalar_div(scalar_sub(gamma, alpha), scalar_mul(beta, two)),
+            t = scalar_div(scalar_sign(b), scalar_add(scalar_add(scalar_abs(b), fn.sqrt(scalar_pow(b, two))), I));
+            c = scalar_inv(fn.sqrt(scalar_add(I, scalar_pow(t, two)))),
             s = scalar_mul(c, t);
         return [
             [c,             s],
@@ -5851,27 +5851,27 @@ fn.adjoint = function(A) {
 };
 function balance(A, pnorm, wantt)
 {
-    if (null == pnorm) pnorm = 2;
+    if (null == pnorm) pnorm = two;
     /*
     "ON MATRIX BALANCING AND EIGENVECTOR COMPUTATION",
     RODNEY JAMES, JULIEN LANGOU, BRADLEY R. LOWERY
     https://arxiv.org/abs/1401.5766
     */
     var n = ROWS(A),
-        B = copy(A),
+        B = todecimal(A),
         T = wantt ? array(n, I) : null,
         i, j, f,
         col, row, c, r,
         eps = __(1e-10),
         converged, iter;
-    for (iter=1; iter<=10000; ++iter)
+    for (iter=1; iter<=100; ++iter)
     {
         converged = 0;
         for (i=0; i<n; ++i)
         {
-            col = COL(B, i).map(__);
+            col = COL(B, i);
             col.splice(i, 1);
-            row = ROW(B, i).map(__);
+            row = ROW(B, i);
             row.splice(i, 1);
             c = norm(col, pnorm);
             r = norm(row, pnorm);
@@ -5899,7 +5899,7 @@ function balance(A, pnorm, wantt)
 fn.balance = varargout(function(nargout, A, noperm) {
     if (is_scalar(A)) A = [[A]];
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("balance");
-    var ans = balance(A, 2, 1 < nargout);
+    var ans = balance(A, two, 1 < nargout);
     return 2 < nargout ? [ans[0], array(ROWS(A), function(i) {return i+1;})/*noperm*/, ans[1]] : (1 < nargout ? [diag(ans[0]), ans[1]] : ans);
 });
 function hess(A, B, wantq)
@@ -6196,7 +6196,7 @@ function schur(A, wantu)
         {
             sigma = H[m][m];
             Isigma = eye(n, sigma);
-            QR = qr(sub(H, Isigma), null, true);
+            QR = qr(sub(H, Isigma), true);
             H = add(mul(QR[1], QR[0]), Isigma);
             if (wantu) U = mul(U, QR[0]);
             if (n_le(scalar_abs(H[m][m-1]), eps)) break;
@@ -6216,7 +6216,7 @@ function eig_power(A)
         n, N = ROWS(A),
         V = new Array(N),
         W = new Array(N),
-        D = array(N, 0);
+        D = array(N, O);
 
     A = copy(A);
     for (n=0; n<N; ++n)
@@ -6235,17 +6235,17 @@ function eig_power(A)
 fn.eig = varargout(function(nargout, A, nobalance) {
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("eig");
     if (is_matrix(nobalance)) not_supported("eig");
-    var T = null;
+    var T = null, ans;
     if ('nobalance' !== nobalance)
     {
-        T = balance(A, 2, true);
+        T = balance(A, two, true);
         A = T[1];
         T = T[0];
     }
     // TODO implement more general and efficient eig routine
     if (1 < nargout)
     {
-        var ans = eig_power(A);
+        ans = eig_power(A);
         return [T ? mul(diag(T), ans[0]) : ans[0], diag(ans[1]), T ? mul(diag(T.map(function(ti) {return n_inv(ti);})), ans[2]) : ans[2]];
     }
     else
@@ -6253,7 +6253,8 @@ fn.eig = varargout(function(nargout, A, nobalance) {
         return realify((is_tri(A, 'upper', true, 1e-15) || is_tri(A, 'lower', true, 1e-15) ? array(ROWS(A), function(i) {
                 return A[i][i];
             }) : roots(charpoly(A))).sort(function(a, b) {
-                return scalar_abs(b) - scalar_abs(a);
+                var aa = scalar_abs(a), ab = scalar_abs(b)
+                return n_gt(ab, aa) ? 1 : (n_lt(ab, aa) ? -1 : 0);
             })
         );
     }
@@ -7018,6 +7019,82 @@ fn.smithForm = varargout(function(nargout, A) {
     var ans = snf(fn.round(fn.real(A)), 1 < nargout, 1 < nargout);
     return 1 < nargout ? [ans[1], ans[2], ans[0]] : ans;
 });
+function sqrtm(A, max_iter)
+{
+    /*
+    "A new stable and avoiding inversion iteration for computing matrix square root",
+    Li ZHU, Keqi YE, Yuelin ZHAO, Feng WU, Jiqiang HU, Wanxie ZHONG, 2022
+    https://arxiv.org/abs/2206.10346
+    */
+    if (null == max_iter) max_iter = 100;
+
+    var n = ROWS(A),
+        X, Xnext,
+        Y, Ynext,
+        In, I34,
+        one_fourth = __(0.25),
+        three_fourths = __(0.75),
+        m, a, iter, eps = __(1e-10);
+    // estimate of 2-norm of A for convergence test
+    m = realMath.sqrt(n_mul(norm(A, I), norm(A, inf)));
+    eps = n_mul(eps, m);
+    In = eye(n);
+    I34 = eye(n, three_fourths);
+    a = half;
+    m = scalar_div(a, m);
+    X = dotmul(A, fn.sqrt(m));
+    Y = sub(In, dotmul(A, m));
+    for (iter=1; iter<=max_iter; ++iter)
+    {
+        Xnext = mul(X, add(In, dotmul(half, Y)));
+        if (n_le(max(max(abs(sub(Xnext, X)))), eps)) break;
+        Ynext = mul(mul(Y, Y), add(I34, dotmul(one_fourth, Y)));
+        X = Xnext; Y = Ynext;
+    }
+    return realify(X); // -> A^(1/2)
+}
+fn.sqrtm = varargout(function(nargout, A) {
+    if (2 < nargout) throw "sqrtm: output not supported";
+    if (is_scalar(A)) return 1 < nargout ? [fn.sqrt(A), O] : fn.sqrt(A);
+    if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("sqrtm");
+    var sqrtA = sqrtm(A);
+    return 1 < nargout ? [sqrtA, scalar_div(norm(sub(A, pow(sqrtA, two)), I), norm(A, I))] : sqrtA;
+});
+function expm(A)
+{
+    /*
+    "Matrix Computations",
+    Golub G.H., Van Loan C.F., 1996
+    Algorithm 11.3.1
+    */
+    var n = ROWS(A),
+        eps = __(1e-10),
+        In = eye(n), F,
+        D = In, N = In,
+        X = In, c = I,
+        j = max([O, n_add(I, realMath.floor(realMath.log2(norm(A, inf))))]),
+        q = 4*n*n/*TODO function of eps*/, k, s;
+    A = dotdiv(A, n_pow(two, j));
+    for (s=I,k=1; k<=q; ++k)
+    {
+        c = n_div(n_mul(c, n_add(n_sub(q, k), I)), n_mul(n_add(n_sub(n_mul(two, q), k), I), k));
+        X = mul(A, X);
+        N = add(N, dotmul(c, X));
+        D = add(D, dotmul(n_mul(s, c), X));
+        s = I === s ? J : I;
+    }
+    F = linsolve(D, N);
+    for (k=1,j=_(j); k<=j; ++k)
+    {
+        F = mul(F, F);
+    }
+    return F; // -> exp(A)
+}
+fn.expm = function(A) {
+    if (is_scalar(A)) return fn.exp(A);
+    if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("expm");
+    return expm(A);
+};
 var __a1 =  0.254829592,
     __a2 = -0.284496736,
     __a3 =  1.421413741,
@@ -7567,7 +7644,7 @@ fn.squareform = function(d, output) {
     var n = ROWS(X), p = COLS(X), iter,
         i, ci, idx, centroids_changed;
 
-    idx = X.map(function(Xi) {return closest_cluster(Xi, C, D)[0];});
+    idx = X.map(function(Xi) {return closest_cluster(Xi, C, D, speedup)[0];});
     C = compute_centroids(X, k, idx);
 
     for (iter=1; iter<=max_iter; ++iter)
@@ -7576,7 +7653,7 @@ fn.squareform = function(d, output) {
         centroids_changed = 0;
         for (i=0; i<n; ++i)
         {
-            ci = closest_cluster(X[i], C, D)[0];
+            ci = closest_cluster(X[i], C, D, speedup)[0];
             if (idx[i] !== ci) ++centroids_changed;
             idx[i] = ci;
         }
@@ -7594,7 +7671,7 @@ fn.squareform = function(d, output) {
     }
     return [idx, C];
 }
-function closest_cluster(x, C, D)
+function closest_cluster(x, C, D, speedup)
 {
     var k = C.length, i, d, idx = 0, min = inf;
     for (i=0; i<k; ++i)
@@ -7622,7 +7699,7 @@ function compute_centroids(X, k, idx)
         }, []));
     });
 }
-function kmeans_init_forgy(X, k, dist)
+function kmeans_init_forgy(X, k, dist, speedup)
 {
     X = X.slice();
     return array(k, function(cluster) {
@@ -7630,7 +7707,7 @@ function kmeans_init_forgy(X, k, dist)
         return -1 < i ? X.splice(i, 1)[0] : [];
     });
 }
-function kmeans_init_random_partition(X, k, dist)
+function kmeans_init_random_partition(X, k, dist, speedup)
 {
     var n = X.length;
     return shuffle(X.slice()).reduce(function(clusters, xi) {
@@ -7640,7 +7717,7 @@ function kmeans_init_random_partition(X, k, dist)
         return clusters;
     }, []).map(compute_centroid);
 }
-function kmeans_init_plusplus(X, k, dist)
+function kmeans_init_plusplus(X, k, dist, speedup)
 {
     // https://en.wikipedia.org/wiki/K-means%2B%2B
     // Initialize list of centroids with one randomly selected point
@@ -7655,7 +7732,7 @@ function kmeans_init_plusplus(X, k, dist)
         total = O;
         for (i=0; i<n; ++i)
         {
-            d = closest_cluster(X[i], centroids, dist)[1];
+            d = closest_cluster(X[i], centroids, dist, speedup)[1];
             D2[i] = scalar_abs(scalar_mul(d, scalar_conj(d)));
             total = n_add(total, D2[i]);
         }
@@ -7680,6 +7757,7 @@ fn.kmeans = varargout(function(nargout, X, k) {
         init = kmeans_init_plusplus,
         dist = d_sqeuclidean,
         max_iter = 100,
+        speedup = false,
         ans;
     if (!is_matrix(X)) not_supported("kmeans");
     while (i < arguments.length)
@@ -7689,6 +7767,7 @@ fn.kmeans = varargout(function(nargout, X, k) {
             if (is_matrix(arguments[i+1]))
             {
                 init = arguments[i+1];
+                if (COLS(init) !== COLS(X)) throw "kmeans: centroids and input must have same number of columns";
                 k = ROWS(init);
             }
             else
@@ -7715,9 +7794,6 @@ fn.kmeans = varargout(function(nargout, X, k) {
         {
             switch (arguments[i+1])
             {
-                case "kullbackleibler":
-                dist = d_kullbackleibler;
-                break;
                 case "hamming":
                 dist = d_hamming;
                 break;
@@ -7745,7 +7821,7 @@ fn.kmeans = varargout(function(nargout, X, k) {
         }
         i += 2;
     }
-    ans = kmeans(X, k, is_matrix(init) ? init : init(X, k, dist), dist, max_iter);
+    ans = kmeans(X, k, is_matrix(init) ? init : init(X, k, dist, speedup), dist, max_iter, speedup);
     ans[0] = ans[0].map(function(idx) {return idx+1;});
     if (1 === nargout)
     {
@@ -7769,17 +7845,21 @@ fn.kmeans = varargout(function(nargout, X, k) {
         }
     }
     return ans;
-});function danneal(D, k)
+});function pwcdanneal(D, k, alpha, max_iter)
 {
     // "Pairwise Data Clustering by Deterministic Annealing",
-    // Thomas Hofmann, Joachim M. Buhmann, 1997
+    // Thomas Hofmann, Joachim M. Buhmann,
+    // IEEE Transactions on Pattern Analysis and Machine Intelligence, 1997
     // D is the square distance or dissimilarity matrix
     // M is the assignment matrix which consists of the
     // a posteriori probabilities of a component zi for a given class ck
 
+    if (null == max_iter) max_iter = 100;
+    if (null == alpha) alpha = 0.75;
+
     var n = ROWS(D), M, prevE, E,
-        T, Tstart, Tfinal, a = 0.5,
-        i, j, v, iter, delta, eps = 1e-4,
+        T, Tstart, Tfinal, i, j, v,
+        tmp, iter, delta, eps = 1e-6,
         m, e, f, summa, sum, DM;
 
     // at the worst case the components cannot be grouped
@@ -7793,18 +7873,23 @@ fn.kmeans = varargout(function(nargout, X, k) {
         for (summa=0,v=0; v<k; ++v) summa += M[i][v];
         for (v=0; v<k; ++v) M[i][v] /= summa;
     }
-    prevE = matrix(n, k, function() {return stdMath.random();});
+    E = matrix(n, k, function() {return stdMath.random();});
+    prevE = matrix(n, k, 0);
 
-    // how to choose initial temperature? [corresponds to initial energy==>eigenvalues]
-    Tstart = _(realMath.sqrt(n_mul(norm(D, 1), norm(D, inf)))); // estimate
+    // how to choose initial temperature? [corresponds to initial energy==>max eigenvalue]
+    Tstart = _(realMath.sqrt(n_mul(norm(D, I), norm(D, inf)))); // max eig estimate
     Tfinal = Tstart/1000;
-    a = 0.5;
-    D = D.map(function(di) {return di.map(_);});
+    D = tonumber(D);
+    DM = matrix(n, k, 0);
+    sum = array(k, 0);
     T = Tstart;
-    while (T > Tfinal)
+    while ((alpha < 1) && (T > Tfinal))
     {
-        for (iter=1; iter<=100; ++iter)
+        for (iter=1; iter<=max_iter; ++iter)
         {
+            tmp = prevE;
+            prevE = E;
+            E = tmp;
             for (i=0; i<n; ++i)
             {
                 m = M[i];
@@ -7820,12 +7905,21 @@ fn.kmeans = varargout(function(nargout, X, k) {
                 }
             }
 
-            E = matrix(n, k, 0);
-            sum = array(k, function(v) {
-                for (var summa=0,j=0; j<n; ++j) summa += M[j][v];
-                return summa;
-            });
-            DM = mul(D, M).map(function(dm) {return dm.map(_);});
+            for (v=0; v<k; ++v)
+            {
+                for (summa=0,j=0; j<n; ++j) summa += M[j][v];
+                sum[v] = summa;
+            }
+            for (i=0; i<n; ++i)
+            {
+                m = DM[i];
+                for (v=0; v<k; ++v)
+                {
+                    for (summa=0,j=0; j<n; ++j) summa += D[i][j]*M[j][v];
+                    m[v] = summa;
+                }
+            }
+
             delta = 0;
 
             for (i=0; i<n; ++i)
@@ -7846,17 +7940,29 @@ fn.kmeans = varargout(function(nargout, X, k) {
                 }
             }
 
-            prevE = E;
             if (delta <= eps) break; // converged
         }
-        T = a*T;   // decrease temperature exponentially
+        T = alpha*T;   // decrease temperature exponentially
     }
     return M;
 }
-fn.danneal = function(D, k) {
+fn.pwcdanneal = function(D, k) {
     k = stdMath.round(_(sca(k, true)));
-    if ((0 >= k) || !is_matrix(D) || (ROWS(D) !== COLS(D))) not_supported("danneal");
-    var M = danneal(D, k);
+    if ((0 >= k) || !is_matrix(D) || (ROWS(D) !== COLS(D))) not_supported("pwcdanneal");
+    var i = 2, alpha = 0.75, max_iter = 100;
+    while (i < arguments.length)
+    {
+        if ("Alpha" === arguments[i])
+        {
+            alpha = stdMath.abs(_(sca(arguments[i+1], true)));
+        }
+        else if ("MaxIter" === arguments[i])
+        {
+            max_iter = stdMath.ceil(stdMath.abs(_(sca(arguments[i+1], true))));
+        }
+        i += 2;
+    }
+    var M = pwcdanneal(D, k, alpha, max_iter);
     return array(ROWS(M), function(i) {
         for (var Mi=M[i],cluster=0,c=1; c<k; ++c)
         {

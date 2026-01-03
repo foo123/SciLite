@@ -228,9 +228,9 @@ function compute_jacobi(alpha, beta, gamma)
     }
     else
     {
-        var b = scalar_div(scalar_sub(gamma, alpha), scalar_mul(beta, 2)),
-            t = scalar_div(scalar_sign(b), scalar_add(scalar_add(scalar_abs(b), fn.sqrt(scalar_pow(b, 2))), I));
-            c = scalar_inv(fn.sqrt(scalar_add(I, scalar_pow(t,2)))),
+        var b = scalar_div(scalar_sub(gamma, alpha), scalar_mul(beta, two)),
+            t = scalar_div(scalar_sign(b), scalar_add(scalar_add(scalar_abs(b), fn.sqrt(scalar_pow(b, two))), I));
+            c = scalar_inv(fn.sqrt(scalar_add(I, scalar_pow(t, two)))),
             s = scalar_mul(c, t);
         return [
             [c,             s],

@@ -7,11 +7,11 @@ function expm(A)
     */
     var n = ROWS(A),
         eps = __(1e-10),
-        In = eye(n),
+        In = eye(n), F,
         D = In, N = In,
         X = In, c = I,
         j = max([O, n_add(I, realMath.floor(realMath.log2(norm(A, inf))))]),
-        q = 2*n*n/*TODO function of eps*/, k, s;
+        q = 4*n*n/*TODO function of eps*/, k, s;
     A = dotdiv(A, n_pow(two, j));
     for (s=I,k=1; k<=q; ++k)
     {
@@ -32,4 +32,4 @@ fn.expm = function(A) {
     if (is_scalar(A)) return fn.exp(A);
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("expm");
     return expm(A);
-});
+};
