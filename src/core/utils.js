@@ -165,6 +165,7 @@ function is_nd(x)
 }
 function array(n, v)
 {
+    n = stdMath.max(0, stdMath.round(n));
     var i, arr = new Array(n);
     for (i=0; i<n; ++i) arr[i] = is_callable(v) ? v(i, arr) : v;
     return arr;
@@ -172,6 +173,8 @@ function array(n, v)
 $_.array = array;
 function matrix(rows, cols, v)
 {
+    rows = stdMath.max(0, stdMath.round(rows));
+    cols = stdMath.max(0, stdMath.round(cols));
     var r, c, row, mat = new Array(rows);
     for (r=0; r<rows; ++r)
     {
@@ -278,7 +281,12 @@ function _(x)
 }
 function __(x)
 {
-    return (null != decimal) && ("number" === typeof x) ? decimal(x) : x;
+    if (null != decimal)
+    {
+        if ("number" === typeof x) return decimal(x);
+        else if (is_complex(x) && (("number" === typeof x.re) || ("number" === typeof x.im))) return new complex("number" === typeof x.re ? decimal(x.re) : x.re, "number" === typeof x.im ? decimal(x.im) : x.im);
+    }
+    return x;
 }
 function tonumber(x)
 {
@@ -561,7 +569,7 @@ function stringify(x)
         }
         if (ROWS(x) > $_.MAXPRINTSIZE)
         {
-            x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat([array(x[0].length, function(i) {return stdMath.round($_.MAXPRINTSIZE/2) === i ? (use_ddots ? '\\' : ':') : ':';})]).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
+            x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat([array(x[0].length, function(i) {return stdMath.round($_.MAXPRINTSIZE/2) === i ? (use_ddots ? ':.' : ':') : ':';})]).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
         }
         var ln = array(COLS(x), function(col) {
             return COL(x, col).reduce(function(l, xi) {

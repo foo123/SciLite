@@ -254,10 +254,10 @@ function compute_jacobi(alpha, beta, gamma)
         return O;
     });
 }*/
-function rotmul(type, G, p, q, A)
+function rotmul(type, G, p, q, A, i1, i2)
 {
-    var n = ROWS(A), B = copy(A),
-        i, j, Gpp, Gpq, Gqp, Gqq;
+    var n, i, j, B = A, Ap, Aq,
+        Gpp, Gpq, Gqp, Gqq;
     if ((2 === G.length) && is_scalar(G[0]))
     {
         // c, s
@@ -291,18 +291,22 @@ function rotmul(type, G, p, q, A)
         a4 b4 c4 d4 | 0 0  0 1  = a4 (G[:,i]*A[4,:]) c4 (G[:,j]*A[4,:])
         */
         // A(:, [k l]) = A(:, [k l])*G;
-        for (i=0; i<n; ++i)
+        n = ROWS(A);
+        if (null == i1) i1 = 0;
+        if (null == i2) i2 = n-1;
+        for (i=i1; i<=i2; ++i)
         {
+            Ap = A[i][p]; Aq = A[i][q];
             /*for (s=0,j=0; j<n; ++j)
             {
                 s = scalar_add(s, scalar_mul(G[j][p], A[i][j]));
             }*/
-            B[i][p] = scalar_add(scalar_mul(Gpp, A[i][p]), scalar_mul(Gqp, A[i][q]));
+            B[i][p] = scalar_add(scalar_mul(Gpp, Ap), scalar_mul(Gqp, Aq));
             /*for (s=0,j=0; j<n; ++j)
             {
                 s = scalar_add(s, scalar_mul(G[j][q], A[i][j]));
             }*/
-            B[i][q] = scalar_add(scalar_mul(Gpq, A[i][p]), scalar_mul(Gqq, A[i][q]));
+            B[i][q] = scalar_add(scalar_mul(Gpq, Ap), scalar_mul(Gqq, Aq));
         }
     }
     else//if ('left' === type)
@@ -314,18 +318,22 @@ function rotmul(type, G, p, q, A)
         0 0  0 1 | a4 b4 c4 d4 = a4 b4 c4 d4
         */
         // A([k l], :) = G'*A([k l], :);
-        for (i=0; i<n; ++i)
+        n = COLS(A);
+        if (null == i1) i1 = 0;
+        if (null == i2) i2 = n-1;
+        for (i=i1; i<=i2; ++i)
         {
+            Ap = A[p][i]; Aq = A[q][i];
             /*for (s=0,j=0; j<n; ++j)
             {
                 s = scalar_add(s, scalar_mul(G[p][j], A[j][i]));
             }*/
-            B[p][i] = scalar_add(scalar_mul(Gpp, A[p][i]), scalar_mul(Gpq, A[q][i]));
+            B[p][i] = scalar_add(scalar_mul(Gpp, Ap), scalar_mul(Gpq, Aq));
             /*for (s=0,j=0; j<n; ++j)
             {
                 s = scalar_add(s, scalar_mul(G[q][j], A[j][i]));
             }*/
-            B[q][i] = scalar_add(scalar_mul(Gqp, A[p][i]), scalar_mul(Gqq, A[q][i]));
+            B[q][i] = scalar_add(scalar_mul(Gqp, Ap), scalar_mul(Gqq, Aq));
         }
     }
     return B;
@@ -339,7 +347,7 @@ function jacobi_sweep(A, nsweeps)
     {
         for (k=1; k<n; ++k)
         {
-            for (l=0; l<=k-1; ++l)
+            for (l=0; l<k; ++l)
             {
                 J = compute_jacobi(A[k][k], A[k][l], A[l][l]);
                 A = rotmul('right', J, k, l, rotmul('left', ctranspose(J), k, l, A));
@@ -348,10 +356,156 @@ function jacobi_sweep(A, nsweeps)
     }
     return A;
 }
-function francis_poly(H)
+function compute_householder(A, hh, i1, i2, j1, j2, eps)
+{
+    /*
+    "Unitary Triangularization of a Nonsymmetric Matrix",
+    Householder, A. S.,
+    Journal of the ACM. 5 (4): 339–342.  1958
+    */
+    // v(0) is always 1, rest is the essential part
+    if (null == eps) eps = constant.eps;
+    var c0, c, normc, b, bc;
+    if (is_vector(A))
+    {
+        c0 = A[i1];
+        if (i1 === i2)
+        {
+            normc = O;
+        }
+        else
+        {
+            c = A.slice(i1+1, i2+1);
+            normc = real(dot(c, c));
+        }
+    }
+    else if (j1 === j2)
+    {
+        c0 = A[i1][j1];
+        if (i1 === i2)
+        {
+            normc = O;
+        }
+        else
+        {
+            c = A.slice(i1+1, i2+1).map(function(Ai) {return Ai[j1];});
+            normc = real(dot(c, c));
+        }
+    }
+    else//if (i1 === i2)
+    {
+        c0 = A[i1][j1];
+        if (j1 === j2)
+        {
+            normc = O;
+        }
+        else
+        {
+            c = A[i1].slice(j1+1, j2+1);
+            normc = real(dot(c, c));
+        }
+    }
+    if (n_le(normc, eps) && n_le(n_pow(scalar_abs(imag(c0)), two), eps))
+    {
+        hh.beta = real(c0);
+        hh.tau = O;
+        hh.v.forEach(function(vi, i) {
+            hh.v[i] = 0 === i ? I : O;
+        });
+    }
+    else
+    {
+        b = realMath.sqrt(n_add(real(scalar_mul(c0, scalar_conj(c0))), normc));
+        if (n_ge(real(c0), O)) b = scalar_neg(b);
+        bc = scalar_sub(c0, b);
+        hh.beta = b;
+        hh.tau = scalar_conj(scalar_div(scalar_neg(bc), b));
+        if (is_vector(A))
+        {
+            hh.v.forEach(function(vi, i) {
+                hh.v[i] = 0 === i ? I : scalar_div(A[i+i1], bc);
+            });
+        }
+        else if (j1 === j2)
+        {
+            hh.v.forEach(function(vi, i) {
+                hh.v[i] = 0 === i ? I : scalar_div(A[i+i1][j1], bc);
+            });
+        }
+        else//if (i1 === i2)
+        {
+            hh.v.forEach(function(vi, i) {
+                hh.v[i] = 0 === i ? I : scalar_div(A[i1][i+j1], bc);
+            });
+        }
+    }
+    return hh;
+}
+function hh_mul(type, hh, A, i1, i2, j1, j2)
+{
+    var n, i, j,
+        v = hh.v, vA,
+        vl = v.length,
+        tau = hh.tau,
+        B = A;
+    if (eq(tau, O))
+    {
+        return B;
+    }
+    if ('right' === type)
+    {
+        // -- B = AH
+        // B(j1:j2,i1:i2) = A(j1:j2,i1:i2)-(A(j1:j2,i1:i2)*v)*(tau*v’);
+        n = ROWS(A);
+        if (null == i1) i1 = 0;
+        if (null == i2) i2 = COLS(A)-1;
+        if (null == j1) j1 = 0;
+        if (null == j2) j2 = n-1;
+        vA = array(j2-j1+1, function(j) {
+            for (var vA=O,i=0; i<vl; ++i)
+            {
+                vA = scalar_add(vA, scalar_mul(v[i], A[j+j1][i+i1]));
+            }
+            return vA;
+        });
+        for (j=j1; j<=j2; ++j)
+        {
+            for (i=i1; i<=i2; ++i)
+            {
+                B[j][i] = scalar_sub(A[j][i], scalar_mul(vA[j-j1], scalar_mul(tau, scalar_conj(v[i-i1]))));
+            }
+        }
+    }
+    else//if ('left' === type)
+    {
+        // -- B = HA
+        // B(i1:i2,j1:j2) = A(i1:i2,j1:j2)-(tau*v)*(v’*A(i1:i2,j1:j2));
+        n = COLS(A);
+        if (null == i1) i1 = 0;
+        if (null == i2) i2 = ROWS(A)-1;
+        if (null == j1) j1 = 0;
+        if (null == j2) j2 = n-1;
+        vA = array(j2-j1+1, function(j) {
+            for (var vA=O,i=0; i<vl; ++i)
+            {
+                vA = scalar_add(vA, scalar_mul(scalar_conj(v[i]), A[i+i1][j+j1]));
+            }
+            return vA;
+        });
+        for (j=j1; j<=j2; ++j)
+        {
+            for (i=i1; i<=i2; ++i)
+            {
+                B[i][j] = scalar_sub(A[i][j], scalar_mul(scalar_mul(tau, v[i-i1]), vA[j-j1]));
+            }
+        }
+    }
+    return B;
+}
+/*function francis_poly(H, i, j)
 {
     // Get shifts via trailing submatrix
-    var i = ROWS(H)-1, j = COLS(H)-1,
+    var //i = ROWS(H)-1, j = COLS(H)-1,
         trHH  = scalar_add(H[i-1][j-1], H[i][j]),
         detHH = scalar_sub(scalar_mul(H[i-1][j-1], H[i][j]), scalar_mul(H[i-1][j], H[i][j-1])),
         f1, f2, f3, r1, r2, b, c
@@ -384,7 +538,7 @@ function francis_poly(H)
         c = detHH;
     }
     return [b, c];
-}
+}*/
 function gauss_jordan(A, with_pivots, odim, eps)
 {
     // adapted from https://github.com/foo123/Abacus
@@ -514,7 +668,10 @@ function largest_eig(A, N, eps, valueonly)
             prev_v = v;
             v = vec(mul(A, v));
             k = dot(v, prev_v);
-            v = dotdiv(v, v[0].sign());
+            if (!eq(v[0], O))
+            {
+                v = dotdiv(v, scalar_sign(v[0]));
+            }
             v = dotdiv(v, norm(v));
             if (n_le(realMath.abs(n_sub(real(k), real(prev_k))), eps) && n_le(realMath.abs(n_sub(imag(k), imag(prev_k))), eps)) break;
         }
@@ -535,8 +692,14 @@ function largest_eig(A, N, eps, valueonly)
             v = vec(mul(A, v));
             w = vec(mul(A_t, w));
             k = dot(v, prev_v);
-            v = dotdiv(v, v[0].sign());
-            w = dotdiv(w, w[0].sign());
+            if (!eq(v[0], O))
+            {
+                v = dotdiv(v, scalar_sign(v[0]));
+            }
+            if (!eq(w[0], O))
+            {
+                w = dotdiv(w, scalar_sign(w[0]));
+            }
             v = dotdiv(v, norm(v));
             w = dotdiv(w, norm(w));
             if (n_le(realMath.abs(n_sub(real(k), real(prev_k))), eps) && n_le(realMath.abs(n_sub(imag(k), imag(prev_k))), eps)) break;

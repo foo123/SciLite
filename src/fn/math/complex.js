@@ -183,7 +183,7 @@ complexMath = {
         return z.sign();
     },
     sqrt: function(z) {
-        return z.pow(new complex(half, O));
+        return new complex(realMath.sqrt(z.abs()), n_div(z.angle(), two), 'polar');
     },
     exp: function(z) {
         return ze.pow(z);

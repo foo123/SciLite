@@ -2,16 +2,16 @@
 *
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
-* @version: 0.9.11
-* 2026-01-03 18:08:48
+* @version: 0.9.12
+* 2026-01-15 12:59:29
 * https://github.com/foo123/SciLite
 *
 **//**
 *
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
-* @version: 0.9.11
-* 2026-01-03 18:08:48
+* @version: 0.9.12
+* 2026-01-15 12:59:29
 * https://github.com/foo123/SciLite
 *
 **/
@@ -56,7 +56,7 @@ var decimal = null,
 
     // lib
     $ = {
-        VERSION: "0.9.11",
+        VERSION: "0.9.12",
         // common functions
         _: {},
         // builtin functions
@@ -246,6 +246,7 @@ function is_nd(x)
 }
 function array(n, v)
 {
+    n = stdMath.max(0, stdMath.round(n));
     var i, arr = new Array(n);
     for (i=0; i<n; ++i) arr[i] = is_callable(v) ? v(i, arr) : v;
     return arr;
@@ -253,6 +254,8 @@ function array(n, v)
 $_.array = array;
 function matrix(rows, cols, v)
 {
+    rows = stdMath.max(0, stdMath.round(rows));
+    cols = stdMath.max(0, stdMath.round(cols));
     var r, c, row, mat = new Array(rows);
     for (r=0; r<rows; ++r)
     {
@@ -359,7 +362,12 @@ function _(x)
 }
 function __(x)
 {
-    return (null != decimal) && ("number" === typeof x) ? decimal(x) : x;
+    if (null != decimal)
+    {
+        if ("number" === typeof x) return decimal(x);
+        else if (is_complex(x) && (("number" === typeof x.re) || ("number" === typeof x.im))) return new complex("number" === typeof x.re ? decimal(x.re) : x.re, "number" === typeof x.im ? decimal(x.im) : x.im);
+    }
+    return x;
 }
 function tonumber(x)
 {
@@ -642,7 +650,7 @@ function stringify(x)
         }
         if (ROWS(x) > $_.MAXPRINTSIZE)
         {
-            x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat([array(x[0].length, function(i) {return stdMath.round($_.MAXPRINTSIZE/2) === i ? (use_ddots ? '\\' : ':') : ':';})]).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
+            x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat([array(x[0].length, function(i) {return stdMath.round($_.MAXPRINTSIZE/2) === i ? (use_ddots ? ':.' : ':') : ':';})]).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
         }
         var ln = array(COLS(x), function(col) {
             return COL(x, col).reduce(function(l, xi) {
@@ -2789,7 +2797,7 @@ complexMath = {
         return z.sign();
     },
     sqrt: function(z) {
-        return z.pow(new complex(half, O));
+        return new complex(realMath.sqrt(z.abs()), n_div(z.angle(), two), 'polar');
     },
     exp: function(z) {
         return ze.pow(z);
@@ -5014,10 +5022,10 @@ function compute_jacobi(alpha, beta, gamma)
         return O;
     });
 }*/
-function rotmul(type, G, p, q, A)
+function rotmul(type, G, p, q, A, i1, i2)
 {
-    var n = ROWS(A), B = copy(A),
-        i, j, Gpp, Gpq, Gqp, Gqq;
+    var n, i, j, B = A, Ap, Aq,
+        Gpp, Gpq, Gqp, Gqq;
     if ((2 === G.length) && is_scalar(G[0]))
     {
         // c, s
@@ -5051,18 +5059,22 @@ function rotmul(type, G, p, q, A)
         a4 b4 c4 d4 | 0 0  0 1  = a4 (G[:,i]*A[4,:]) c4 (G[:,j]*A[4,:])
         */
         // A(:, [k l]) = A(:, [k l])*G;
-        for (i=0; i<n; ++i)
+        n = ROWS(A);
+        if (null == i1) i1 = 0;
+        if (null == i2) i2 = n-1;
+        for (i=i1; i<=i2; ++i)
         {
+            Ap = A[i][p]; Aq = A[i][q];
             /*for (s=0,j=0; j<n; ++j)
             {
                 s = scalar_add(s, scalar_mul(G[j][p], A[i][j]));
             }*/
-            B[i][p] = scalar_add(scalar_mul(Gpp, A[i][p]), scalar_mul(Gqp, A[i][q]));
+            B[i][p] = scalar_add(scalar_mul(Gpp, Ap), scalar_mul(Gqp, Aq));
             /*for (s=0,j=0; j<n; ++j)
             {
                 s = scalar_add(s, scalar_mul(G[j][q], A[i][j]));
             }*/
-            B[i][q] = scalar_add(scalar_mul(Gpq, A[i][p]), scalar_mul(Gqq, A[i][q]));
+            B[i][q] = scalar_add(scalar_mul(Gpq, Ap), scalar_mul(Gqq, Aq));
         }
     }
     else//if ('left' === type)
@@ -5074,18 +5086,22 @@ function rotmul(type, G, p, q, A)
         0 0  0 1 | a4 b4 c4 d4 = a4 b4 c4 d4
         */
         // A([k l], :) = G'*A([k l], :);
-        for (i=0; i<n; ++i)
+        n = COLS(A);
+        if (null == i1) i1 = 0;
+        if (null == i2) i2 = n-1;
+        for (i=i1; i<=i2; ++i)
         {
+            Ap = A[p][i]; Aq = A[q][i];
             /*for (s=0,j=0; j<n; ++j)
             {
                 s = scalar_add(s, scalar_mul(G[p][j], A[j][i]));
             }*/
-            B[p][i] = scalar_add(scalar_mul(Gpp, A[p][i]), scalar_mul(Gpq, A[q][i]));
+            B[p][i] = scalar_add(scalar_mul(Gpp, Ap), scalar_mul(Gpq, Aq));
             /*for (s=0,j=0; j<n; ++j)
             {
                 s = scalar_add(s, scalar_mul(G[q][j], A[j][i]));
             }*/
-            B[q][i] = scalar_add(scalar_mul(Gqp, A[p][i]), scalar_mul(Gqq, A[q][i]));
+            B[q][i] = scalar_add(scalar_mul(Gqp, Ap), scalar_mul(Gqq, Aq));
         }
     }
     return B;
@@ -5099,7 +5115,7 @@ function jacobi_sweep(A, nsweeps)
     {
         for (k=1; k<n; ++k)
         {
-            for (l=0; l<=k-1; ++l)
+            for (l=0; l<k; ++l)
             {
                 J = compute_jacobi(A[k][k], A[k][l], A[l][l]);
                 A = rotmul('right', J, k, l, rotmul('left', ctranspose(J), k, l, A));
@@ -5108,10 +5124,156 @@ function jacobi_sweep(A, nsweeps)
     }
     return A;
 }
-function francis_poly(H)
+function compute_householder(A, hh, i1, i2, j1, j2, eps)
+{
+    /*
+    "Unitary Triangularization of a Nonsymmetric Matrix",
+    Householder, A. S.,
+    Journal of the ACM. 5 (4): 339–342.  1958
+    */
+    // v(0) is always 1, rest is the essential part
+    if (null == eps) eps = constant.eps;
+    var c0, c, normc, b, bc;
+    if (is_vector(A))
+    {
+        c0 = A[i1];
+        if (i1 === i2)
+        {
+            normc = O;
+        }
+        else
+        {
+            c = A.slice(i1+1, i2+1);
+            normc = real(dot(c, c));
+        }
+    }
+    else if (j1 === j2)
+    {
+        c0 = A[i1][j1];
+        if (i1 === i2)
+        {
+            normc = O;
+        }
+        else
+        {
+            c = A.slice(i1+1, i2+1).map(function(Ai) {return Ai[j1];});
+            normc = real(dot(c, c));
+        }
+    }
+    else//if (i1 === i2)
+    {
+        c0 = A[i1][j1];
+        if (j1 === j2)
+        {
+            normc = O;
+        }
+        else
+        {
+            c = A[i1].slice(j1+1, j2+1);
+            normc = real(dot(c, c));
+        }
+    }
+    if (n_le(normc, eps) && n_le(n_pow(scalar_abs(imag(c0)), two), eps))
+    {
+        hh.beta = real(c0);
+        hh.tau = O;
+        hh.v.forEach(function(vi, i) {
+            hh.v[i] = 0 === i ? I : O;
+        });
+    }
+    else
+    {
+        b = realMath.sqrt(n_add(real(scalar_mul(c0, scalar_conj(c0))), normc));
+        if (n_ge(real(c0), O)) b = scalar_neg(b);
+        bc = scalar_sub(c0, b);
+        hh.beta = b;
+        hh.tau = scalar_conj(scalar_div(scalar_neg(bc), b));
+        if (is_vector(A))
+        {
+            hh.v.forEach(function(vi, i) {
+                hh.v[i] = 0 === i ? I : scalar_div(A[i+i1], bc);
+            });
+        }
+        else if (j1 === j2)
+        {
+            hh.v.forEach(function(vi, i) {
+                hh.v[i] = 0 === i ? I : scalar_div(A[i+i1][j1], bc);
+            });
+        }
+        else//if (i1 === i2)
+        {
+            hh.v.forEach(function(vi, i) {
+                hh.v[i] = 0 === i ? I : scalar_div(A[i1][i+j1], bc);
+            });
+        }
+    }
+    return hh;
+}
+function hh_mul(type, hh, A, i1, i2, j1, j2)
+{
+    var n, i, j,
+        v = hh.v, vA,
+        vl = v.length,
+        tau = hh.tau,
+        B = A;
+    if (eq(tau, O))
+    {
+        return B;
+    }
+    if ('right' === type)
+    {
+        // -- B = AH
+        // B(j1:j2,i1:i2) = A(j1:j2,i1:i2)-(A(j1:j2,i1:i2)*v)*(tau*v’);
+        n = ROWS(A);
+        if (null == i1) i1 = 0;
+        if (null == i2) i2 = COLS(A)-1;
+        if (null == j1) j1 = 0;
+        if (null == j2) j2 = n-1;
+        vA = array(j2-j1+1, function(j) {
+            for (var vA=O,i=0; i<vl; ++i)
+            {
+                vA = scalar_add(vA, scalar_mul(v[i], A[j+j1][i+i1]));
+            }
+            return vA;
+        });
+        for (j=j1; j<=j2; ++j)
+        {
+            for (i=i1; i<=i2; ++i)
+            {
+                B[j][i] = scalar_sub(A[j][i], scalar_mul(vA[j-j1], scalar_mul(tau, scalar_conj(v[i-i1]))));
+            }
+        }
+    }
+    else//if ('left' === type)
+    {
+        // -- B = HA
+        // B(i1:i2,j1:j2) = A(i1:i2,j1:j2)-(tau*v)*(v’*A(i1:i2,j1:j2));
+        n = COLS(A);
+        if (null == i1) i1 = 0;
+        if (null == i2) i2 = ROWS(A)-1;
+        if (null == j1) j1 = 0;
+        if (null == j2) j2 = n-1;
+        vA = array(j2-j1+1, function(j) {
+            for (var vA=O,i=0; i<vl; ++i)
+            {
+                vA = scalar_add(vA, scalar_mul(scalar_conj(v[i]), A[i+i1][j+j1]));
+            }
+            return vA;
+        });
+        for (j=j1; j<=j2; ++j)
+        {
+            for (i=i1; i<=i2; ++i)
+            {
+                B[i][j] = scalar_sub(A[i][j], scalar_mul(scalar_mul(tau, v[i-i1]), vA[j-j1]));
+            }
+        }
+    }
+    return B;
+}
+/*function francis_poly(H, i, j)
 {
     // Get shifts via trailing submatrix
-    var i = ROWS(H)-1, j = COLS(H)-1,
+    var //i = ROWS(H)-1, j = COLS(H)-1,
         trHH  = scalar_add(H[i-1][j-1], H[i][j]),
         detHH = scalar_sub(scalar_mul(H[i-1][j-1], H[i][j]), scalar_mul(H[i-1][j], H[i][j-1])),
         f1, f2, f3, r1, r2, b, c
@@ -5144,7 +5306,7 @@ function francis_poly(H)
         c = detHH;
     }
     return [b, c];
-}
+}*/
 function gauss_jordan(A, with_pivots, odim, eps)
 {
     // adapted from https://github.com/foo123/Abacus
@@ -5274,7 +5436,10 @@ function largest_eig(A, N, eps, valueonly)
             prev_v = v;
             v = vec(mul(A, v));
             k = dot(v, prev_v);
-            v = dotdiv(v, v[0].sign());
+            if (!eq(v[0], O))
+            {
+                v = dotdiv(v, scalar_sign(v[0]));
+            }
             v = dotdiv(v, norm(v));
             if (n_le(realMath.abs(n_sub(real(k), real(prev_k))), eps) && n_le(realMath.abs(n_sub(imag(k), imag(prev_k))), eps)) break;
         }
@@ -5295,8 +5460,14 @@ function largest_eig(A, N, eps, valueonly)
             v = vec(mul(A, v));
             w = vec(mul(A_t, w));
             k = dot(v, prev_v);
-            v = dotdiv(v, v[0].sign());
-            w = dotdiv(w, w[0].sign());
+            if (!eq(v[0], O))
+            {
+                v = dotdiv(v, scalar_sign(v[0]));
+            }
+            if (!eq(w[0], O))
+            {
+                w = dotdiv(w, scalar_sign(w[0]));
+            }
             v = dotdiv(v, norm(v));
             w = dotdiv(w, norm(w));
             if (n_le(realMath.abs(n_sub(real(k), real(prev_k))), eps) && n_le(realMath.abs(n_sub(imag(k), imag(prev_k))), eps)) break;
@@ -5857,11 +6028,12 @@ function balance(A, pnorm, wantt)
     RODNEY JAMES, JULIEN LANGOU, BRADLEY R. LOWERY
     https://arxiv.org/abs/1401.5766
     */
-    var n = ROWS(A),
+    var n = ROWS(A), n1 = n-1,
         B = todecimal(A),
         T = wantt ? array(n, I) : null,
-        i, j, f,
-        col, row, c, r,
+        col = new Array(n1),
+        row = new Array(n1),
+        i, j, ji, f, c, r,
         eps = __(1e-10),
         converged, iter;
     for (iter=1; iter<=100; ++iter)
@@ -5869,10 +6041,12 @@ function balance(A, pnorm, wantt)
         converged = 0;
         for (i=0; i<n; ++i)
         {
-            col = COL(B, i);
-            col.splice(i, 1);
-            row = ROW(B, i);
-            row.splice(i, 1);
+            for (j=0; j<n1; ++j)
+            {
+                ji = j >= i ? j+1 : j;
+                col[j] = B[ji][i];
+                row[j] = B[i][ji];
+            }
             c = norm(col, pnorm);
             r = norm(row, pnorm);
             if (n_eq(r, O) || n_eq(c, O))
@@ -5902,32 +6076,41 @@ fn.balance = varargout(function(nargout, A, noperm) {
     var ans = balance(A, two, 1 < nargout);
     return 2 < nargout ? [ans[0], array(ROWS(A), function(i) {return i+1;})/*noperm*/, ans[1]] : (1 < nargout ? [diag(ans[0]), ans[1]] : ans);
 });
-function hess(A, B, wantq)
+function hess(A, B, wantq, eps)
 {
     var n = ROWS(A);
+    eps = __(eps || 0);
     if (null == B)
     {
         var Q = wantq ? eye(n) : null,
-            H = A, G, G_t,
+            H = copy(A), G, G_t,
             k, i;
         for (k=1; k<=n-2; ++k)
         {
             // produces some reflected signs from Octave's hess
             for (i=n; i>=k+2; --i)
             {
-                //G = givens(n, i-1-1, i-1, H[i-1-1][k-1], H[i-1][k-1]);
-                //G_t = ctranspose(G);
-                G = compute_givens(H[i-1-1][k-1], H[i-1][k-1]);
-                G_t = [scalar_conj(G[0]), scalar_neg(scalar_conj(G[1]))];
-                if (wantq) Q = rotmul('right', G, i-1-1, i-1, Q);//mul(Q, G);
-                H = rotmul('left', G_t, i-1-1, i-1, rotmul('right', G, i-1-1, i-1, H));//mul(ctranspose(G), mul(H, G));
+                if (n_le(scalar_abs(H[i-1][k-1]), n_mul(scalar_abs(H[i-1-1][k-1]), eps)))
+                {
+                    // pass
+                }
+                else
+                {
+                    //G = givens(n, i-1-1, i-1, H[i-1-1][k-1], H[i-1][k-1]);
+                    //G_t = ctranspose(G);
+                    G = compute_givens(H[i-1-1][k-1], H[i-1][k-1]);
+                    G_t = [scalar_conj(G[0]), scalar_neg(scalar_conj(G[1]))];
+                    if (wantq) Q = rotmul('right', G, i-1-1, i-1, Q);//mul(Q, G);
+                    H = rotmul('left', G_t, i-1-1, i-1, rotmul('right', G, i-1-1, i-1, H));//mul(G_t, mul(H, G));
+                }
+                H[i-1][k-1] = O; // zero-out any round-off
             }
         }
         return wantq ? [Q, H] : H;
     }
     else
     {
-        var QR = qr_givens(B, true),
+        var QR = qr(B, true, false, eps),
             Q = QR[0],
             Q_t = ctranspose(Q),
             Z = eye(n),
@@ -5938,19 +6121,35 @@ function hess(A, B, wantq)
         {
             for (i=n; i>=k+2; --i)
             {
-                //Rl = givens(n, i-1-1, i-1, AA[i-1-1][k-1], AA[i-1][k-1]);
-                //Rl_t = ctranspose(Rl);
-                Rl = compute_givens(AA[i-1-1][k-1], AA[i-1][k-1]);
-                Rl_t = [scalar_conj(Rl[0]), scalar_neg(scalar_conj(Rl[1]))];
-                Q = rotmul('right', Rl, i-1-1, i-1, Q);//mul(Q, Rl);
-                AA = rotmul('left', Rl_t, i-1-1, i-1, AA);//mul(Rl_t, AA);
-                BB = rotmul('left', Rl_t, i-1-1, i-1, BB);//mul(Rl_t, BB);
+                if (n_le(scalar_abs(AA[i-1][k-1]), n_mul(scalar_abs(AA[i-1-1][k-1]), eps)))
+                {
+                    // pass
+                }
+                else
+                {
+                    //Rl = givens(n, i-1-1, i-1, AA[i-1-1][k-1], AA[i-1][k-1]);
+                    //Rl_t = ctranspose(Rl);
+                    Rl = compute_givens(AA[i-1-1][k-1], AA[i-1][k-1]);
+                    Rl_t = [scalar_conj(Rl[0]), scalar_neg(scalar_conj(Rl[1]))];
+                    if (wantq) Q = rotmul('right', Rl, i-1-1, i-1, Q);//mul(Q, Rl);
+                    AA = rotmul('left', Rl_t, i-1-1, i-1, AA);//mul(Rl_t, AA);
+                    BB = rotmul('left', Rl_t, i-1-1, i-1, BB);//mul(Rl_t, BB);
+                }
+                AA[i-1][k-1] = O; // zero-out any round-off
 
-                //Rr = givens(n, i-1-1, i-1, scalar_neg(BB[i-1][i-1]), BB[i-1][i-1-1]);
-                Rr = compute_givens(scalar_neg(BB[i-1][i-1]), BB[i-1][i-1-1]);
-                Z = rotmul('right', Rr, i-1-1, i-1, Z);//mul(Z, Rr);
-                AA = rotmul('right', Rr, i-1-1, i-1, AA);//mul(AA, Rr);
-                BB = rotmul('right', Rr, i-1-1, i-1, BB);//mul(BB, Rr);
+                if (n_le(scalar_abs(BB[i-1][i-1-1]), n_mul(scalar_abs(BB[i-1][i-1]), eps)))
+                {
+                    // pass
+                }
+                else
+                {
+                    //Rr = givens(n, i-1-1, i-1, scalar_neg(BB[i-1][i-1]), BB[i-1][i-1-1]);
+                    Rr = compute_givens(scalar_neg(BB[i-1][i-1]), BB[i-1][i-1-1]);
+                    if (wantq) Z = rotmul('right', Rr, i-1-1, i-1, Z);//mul(Z, Rr);
+                    AA = rotmul('right', Rr, i-1-1, i-1, AA);//mul(AA, Rr);
+                    BB = rotmul('right', Rr, i-1-1, i-1, BB);//mul(BB, Rr);
+                }
+                BB[i-1][i-1-1] = O; // zero-out any round-off
             }
         }
         return [AA, BB, Q, Z];
@@ -5963,7 +6162,7 @@ fn.hess = varargout(function(nargout, A, B) {
     {
         if (is_scalar(B)) B = [[B]];
         if (!is_matrix(B) || (ROWS(B) !== COLS(B))) not_supported("hess");
-        return hess(A, B);
+        return hess(A, B, 2 < nargout);
     }
     else
     {
@@ -6095,119 +6294,457 @@ fn.lu = varargout(function(nargout, A) {
     invD = diag(ans[0].map(function(di) {return scalar_inv(di);}));
     return 2 < nargout ? [mul(ans[1], invD), ans[2], ans[3]] : [mul(transpose(ans[3]), mul(ans[1], invD)), ans[2]];
 }, 2);
-function qr(A, wantq, wantp)
+function qr(A, wantq, wantp, eps)
 {
     var m = ROWS(A), n = COLS(A),
         Q = wantq ? eye(m) : null,
         R = A, P, p, t,
         colnorms, max,
-        i, j, k, G, G_t;
-    if (wantp)
+        i, j, k, G, G_t, hh;
+    eps = __(eps || 0);
+    if (!is_tri(R, "upper", false, eps))
     {
-        P = array(n, function(j) {return j;});
-        colnorms = array(n, function(col) {
-            return norm(COL(R, col), two);
-        });
-        for (j=0; j<n; ++j)
+        R = copy(A);
+        if (wantp)
         {
-            p = j;
-            max = colnorms[p];
-            for (i=j+1; i<n; ++i)
+            hh = {};
+            P = array(n, function(j) {return j;});
+            colnorms = array(n, function(col) {
+                return norm(COL(R, col), two);
+            });
+            for (j=0; j<n; ++j)
             {
-                if (n_gt(colnorms[i], max))
+                p = j;
+                max = colnorms[p];
+                for (i=j+1; i<n; ++i)
                 {
-                    p = i;
-                    max = colnorms[p];
+                    if (n_gt(colnorms[i], max))
+                    {
+                        p = i;
+                        max = colnorms[p];
+                    }
+                }
+                if (n_eq(max, O)) break;
+                if (j !== p)
+                {
+                    t = colnorms[j];
+                    colnorms[j] = colnorms[p];
+                    colnorms[p] = t;
+                    t = P[j];
+                    P[j] = P[p];
+                    P[p] = t;
+                    for (i=0; i<m; ++i)
+                    {
+                        t = R[i][j];
+                        R[i][j] = R[i][p];
+                        R[i][p] = t;
+                    }
+                }
+
+                /*
+                // qr via givens rotations
+                for (i=m-1; i>=(j+1); --i)
+                {
+                    if (n_le(scalar_abs(R[i][j]), n_mul(scalar_abs(R[i-1][j]), eps)))
+                    {
+                        R[i][j] = O;
+                    }
+                    else
+                    {
+                        //G = givens(m, i-1, i, R[i-1][j], R[i][j]);
+                        //G_t = ctranspose(G);
+                        G = compute_givens(R[i-1][j], R[i][j]);
+                        G_t = [scalar_conj(G[0]), scalar_neg(scalar_conj(G[1]))];
+                        R = rotmul('left', G_t, i-1, i, R);//mul(G_t, R);
+                        if (wantq) Q = rotmul('right', G, i-1, i, Q);//mul(Q, G);
+                    }
+                }
+                */
+
+                // qr via householder reflections
+                hh.v = array(m-j, O);
+                compute_householder(R, hh, j, m-1, j, j, eps);
+                // -- R := HR
+                R = hh_mul('left', hh, R, j);//R(j:end,:) = R(j:end,:)-(tau*w)*(w'*R(j:end,:));
+                // zero-out round-off remainders
+                for (i=j+1; i<m; ++i) R[i][j] = O;
+                // -- Q := QH
+                if (wantq) Q = hh_mul('right', hh, Q, j);//Q(:,j:end) = Q(:,j:end)-(Q(:,j:end)*w)*(tau*w)';
+
+                for (i=j+1; i<n; ++i)
+                {
+                    colnorms[i] = n_sub(colnorms[i], n_pow(scalar_abs(R[j][i]), two));
                 }
             }
-            if (n_eq(max, O)) break;
-            if (j !== p)
+        }
+        else
+        {
+            /*
+            // qr via givens rotations
+            // produces some reflected signs from Octave's qr
+            for (j=0; j<n; ++j)
             {
-                t = colnorms[j];
-                colnorms[j] = colnorms[p];
-                colnorms[p] = t;
-                t = P[j];
-                P[j] = P[p];
-                P[p] = t;
-                for (i=0; i<m; ++i)
+                for (i=m-1; i>=(j+1); --i)
                 {
-                    t = R[i][j];
-                    R[i][j] = R[i][p];
-                    R[i][p] = t;
+                    if (n_le(scalar_abs(R[i][j]), n_mul(scalar_abs(R[i-1][j]), eps)))
+                    {
+                        R[i][j] = O;
+                    }
+                    else
+                    {
+                        //G = givens(m, i-1, i, R[i-1][j], R[i][j]);
+                        //G_t = ctranspose(G);
+                        G = compute_givens(R[i-1][j], R[i][j]);
+                        G_t = [scalar_conj(G[0]), scalar_neg(scalar_conj(G[1]))];
+                        R = rotmul('left', G_t, i-1, i, R);//mul(G_t, R);
+                        if (wantq) Q = rotmul('right', G, i-1, i, Q);//mul(Q, G);
+                    }
                 }
             }
-            for (i=m-1; i>=(j+1); --i)
+            */
+            // qr via householder reflections
+            hh = {};
+            for (j=0; j<n; ++j)
             {
-                //G = givens(m, i-1, i, R[i-1][j], R[i][j]);
-                //G_t = ctranspose(G);
-                G = compute_givens(R[i-1][j], R[i][j]);
-                G_t = [scalar_conj(G[0]), scalar_neg(scalar_conj(G[1]))];
-                R = rotmul('left', G_t, i-1, i, R);//mul(G_t, R);
-                if (wantq) Q = rotmul('right', G, i-1, i, Q);//mul(Q, G);
-            }
-            for (i=j+1; i<n; ++i)
-            {
-                colnorms[i] = n_sub(colnorms[i], n_pow(scalar_abs(R[j][i]), two));
+                // -- Find H = I-tau*w*w' to put zeros below R(j,j)
+                hh.v = array(m-j, O);
+                compute_householder(R, hh, j, m-1, j, j, eps);
+                // -- R := HR
+                R = hh_mul('left', hh, R, j);//R(j:end,:) = R(j:end,:)-(tau*w)*(w'*R(j:end,:));
+                // zero-out round-off remainders
+                for (i=j+1; i<m; ++i) R[i][j] = O;
+                // -- Q := QH
+                if (wantq) Q = hh_mul('right', hh, Q, j);//Q(:,j:end) = Q(:,j:end)-(Q(:,j:end)*w)*(tau*w)';
             }
         }
     }
-    else
-    {
-        // produces some reflected signs from Octave's qr
-        for (j=0; j<n; ++j)
-        {
-            for (i=m-1; i>=(j+1); --i)
-            {
-                //G = givens(m, i-1, i, R[i-1][j], R[i][j]);
-                //G_t = ctranspose(G);
-                G = compute_givens(R[i-1][j], R[i][j]);
-                G_t = [scalar_conj(G[0]), scalar_neg(scalar_conj(G[1]))];
-                R = rotmul('left', G_t, i-1, i, R);//mul(G_t, R);
-                if (wantq) Q = rotmul('right', G, i-1, i, Q);//mul(Q, G);
-            }
-        }
-    }
-    return wantq && wantp ? [Q, R, matrix(n, n, function(i, j) {return i === P[j] ? I : O;})] : (wantq ? [Q, R] : R);
+    return wantq && wantp ? [Q, R, P ? matrix(n, n, function(i, j) {return i === P[j] ? I : O;}) : eye(n)] : (wantq ? [Q, R] : R);
 }
 fn.qr = varargout(function(nargout, A) {
     if (is_scalar(A)) A = [[A]];
     if (!is_matrix(A)) not_supported("qr");
     return qr(A, 1 < nargout, 2 < nargout);
 });
-function schur(A, wantu)
+function real_qr_shift(A, i, sI, s, type)
 {
-    // schur via qr algorithm
-    var n = ROWS(A), H, U, QR,
-        m, sigma, Isigma,
-        iter, eps = __(1e-8);
+    var ii, sc;
+    sI[0] = A[i][i]
+    sI[1] = A[i-1][i-1];
+    sI[2] = scalar_mul(A[i][i-1], A[i-1][i]);
+    if ('wilkinson' === type)
+    {
+        // Wilkinson shift
+        s[0] = scalar_add(s[0], sI[0]);
+        for (ii=0; ii<=i; ++ii) A[ii][ii] = scalar_sub(A[ii][ii], sI[0]);
+        sc = scalar_add(scalar_abs(A[i][i-1]), scalar_abs(A[i-1][i-2]));
+        sI[0] = scalar_mul(sc, 0.75);
+        sI[1] = scalar_mul(sc, 0.75);
+        sI[2] = scalar_mul(scalar_mul(sc, sc), -0.4375);
+    }
+    else if ('matlab' === type)
+    {
+        // MATLAB shift
+        sc = scalar_div(scalar_sub(sI[1], sI[0]), two);
+        sc = scalar_add(scalar_mul(sc, sc), sI[2]);
+        if (gt(sc, O))
+        {
+            sc = fn.sqrt(sc);
+            if (lt(sI[1], sI[0])) sc = scalar_neg(sc);
+            sc = scalar_add(sc, scalar_div(scalar_sub(sI[1], sI[0]), two));
+            sc = scalar_div(scalar_sub(sI[0], sI[2]), sc);
+            s[0] = scalar_add(s[0], sc);
+            for (ii=0; ii<=i; ++ii) A[ii][ii] = scalar_sub(A[ii][ii], sc);
+            sI[0] = __(0.964); sI[1] = sI[2] = sI[0];
+        }
+    }
+}
+function split22block(A, U, i, s)
+{
+    // compute the eigenvalues of 2x2 block submatrix
+    // by solving the quadratic characteristic equation
+    var p = scalar_div(scalar_sub(A[i-1][i-1], A[i][i]), two),
+        q = scalar_add(scalar_mul(p, p), scalar_mul(A[i][i-1], A[i-1][i])),
+        G, G_t, z;
 
-    // reduce to hessenberg Form
-    H = hess(A, null, wantu);
+    // incorporate shift
+    A[i][i] = scalar_add(A[i][i], s[0]);
+    A[i-1][i-1] = scalar_add(A[i-1][i-1], s[0]);
+
+    if (ge(q, O))
+    {
+        // 2 real eigenvalues, block 2x2 submatrix can be diagonalized
+        z = realMath.sqrt(scalar_abs(q));
+        G = compute_givens(ge(p, O) ? scalar_add(p, z) : scalar_sub(p, z), A[i][i-1]);
+        G_t = [scalar_conj(G[0]), scalar_neg(scalar_conj(G[1]))];
+        A = rotmul('left', G_t, i-1, i, A, i-1, null);//m_matT.rightCols(size - i + 1).applyOnTheLeft(i-1, i, rot.adjoint());
+        A = rotmul('right', G, i-1, i, A, 0, i);//m_matT.topRows(i + 1).applyOnTheRight(i-1, i, rot);
+        A[i][i-1] = O;
+        if (U) U = rotmul('right', G, i-1, i, U);//m_matU.applyOnTheRight(i-1, i, rot);
+    }
+
+    if (i > 1) A[i-1][i-2] = O;
+}
+function complex_qr_shift(A, i, exceptional)
+{
+    if (exceptional)
+    {
+        // exceptional shift, avoid slow convergence heuristic
+        return scalar_add(scalar_abs(real(A[i][i-1])), scalar_abs(real(A[i-1][i-2])));
+    }
+    else
+    {
+        // closest eigenvalue estimate as shift
+        var T00 = A[i-1][i-1],
+            T01 = A[i-1][i  ],
+            T10 = A[i  ][i-1],
+            T11 = A[i  ][i  ],
+            normT = n_add(n_add(scalar_abs(T00), scalar_abs(T10)), n_add(scalar_abs(T01), scalar_abs(T11))),
+            b, c, D, Det, Tr, e1, e2, n1, n2;
+        T00 = scalar_div(T00, normT);
+        T01 = scalar_div(T01, normT);
+        T10 = scalar_div(T10, normT);
+        T11 = scalar_div(T11, normT);
+        b = scalar_mul(T01, T10);
+        c = scalar_sub(T00, T11);
+        D = fn.sqrt(scalar_add(scalar_mul(c, c), scalar_mul(b, 4)));
+        Det = scalar_sub(scalar_mul(T00, T11), b);
+        Tr = scalar_add(T00, T11);
+        e1 = scalar_div(scalar_add(Tr, D), two);
+        e2 = scalar_div(scalar_sub(Tr, D), two);
+        n1 = scalar_abs(e1);
+        n2 = scalar_abs(e2);
+        if (n_gt(n1, n2))
+        {
+            e2 = scalar_div(Det, e1);
+        }
+        else if (!n_eq(n2, O))
+        {
+            e1 = scalar_div(Det, e2);
+        }
+        return n_lt(scalar_abs(scalar_sub(e1, T11)), scalar_abs(scalar_sub(e2, T11))) ? scalar_mul(e1, normT) : scalar_mul(e2, normT);
+    }
+}
+function subdiagonal_negligible(A, i, eps)
+{
+    if (n_le(scalar_abs(A[i+1][i]), n_mul(n_add(scalar_abs(A[i][i]), scalar_abs(A[i+1][i+1])), eps)))
+    {
+        A[i+1][i] = O;
+        return true;
+    }
+    return false;
+}
+function subdiagonal_negligible_entry(A, i, eps)
+{
+    while (i > 0)
+    {
+        if (n_le(scalar_abs(A[i][i-1]), n_mul(n_add(scalar_abs(A[i-1][i-1]), scalar_abs(A[i][i])), eps))) break;
+        --i;
+    }
+    return i;
+}
+function schur(A, wantu, docomplex, eps)
+{
+    /*
+    "Understanding the QR Algorithm", David S. Watkins, 1982
+    "Understanding the QR Algorithm, Part II", David S. Watkins, 2001
+    "Francis's Algorithm", David S. Watkins, 2011
+    */
+    // adapted from https://github.com/PX4/eigen
+
+    // schur decomposition via qr algorithm
+    var n = ROWS(A),
+        i, k, im,
+        il, iu = n-1,
+        H, U, normH,
+        s, sI,
+        G, G_t, Hmm,
+        v, hh,
+        r, sc,
+        lhs, rhs,
+        iter = 0,
+        total_iter = 0,
+        max_iter = 100 * n, tol;
+
+    eps = null == eps ? __(1e-8) : __(eps);
+
+    // reduce to hessenberg form
+    // that is invariant under qr algorithm and reduces computations
+    H = hess(A, null, wantu, eps);
     if (wantu)
     {
         U = H[0];
         H = H[1];
     }
 
-    // qr algorithm for hessenberg with shifts
-    for (m=n-1; m>0; --m)
+    if (docomplex)
     {
-        for (iter=1; iter<=100; ++iter)
+        // complex qr algorithm for hessenberg matrix with shifts and deflation
+        // rows 0,...,il-1 are decoupled from the rest because H(il,il-1) is zero
+        // rows il,...,iu is the part we are working on
+        // rows iu+1,...,end are already brought in triangular form
+        for (;;)
         {
-            sigma = H[m][m];
-            Isigma = eye(n, sigma);
-            QR = qr(sub(H, Isigma), true);
-            H = add(mul(QR[1], QR[0]), Isigma);
-            if (wantu) U = mul(U, QR[0]);
-            if (n_le(scalar_abs(H[m][m-1]), eps)) break;
+            // find the bottom row of the active submatrix
+            while (iu > 0)
+            {
+                if (!subdiagonal_negligible(H, iu-1, eps)) break;
+                iter = 0;
+                --iu;
+            }
+
+            // whole matrix is triangularized
+            if (0 >= iu) break;
+
+            ++iter;
+            ++total_iter;
+            if (total_iter >= max_iter) break;
+
+            // find the top row of the active submatrix
+            il = iu-1;
+            while ((il > 0) && !subdiagonal_negligible(H, il-1, eps)) --il;
+
+            // qr step with shift via givens rotation
+            s = complex_qr_shift(H, iu, (iter === 10 || iter === 20) && (iu > 1));
+            G = compute_givens(scalar_sub(H[il][il], s), H[il+1][il]);
+            G_t = [scalar_conj(G[0]), scalar_neg(scalar_conj(G[1]))];
+
+            H = rotmul('left', G_t, il, il+1, H, il, null);//m_matT.rightCols(m_matT.cols() - il).applyOnTheLeft(il, il + 1, rot.adjoint());
+            H = rotmul('right', G, il, il+1, H, 0, stdMath.min(il+2, iu));//m_matT.topRows((std::min)(il + 2, iu) + 1).applyOnTheRight(il, il + 1, rot);
+            H[il+1][il] = O;
+            if (wantu) U = rotmul('right', G, il, il+1, U);//m_matU.applyOnTheRight(il, il + 1, rot);
+
+            for (i=il+1; i<iu; ++i)
+            {
+                //rot.makeGivens(m_matT.coeffRef(i, i - 1), m_matT.coeffRef(i + 1, i - 1), &m_matT.coeffRef(i, i - 1));
+                G = compute_givens(H[i][i-1], H[i+1][i-1]);
+                G_t = [scalar_conj(G[0]), scalar_neg(scalar_conj(G[1]))];
+                H[i][i-1] = scalar_add(scalar_mul(G[0], H[i][i-1]), scalar_mul(G[1], H[i+1][i-1]));
+                H[i+1][i-1] = O;
+                H = rotmul('left', G_t, i, i+1, H, i, null);//m_matT.rightCols(m_matT.cols() - i).applyOnTheLeft(i, i + 1, rot.adjoint());
+                H = rotmul('right', G, i, i+1, H, 0, stdMath.min(i+2, iu));//m_matT.topRows((std::min)(i + 2, iu) + 1).applyOnTheRight(i, i + 1, rot);
+                if (wantu) U = rotmul('right', G, i, i+1, U);//m_matU.applyOnTheRight(i, i + 1, rot);
+            }
+        }
+    }
+    else
+    {
+        // real qr algorithm for hessenberg matrix with shifts and deflation
+        // rows 0,...,il-1 are decoupled from the rest because H(il,il-1) is zero
+        // rows il,...,iu is the part we are working on
+        // rows iu+1,...,end are already brought in triangular form
+        tol = n_mul(norm(H, I), n_mul(eps, eps));
+        //tol = n_gt(normH, constant.realmin) ? normH : constant.realmin;
+        s = [O];
+        sI = [O, O, O];
+        while (iu >= 0)
+        {
+            il = subdiagonal_negligible_entry(H, iu, eps);
+
+            if (il === iu)
+            {
+                // 1 root
+                H[iu][iu] = scalar_add(H[iu][iu], s[0]);
+                if (iu > 0) H[iu][iu-1] = O;
+                --iu;
+                iter = 0;
+            }
+            else if (il+1 === iu)
+            {
+                // 2 roots
+                split22block(H, U, iu, s);
+                iu -= 2;
+                iter = 0;
+            }
+            else
+            {
+                // francis qr algorithm
+                ++iter;
+                ++total_iter;
+                if (total_iter >= max_iter) break;
+                v = [O, O, O];
+
+                real_qr_shift(H, iu, sI, s, (iter > 0) && ((iter % 16) === 0) ? ((iter % 32) !== 0 ? 'wilkinson' : 'matlab') : 'none');
+
+                // init francis qr step
+                for (im=iu-2; im>=il; --im)
+                {
+                    Hmm = H[im][im];
+                    r = scalar_sub(sI[0], Hmm);
+                    sc = scalar_sub(sI[1], Hmm);
+                    v[0] = scalar_add(scalar_div(scalar_sub(scalar_mul(r, sc), sI[2]), H[im+1][im]), H[im][im+1]);
+                    v[1] = scalar_sub(scalar_sub(scalar_sub(H[im+1][im+1], Hmm), r), sc);
+                    v[2] = H[im+2][im+1];
+                    if (im === il) break;
+                    lhs = scalar_mul(H[im][im-1], scalar_add(scalar_abs(v[1]), scalar_abs(v[2])));
+                    rhs = scalar_mul(v[0], scalar_add(scalar_add(scalar_abs(H[im-1][im-1]), scalar_abs(Hmm)), scalar_abs(H[im+1][im+1])));
+                    if (lt(scalar_abs(lhs), scalar_mul(rhs, eps))) break;
+                }
+
+                // francis qr step
+                hh = {};
+                hh.v = [I, O, O];
+                for (k=im; k<=iu-2; ++k)
+                {
+                    //Matrix<Scalar, 2, 1> ess;
+                    if (k === im)
+                    {
+                        //v = firstHouseholderVector;
+                        //v.makeHouseholder(ess, tau, beta);
+                        compute_householder(v, hh, 0, 2, 0, 0);
+                    }
+                    else
+                    {
+                        //v = m_matT.template block<3, 1>(k, k - 1);
+                        //v.makeHouseholder(ess, tau, beta);
+                        compute_householder(H, hh, k, k+2, k-1, k-1);
+                    }
+
+                    if (!eq(hh.beta, O))
+                    {
+                        if ((k === im) && (k > il))
+                        {
+                            H[k][k-1] = scalar_neg(H[k][k-1]);
+                        }
+                        else if (k !== im)
+                        {
+                            H[k][k-1] = hh.beta;
+                        }
+
+                        H = hh_mul('left', hh, H, k, k+2, k, null);//m_matT.block(k, k, 3, size - k).applyHouseholderOnTheLeft(ess, tau, workspace);
+                        H = hh_mul('right', hh, H, k, k+2, 0, stdMath.min(iu, k+3));//m_matT.block(0, k, (std::min)(iu, k + 3) + 1, 3).applyHouseholderOnTheRight(ess, tau, workspace);
+                        if (wantu) U = hh_mul('right', hh, U, k, k+2);//m_matU.block(0, k, size, 3).applyHouseholderOnTheRight(ess, tau, workspace);
+                    }
+                }
+
+                //Matrix<Scalar, 2, 1> v = m_matT.template block<2, 1>(iu - 1, iu - 2);
+                //Matrix<Scalar, 1, 1> ess;
+                //v.makeHouseholder(ess, tau, beta);
+                hh.v = [I, O];
+                compute_householder(H, hh, iu-1, iu, iu-2, iu-2);
+
+                if (!eq(hh.beta, O))
+                {
+                    H[iu-1][iu-2] = hh.beta;
+                    H = hh_mul('left', hh, H, iu-1, iu, iu-1, null);//m_matT.block(iu - 1, iu - 1, 2, size - iu + 1).applyHouseholderOnTheLeft(ess, tau, workspace);
+                    H = hh_mul('right', hh, H, iu-1, iu, 0, iu);//m_matT.block(0, iu - 1, iu + 1, 2).applyHouseholderOnTheRight(ess, tau, workspace);
+                    if (wantu) U = hh_mul('right', hh, U, iu-1, iu);//m_matU.block(0, iu - 1, size, 2).applyHouseholderOnTheRight(ess, tau, workspace);
+                }
+
+                // zero-out round-off remainders
+                for (i=im+2; i<=iu; ++i)
+                {
+                    H[i][i-2] = O;
+                    if (i > im+2) H[i][i-3] = O;
+                }
+            }
         }
     }
     return wantu ? [U, H] : H;
 }
-fn.schur = varargout(function(nargout, A) {
+fn.schur = varargout(function(nargout, A, mode) {
     if (is_scalar(A)) A = [[A]];
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("schur");
-    return schur(A, 1 < nargout);
+    return schur(A, 1 < nargout, "complex" === mode || !fn.isreal(A));
 });
 function eig_power(A)
 {
@@ -6293,7 +6830,7 @@ function svd(A, eta, wantu, wantv)
         e, r, g, f, h, sn, cs,
         i, j, k, l,
         kk, k1, l1, ll,
-        iter, max_iter = 50,
+        iter, max_iter = 100,
         b = new Array(n),
         c = new Array(n),
         t = new Array(n),
@@ -7019,15 +7556,42 @@ fn.smithForm = varargout(function(nargout, A) {
     var ans = snf(fn.round(fn.real(A)), 1 < nargout, 1 < nargout);
     return 1 < nargout ? [ans[1], ans[2], ans[0]] : ans;
 });
-function sqrtm(A, max_iter)
+function sqrtm_tri(T)
+{
+    /*
+    "Computing matrix functions",
+    Nicholas J. Higham, Awad H. Al-Mohy,
+    Acta Numerica (2010), pp. 159–208,
+    Algorithm 4.6 based on Schur method due to Bjorck and Hammarling (1983)
+    */
+    // sqrtm of upper triangular matrix
+    var n = ROWS(T),
+        U = matrix(n, n, O),
+        i, j, k, kl, UU;
+    for (j=0; j<n; ++j)
+    {
+        U[j][j] = fn.sqrt(T[j][j]);
+        kl = j-1;
+        for (i=j-1; i>=0; --i)
+        {
+            for (UU=O,k=i+1; k<=kl; ++k)
+            {
+                UU = scalar_add(UU, scalar_mul(U[i][k], U[k][j]));
+            }
+            U[i][j] = scalar_div(scalar_sub(T[i][j], UU), scalar_add(U[i][i], U[j][j]));
+        }
+    }
+    return U;
+}
+function sqrtm(A)
 {
     /*
     "A new stable and avoiding inversion iteration for computing matrix square root",
     Li ZHU, Keqi YE, Yuelin ZHAO, Feng WU, Jiqiang HU, Wanxie ZHONG, 2022
     https://arxiv.org/abs/2206.10346
     */
-    if (null == max_iter) max_iter = 100;
-
+    /*
+    var max_iter = 100;
     var n = ROWS(A),
         X, Xnext,
         Y, Ynext,
@@ -7052,48 +7616,112 @@ function sqrtm(A, max_iter)
         X = Xnext; Y = Ynext;
     }
     return realify(X); // -> A^(1/2)
+    */
+
+    /*
+    "Computing matrix functions",
+    Nicholas J. Higham, Awad H. Al-Mohy,
+    Acta Numerica (2010), pp. 159–208,
+    Algorithm 4.6 based on Schur method due to Bjorck and Hammarling (1983)
+    */
+    var QT = schur(A, true, true),
+        Q = QT[0], T = QT[1];
+    return mul(mul(Q, sqrtm_tri(T)), ctranspose(Q));
 }
 fn.sqrtm = varargout(function(nargout, A) {
     if (2 < nargout) throw "sqrtm: output not supported";
     if (is_scalar(A)) return 1 < nargout ? [fn.sqrt(A), O] : fn.sqrt(A);
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("sqrtm");
     var sqrtA = sqrtm(A);
-    return 1 < nargout ? [sqrtA, scalar_div(norm(sub(A, pow(sqrtA, two)), I), norm(A, I))] : sqrtA;
+    return 1 < nargout ? [sqrtA, scalar_div(norm(sub(A, mul(sqrtA, sqrtA)), I), norm(A, I))] : sqrtA;
 });
 function expm(A)
 {
     /*
-    "Matrix Computations",
-    Golub G.H., Van Loan C.F., 1996
-    Algorithm 11.3.1
+    "Nineteen Dubious Ways to Compute the Exponential of a Matrix, Twenty-Five Years Later",
+    Cleve Moler, Charles Van Loan,
+    SIAM REVIEW, 2003
     */
+    // exp(A) by scaling, Taylor approximation and squaring
     var n = ROWS(A),
-        eps = __(1e-10),
-        In = eye(n), F,
-        D = In, N = In,
-        X = In, c = I,
-        j = max([O, n_add(I, realMath.floor(realMath.log2(norm(A, inf))))]),
-        q = 4*n*n/*TODO function of eps*/, k, s;
-    A = dotdiv(A, n_pow(two, j));
-    for (s=I,k=1; k<=q; ++k)
+        i, N,
+        In = eye(n),
+        expA, An,
+        k = max([O, n_add(I, realMath.floor(realMath.log2(norm(A, inf))))]);
+    // down-scaling by a power of 2
+    A = dotdiv(A, n_pow(two, k));
+    An = A;
+    // Taylor expansion of exp(A) up to N terms,
+    // I + A + A^2/2! + A^3/3! + ..
+    // in general converges
+    expA = add(In, An);
+    for (i=2,N=100; i<=N; ++i)
     {
-        c = n_div(n_mul(c, n_add(n_sub(q, k), I)), n_mul(n_add(n_sub(n_mul(two, q), k), I), k));
-        X = mul(A, X);
-        N = add(N, dotmul(c, X));
-        D = add(D, dotmul(n_mul(s, c), X));
-        s = I === s ? J : I;
+        An = dotdiv(mul(A, An), __(i));
+        expA = add(expA, An);
     }
-    F = linsolve(D, N);
-    for (k=1,j=_(j); k<=j; ++k)
+    // fast squaring
+    for (i=1,k=_(k); i<=k; ++i)
     {
-        F = mul(F, F);
+        expA = mul(expA, expA);
     }
-    return F; // -> exp(A)
+    return expA;
 }
 fn.expm = function(A) {
     if (is_scalar(A)) return fn.exp(A);
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("expm");
     return expm(A);
+};
+fn.sinm = function(A) {
+    if (is_scalar(A)) return fn.sin(A);
+    if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("sinm");
+    return dotdiv(sub(expm(dotmul(A, i)), expm(dotmul(A, scalar_mul(J, i)))), scalar_mul(two, i));
+};
+fn.cosm = function(A) {
+    if (is_scalar(A)) return fn.cos(A);
+    if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("cosm");
+    return dotdiv(add(expm(dotmul(A, i)), expm(dotmul(A, scalar_mul(J, i)))), two);
+};
+fn.sinhm = function(A) {
+    if (is_scalar(A)) return fn.sinh(A);
+    if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("sinhm");
+    return dotdiv(sub(expm(A), expm(dotmul(A, J))), two);
+};
+fn.coshm = function(A) {
+    if (is_scalar(A)) return fn.cosh(A);
+    if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("coshm");
+    return dotdiv(add(expm(A), expm(dotmul(A, J))), two);
+};
+function logm(A)
+{
+    // log(A) by inverse squaring(sqrt), Taylor approximation and inverse scaling
+    var QT = schur(A, true, true),
+        Q = QT[0], T = QT[1],
+        k = max([O, n_add(I, realMath.floor(realMath.log2(norm(T, inf))))]),
+        twok = n_pow(two, k),
+        An, logA, i, N;
+    // inverse squaring (sqrt)
+    for (i=1,k=_(k); i<=k; ++i)
+    {
+        T = sqrtm_tri(T);
+    }
+    A = mul(mul(Q, T), ctranspose(Q));
+    An = A; // should be close to I
+    // Taylor expansion of log(I+A) up to N terms,
+    // A - A^2/2 + A^3/3 - A^4/4 + ..
+    logA = An;
+    for (i=2,N=100; i<=N; ++i)
+    {
+        An = mul(A, An);
+        logA = i & 1 ? add(logA, dotdiv(An, __(i))) : sub(logA, dotdiv(An, __(i)));
+    }
+    // inverse scaling
+    return dotmul(logA, twok);
+}
+fn.logm = function(A) {
+    if (is_scalar(A)) return fn.log(A);
+    if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("logm");
+    return logm(A);
 };
 var __a1 =  0.254829592,
     __a2 = -0.284496736,
@@ -7970,6 +8598,74 @@ fn.pwcdanneal = function(D, k) {
         }
         return cluster+1;
     });
+};// window functions
+fn.rectwin = function(L) {
+    L = stdMath.round(_(sca(L, true)));
+    return vec2col(array(L, function(n) {return I;}));
+};
+fn.triang = function(L) {
+    L = stdMath.round(_(sca(L, true)));
+    return vec2col((L & 1) ? array(L, function(n) {
+        return __(n+1 <= (L+1)/2 ? (2*(n+1)/(L+1)) : (2 - 2*(n+1)/(L+1)));
+    }) : array(L, function(n) {
+        return __(n+1 <= L/2 ? ((2*(n+1)-1)/L) : (2 - (2*(n+1)-1)/L));
+    }));
+};
+fn.gausswin = function(L, alpha) {
+    L = stdMath.round(_(sca(L, true)));
+    if (null == alpha) alpha = 2.5;
+    alpha = _(sca(alpha, true));
+    var sigma2 = (L-1)/(2*a);
+    sigma2 = 2*sigma2*sigma2;
+    return vec2col(array(L, function(n) {
+        n -= (L-1)/2;
+        return __(stdMath.exp(-(n*n)/sigma2));
+    }));
+};
+fn.hamming = function(L, sflag) {
+    L = stdMath.round(_(sca(L, true)));
+    var N = sflag === "periodic" ? L : (L - 1);
+    return vec2col(array(L, function(n) {
+        return __(0.54 - 0.46*stdMath.cos(2*pi*n/N));
+    }));
+};
+fn.hann = function(L, sflag) {
+    L = stdMath.round(_(sca(L, true)));
+    var N = sflag === "periodic" ? L : (L - 1);
+    return vec2col(array(L, function(n) {
+        return __(0.5*(1 - stdMath.cos(2*pi*n/N)));
+    }));
+};
+fn.bartlett = function(L) {
+    L = stdMath.round(_(sca(L, true)));
+    if (1 === L) return I;
+    var N = L - 1;
+    return vec2col(array(L, function(n) {
+        return __(n <= N/2 ? (2*n/N) : (2 - 2*n/N));
+    }));
+};
+fn.barthannwin = function(L) {
+    L = stdMath.round(_(sca(L, true)));
+    if (1 === L) return I;
+    var N = L - 1;
+    return vec2col(array(L, function(n) {
+        return __(0.62 - 0.48*stdMath.abs(n/N - 0.5) + 0.38*stdMath.cos(2*pi*(n/N-0.5)));
+    }));
+};
+fn.blackman = function(L, sflag) {
+    L = stdMath.round(_(sca(L, true)));
+    var N = "periodic" === sflag ? L : (L - 1), M = N & 1 ? (N+1)/2 : (N/2);
+    return vec2col(array(L, function(n, arr) {
+        return n <= M-1 ? __(0.42-0.5*stdMath.cos(2*pi*n/(L-1))+0.08*stdMath.cos(4*pi*n/(L-1))) : arr[L-1-n];
+    }));
+};
+fn.blackmanharris = function(L, sflag) {
+    L = stdMath.round(_(sca(L, true)));
+    var a0 = 0.35875, a1 = 0.48829, a2 = 0.14128, a3 = 0.01168,
+        N = "periodic" === sflag ? L : (L - 1);
+    return vec2col(array(L, function(n) {
+        return __(a0 - a1*stdMath.cos(2*pi*n/N) + a2*stdMath.cos(4*pi*n/N) - a3*stdMath.cos(6*pi*n/N));
+    }));
 };function conv(a, b)
 {
     // adapted from https://github.com/foo123/FILTER.js
@@ -8397,7 +9093,48 @@ fn.ifft = function(x) {
     }
     not_supported("ifft");
 };
-// adapted from https://github.com/foo123/FILTER.js
+function fftshift(x, dim)
+{
+    if (is_vector(x))
+    {
+        var N = x.length, N_2 = stdMath.ceil(N / 2);
+        return array(N, function(i) {
+            return x[(i+N_2) % N];
+        });
+    }
+    else if (is_matrix(x))
+    {
+        var N = ROWS(x), N_2 = stdMath.ceil(N / 2),
+            M = COLS(x), M_2 = stdMath.ceil(M / 2);
+        if (1 === dim)
+        {
+            return matrix(N, M, function(i, j) {
+                return x[(i+N_2) % N][j];
+            });
+        }
+        else if (2 === dim)
+        {
+            return matrix(N, M, function(i, j) {
+                return x[i][(j+M_2) % M];
+            });
+        }
+        else
+        {
+            return matrix(N, M, function(i, j) {
+                return x[(i+N_2) % N][(j+M_2) % M];
+            });
+        }
+    }
+    return x;
+}
+fn.fftshift = function(x, dim) {
+    x = vec(x);
+    if (is_vector(x) || is_matrix(x))
+    {
+        return fftshift(x, is_scalar(dim) ? _(real(dim)) : null);
+    }
+    return x;
+};// adapted from https://github.com/foo123/FILTER.js
 function fft2(x, inv, output)
 {
     var nx = x.length, ny = x[0].length;
@@ -8450,6 +9187,216 @@ fn.ifft2 = function(x) {
     if (!is_matrix(x)) not_supported("ifft2");
     return realify(fft2(complexify(x), true));
 };
+function stft(inp, win, FFTLEN, OVERLAP, inv)
+{
+    // short-time fourier transform and inverse
+    var out,
+        WLEN = win.length,
+        nw,
+        HOP = stdMath.max(1, WLEN - OVERLAP),
+        before = stdMath.floor((FFTLEN - WLEN)/2),
+        //after = FFTLEN - WLEN - before,
+        N, SEGMENTS,
+        zero = new complex(O, O),
+        i, j, k,
+        wx = new Array(FFTLEN),
+        fx = new Array(FFTLEN);
+
+    // normalize win.*win to unit energy
+    //nw = win.^2
+    nw = dotpow(abs(win), two);
+    for (i=HOP; i<WLEN; i+=HOP)
+    {
+        //nw[1:end-i+1] += win[i:end].^2
+        for (j=i; j<WLEN; ++j)
+        {
+            nw[j-i] = scalar_add(nw[j], scalar_pow(scalar_abs(win[j]), two));
+        }
+        //nw[i:end] += win[1:end-i+1].^2
+        for (j=i; j<WLEN; ++j)
+        {
+            nw[j] = scalar_add(nw[j], scalar_pow(scalar_abs(win[j-i]), two));
+        }
+    }
+    //win = win ./ sqrt(real(norm))
+    win = win.map(function(wi, i) {return scalar_div(wi, realMath.sqrt(real(nw[i])));});
+
+    if (inv)
+    {
+        // inverse short-time fourier transform using ifft
+        SEGMENTS = COLS(inp);
+        N = stdMath.max(0, SEGMENTS * HOP + OVERLAP);
+        out = array(N, zero);
+
+        for (j=0,i=0; i<SEGMENTS; ++i,j+=HOP)
+        {
+            // get segment
+            for (k=0; k<FFTLEN; ++k)
+            {
+                fx[k] = inp[k][i];
+                wx[k] = zero;
+            }
+            // ifft
+            fft1(fx, true, wx);
+            // overlap-add resynthesis
+            // win should satisfy certain conditions (COLA) for exact inverse reconstruction
+            for (k=0; k<WLEN; ++k)
+            {
+                if (j+k >= N) break;
+                out[j+k] = scalar_add(out[j+k], scalar_mul(win[k], wx[before+k]));
+            }
+        }
+    }
+    else
+    {
+        // short-time fourier transform using fft
+        N = inp.length;
+        // if (N - OVERLAP) / HOP is integer istft produces output of same length as original input
+        SEGMENTS = stdMath.floor((N - OVERLAP) / HOP),
+        out = matrix(FFTLEN, SEGMENTS, zero);
+
+        for (j=0,i=0; i<SEGMENTS; ++i,j+=HOP)
+        {
+            // apply win to segment with zero padding before and after
+            for (k=0; k<before; ++k)
+            {
+                wx[k] = zero;
+                fx[k] = zero;
+            }
+            for (k=0; k<WLEN; ++k)
+            {
+                wx[before+k] = j+k < N ? scalar_mul(win[k], inp[j+k]) : zero;
+                fx[before+k] = zero;
+            }
+            for (k=before+WLEN; k<FFTLEN; ++k)
+            {
+                wx[k] = zero;
+                fx[k] = zero;
+            }
+            // fft
+            fft1(/*fftshift(*/wx/*)*/, false, fx);
+            // store
+            for (k=0; k<FFTLEN; ++k)
+            {
+                out[k][i] = fx[k];
+            }
+        }
+    }
+    return out;
+}
+fn.stft = varargout(function(nargout, x) {
+    var i = 2, fs = 2*pi,
+        win = null, ovrl = null, nfft = null,
+        ans, f = null, t = null;
+    while (i < arguments.length)
+    {
+        if ((2 === i) && is_scalar(arguments[i]))
+        {
+            fs = _(real(arguments[i]));
+            i += 1;
+        }
+        else if (("Window" === arguments[i]) && is_array(arguments[i+1]))
+        {
+            win = vec(arguments[i+1]);
+            i += 2;
+        }
+        else if (("OverlapLength" === arguments[i]) && is_scalar(arguments[i+1]))
+        {
+            ovrl = stdMath.round(_(real(arguments[i+1])));
+            i += 2;
+        }
+        else if (("FFTLength" === arguments[i]) && is_scalar(arguments[i+1]))
+        {
+            nfft = stdMath.round(_(real(arguments[i+1])));
+            i += 2;
+        }
+        else
+        {
+            i += 1;
+        }
+    }
+    if (null == win) win = vec(fn.hann(stdMath.min(x.length, 128), "periodic"));
+    if (null == nfft) nfft = stdMath.max(128, win.length);
+    if (null == ovrl) ovrl = stdMath.floor(0.75*win.length);
+    x = vec(x);
+    if (is_matrix(x))
+    {
+        ans = array(COLS(x), function(column) {
+            return realify(stft(complexify(COL(x, column)), win, nfft, ovrl, false));
+        });
+    }
+    else if (is_vector(x))
+    {
+        ans = realify(stft(complexify(x), win, nfft, ovrl, false));
+    }
+    else
+    {
+        not_supported("stft");
+    }
+    if (1 < nargout)
+    {
+        f = array(nfft, function(k) {
+            return __((k/nfft /*- 0.5*//*nyquist rate*/)*fs);
+        });
+    }
+    if (2 < nargout)
+    {
+        t = array(stdMath.floor((x.length - ovrl) / (win.length - ovrl)), function(m) {
+            return __(m*stdMath.max(1, win.length - ovrl)/fs);
+        });
+    }
+    return 1 < nargout ? [ans, f, t] : ans;
+});
+fn.istft = varargout(function(nargout, X) {
+    var i = 2, fs = 2*pi,
+        win = null, ovrl = null, nfft = null,
+        ans, t = null;
+    while (i < arguments.length)
+    {
+        if ((2 === i) && is_scalar(arguments[i]))
+        {
+            fs = _(real(arguments[i]));
+            i += 1;
+        }
+        else if (("Window" === arguments[i]) && is_array(arguments[i+1]))
+        {
+            win = vec(arguments[i+1]);
+            i += 2;
+        }
+        else if (("OverlapLength" === arguments[i]) && is_scalar(arguments[i+1]))
+        {
+            ovrl = stdMath.round(_(real(arguments[i+1])));
+            i += 2;
+        }
+        else if (("FFTLength" === arguments[i]) && is_scalar(arguments[i+1]))
+        {
+            nfft = stdMath.round(_(real(arguments[i+1])));
+            i += 2;
+        }
+        else
+        {
+            i += 1;
+        }
+    }
+    if (null == win) win = vec(fn.hann(stdMath.min(X.length, 128), "periodic"));
+    if (null == nfft) nfft = stdMath.max(128, win.length);
+    if (null == ovrl) ovrl = stdMath.floor(0.75*win.length);
+    if (is_matrix(X) && (nfft === ROWS(X)))
+    {
+        ans = realify(stft(complexify(X), win, nfft, ovrl, true));
+    }
+    else
+    {
+        not_supported("istft");
+    }
+    if (1 < nargout)
+    {
+        t = array(stdMath.floor((X.length - ovrl) / (win.length - ovrl)), function(m) {
+            return __(m*stdMath.max(1, win.length - ovrl)/fs);
+        });
+    }
+    return 1 < nargout ? [ans, t] : ans;
+});
 function addp(p, q)
 {
     // adapted from https://github.com/foo123/Abacus

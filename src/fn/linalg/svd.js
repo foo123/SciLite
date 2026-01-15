@@ -32,7 +32,7 @@ function svd(A, eta, wantu, wantv)
         e, r, g, f, h, sn, cs,
         i, j, k, l,
         kk, k1, l1, ll,
-        iter, max_iter = 50,
+        iter, max_iter = 100,
         b = new Array(n),
         c = new Array(n),
         t = new Array(n),

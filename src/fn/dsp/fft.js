@@ -205,3 +205,45 @@ fn.ifft = function(x) {
     }
     not_supported("ifft");
 };
+function fftshift(x, dim)
+{
+    if (is_vector(x))
+    {
+        var N = x.length, N_2 = stdMath.ceil(N / 2);
+        return array(N, function(i) {
+            return x[(i+N_2) % N];
+        });
+    }
+    else if (is_matrix(x))
+    {
+        var N = ROWS(x), N_2 = stdMath.ceil(N / 2),
+            M = COLS(x), M_2 = stdMath.ceil(M / 2);
+        if (1 === dim)
+        {
+            return matrix(N, M, function(i, j) {
+                return x[(i+N_2) % N][j];
+            });
+        }
+        else if (2 === dim)
+        {
+            return matrix(N, M, function(i, j) {
+                return x[i][(j+M_2) % M];
+            });
+        }
+        else
+        {
+            return matrix(N, M, function(i, j) {
+                return x[(i+N_2) % N][(j+M_2) % M];
+            });
+        }
+    }
+    return x;
+}
+fn.fftshift = function(x, dim) {
+    x = vec(x);
+    if (is_vector(x) || is_matrix(x))
+    {
+        return fftshift(x, is_scalar(dim) ? _(real(dim)) : null);
+    }
+    return x;
+};

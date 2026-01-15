@@ -6,11 +6,12 @@ function balance(A, pnorm, wantt)
     RODNEY JAMES, JULIEN LANGOU, BRADLEY R. LOWERY
     https://arxiv.org/abs/1401.5766
     */
-    var n = ROWS(A),
+    var n = ROWS(A), n1 = n-1,
         B = todecimal(A),
         T = wantt ? array(n, I) : null,
-        i, j, f,
-        col, row, c, r,
+        col = new Array(n1),
+        row = new Array(n1),
+        i, j, ji, f, c, r,
         eps = __(1e-10),
         converged, iter;
     for (iter=1; iter<=100; ++iter)
@@ -18,10 +19,12 @@ function balance(A, pnorm, wantt)
         converged = 0;
         for (i=0; i<n; ++i)
         {
-            col = COL(B, i);
-            col.splice(i, 1);
-            row = ROW(B, i);
-            row.splice(i, 1);
+            for (j=0; j<n1; ++j)
+            {
+                ji = j >= i ? j+1 : j;
+                col[j] = B[ji][i];
+                row[j] = B[i][ji];
+            }
             c = norm(col, pnorm);
             r = norm(row, pnorm);
             if (n_eq(r, O) || n_eq(c, O))
