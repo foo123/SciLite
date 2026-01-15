@@ -1,8 +1,10 @@
 function pwcdanneal(D, k, alpha, max_iter)
 {
-    // "Pairwise Data Clustering by Deterministic Annealing",
-    // Thomas Hofmann, Joachim M. Buhmann,
-    // IEEE Transactions on Pattern Analysis and Machine Intelligence, 1997
+    /*
+    "Pairwise Data Clustering by Deterministic Annealing",
+    Thomas Hofmann, Joachim M. Buhmann,
+    IEEE Transactions on Pattern Analysis and Machine Intelligence, 1997
+    */
     // D is the square distance or dissimilarity matrix
     // M is the assignment matrix which consists of the
     // a posteriori probabilities of a component zi for a given class ck
