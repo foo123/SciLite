@@ -117,10 +117,6 @@ function fft1_r(x, inv, output)
         }
     }
 }
-var SQRT1_2 = stdMath.SQRT1_2;
-update.push(function() {
-    SQRT1_2 = __(stdMath.SQRT1_2);
-});
 function fft1_i(x, inv, output)
 {
     // Loops go like O(n log n):
@@ -151,8 +147,8 @@ function fft1_i(x, inv, output)
                 right_r = n_sub(n_mul(f_r, t), n_mul(f_i, s));
                 right_i = n_add(n_mul(f_i, t), n_mul(f_r, s));
 
-                output[l_index] = new complex(n_mul(n_add(left_r, right_r), SQRT1_2), n_mul(n_add(left_i, right_i), SQRT1_2));
-                output[r_index] = new complex(n_mul(n_sub(left_r, right_r), SQRT1_2), n_mul(n_sub(left_i, right_i), SQRT1_2));
+                output[l_index] = new complex(n_mul(n_add(left_r, right_r), sqrt1_2), n_mul(n_add(left_i, right_i), sqrt1_2));
+                output[r_index] = new complex(n_mul(n_sub(left_r, right_r), sqrt1_2), n_mul(n_sub(left_i, right_i), sqrt1_2));
 
                 t = n_sub(n_mul(f_r, del_f_r), n_mul(f_i, del_f_i));
                 s = n_add(n_mul(f_r, del_f_i), n_mul(f_i, del_f_r));

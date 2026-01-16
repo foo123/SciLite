@@ -246,12 +246,13 @@ var OP = {
     '+': {
      name         : 'add'
     ,arity        : 2
+    ,arityalt     : 1
     ,fixity       : INFIX
     ,associativity: LEFT
     ,commutativity: COMMUTATIVE
     ,priority     : 25
     ,fn           : function(arg0, arg1) {
-                        return add(arg0, arg1);
+                        return 1 === arguments.length ? arg0 : add(arg0, arg1);
                     }
     },
     '-': {
@@ -340,7 +341,7 @@ var OP = {
     ,commutativity: COMMUTATIVE
     ,priority     : 32
     ,fn           : function(arg0, arg1) {
-                        return TRUE(arg0) && TRUE(arg1) ? I : O;
+                        return TRUE(arg0) && TRUE(arg1) ? 1 : 0;
                     }
     },
     '||': {
@@ -351,7 +352,7 @@ var OP = {
     ,commutativity: COMMUTATIVE
     ,priority     : 33
     ,fn           : function(arg0, arg1) {
-                        return TRUE(arg0) || TRUE(arg1) ? I : O;
+                        return TRUE(arg0) || TRUE(arg1) ? 1 : 0;
                     }
     },
     'xor': {
@@ -363,7 +364,7 @@ var OP = {
     ,priority     : 33
     ,fn           : function(arg0, arg1) {
                         var a = TRUE(arg0), b = TRUE(arg1);
-                        return (a && !b) || (b && !a) ? I : O;
+                        return (a && !b) || (b && !a) ? 1 : 0;
                     }
     },
     '~': {
@@ -374,7 +375,29 @@ var OP = {
     ,commutativity: ANTICOMMUTATIVE
     ,priority     : 31
     ,fn           : function(arg0) {
-                        return TRUE(arg0) ? O : I;
+                        return TRUE(arg0) ? 0 : 1;
+                    }
+    },
+    '&': {
+     name         : 'band'
+    ,arity        : 2
+    ,fixity       : INFIX
+    ,associativity: LEFT
+    ,commutativity: COMMUTATIVE
+    ,priority     : 41
+    ,fn           : function(arg0, arg1) {
+                        return bitand(arg0, arg1);
+                    }
+    },
+    '|': {
+     name         : 'bor'
+    ,arity        : 2
+    ,fixity       : INFIX
+    ,associativity: LEFT
+    ,commutativity: COMMUTATIVE
+    ,priority     : 41
+    ,fn           : function(arg0, arg1) {
+                        return bitor(arg0, arg1);
                     }
     },
     '=': {
@@ -1191,10 +1214,22 @@ function parse(s, ctx, lineStart, posStart)
             }
             if (match = eat('%'))
             {
-                // comment
+                // line comment
                 j = s.indexOf("\n");
                 s = s.slice(-1 < j ? j+1 : s.length);
                 if (-1 < j) ++l;
+                i = 0;
+                end(true);
+                continue;
+            }
+            if (match = eat('{%'))
+            {
+                // block comment
+                j = s.indexOf("%}");
+                if (-1 === j) j = s.length;
+                tmp = s.slice(0, j+2);
+                s = s.slice(j+2);
+                l += tmp.split("\n").length-1;
                 i = 0;
                 end(true);
                 continue;
@@ -1206,9 +1241,9 @@ function parse(s, ctx, lineStart, posStart)
                 terms.unshift(expr("'" === match[0] ? term.split('') : term));
                 continue;
             }
-            if (match = eat(/^(&&|\|\|)[^&\|]/, 1))
+            if (match = eat(/^(&&|\|\||&|\|)[^&\|]/, 1))
             {
-                // logical and/or
+                // logical/bitwise and/or
                 op = match[1];
                 ops.unshift([op, i, l]);
                 merge();

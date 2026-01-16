@@ -3,7 +3,7 @@
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
 * @version: 0.9.12
-* 2026-01-15 12:59:29
+* 2026-01-16 21:32:27
 * https://github.com/foo123/SciLite
 *
 **//**
@@ -11,7 +11,7 @@
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
 * @version: 0.9.12
-* 2026-01-15 12:59:29
+* 2026-01-16 21:32:27
 * https://github.com/foo123/SciLite
 *
 **/
@@ -48,6 +48,8 @@ var decimal = null,
     bitmax = intmax,
     O = 0, I = 1, J = -1,
     half = 0.5, two = 2, ten = 10,
+    sqrt2 = stdMath.SQRT2,
+    sqrt1_2 = stdMath.SQRT1_2,
     update = [],
     HAS = Object.prototype.hasOwnProperty,
     toString = Object.prototype.toString,
@@ -107,6 +109,8 @@ $_.decimal = function(Decimal) {
         ten = decimal(10);
         log_10 = decimal(stdMath.log(10));
         log_2 = decimal(stdMath.log(2));
+        sqrt2 = decimal(stdMath.SQRT2);
+        sqrt1_2 = decimal(stdMath.SQRT1_2);
         constant.eps = decimal(eps);
         constant.pi = decimal(pi);
         constant.e = decimal(e);
@@ -127,6 +131,8 @@ $_.decimal = function(Decimal) {
         ten = 10;
         log_2 = stdMath.log(2);
         log_10 = stdMath.log(10);
+        sqrt2 = stdMath.SQRT2;
+        sqrt1_2 = stdMath.SQRT1_2;
         constant.eps = eps;
         constant.pi = pi;
         constant.e = e;
@@ -7672,56 +7678,448 @@ fn.expm = function(A) {
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("expm");
     return expm(A);
 };
-fn.sinm = function(A) {
-    if (is_scalar(A)) return fn.sin(A);
-    if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("sinm");
-    return dotdiv(sub(expm(dotmul(A, i)), expm(dotmul(A, scalar_mul(J, i)))), scalar_mul(two, i));
+function logm(A)
+{
+    // log(A) by inverse squaring(sqrt), Taylor approximation and inverse scaling
+    var n = ROWS(A),
+        BT = balance(A, null, true),
+        B = BT[0],
+        QT = schur(BT[1], true, true),
+        Q = QT[0],
+        T = QT[1],
+        In = eye(n),
+        theta = __(0.013325),
+        s = 0,
+        An, logA, i, N;
+
+    // inverse squaring (sqrt)
+    while (n_gt(norm(sub(T, In), inf), theta))
+    {
+        T = sqrtm_tri(T);
+        ++s;
+    }
+
+    T = sub(T, In);
+    An = T;
+    // Taylor expansion of log(I+A) up to N terms,
+    // A - A^2/2 + A^3/3 - A^4/4 + ..
+    logA = An;
+    for (i=2,N=10; i<=N; ++i)
+    {
+        An = mul(T, An);
+        logA = i & 1 ? add(logA, dotdiv(An, __(i))) : sub(logA, dotdiv(An, __(i)));
+    }
+
+    // inverse scaling
+    logA = dotmul(logA, n_pow(two, s));
+
+    return mul(mul(diag(B), mul(mul(Q, logA), ctranspose(Q))), diag(B.map(function(bi) {return n_inv(bi);})));
+}
+fn.logm = varargout(function(nargout, A) {
+    var logA;
+    if (is_scalar(A))
+    {
+        logA = fn.log(A);
+    }
+    else
+    {
+        if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("logm");
+        logA = logm(A);
+    }
+    return 1 < nargout ? [logA, 0] : logA;
+});
+function sgn(z)
+{
+    if (n_eq(real(z), O))
+    {
+        return n_eq(imag(z), O) ? I : realMath.sign(imag(z));
+    }
+    else
+    {
+        return realMath.sign(real(z));
+    }
+}
+function signm_tri(T)
+{
+    // adapted from https://github.com/higham/matrix-inv-trig-hyp/blob/master/acoshm.m
+    // sign(T) for upper triangular T
+    var n = ROWS(T),
+        S = eye(n),
+        i, j, k,
+        p, d, s;
+    for (i=0; i<n; ++i)
+    {
+        S[i][i] = sgn(T[i][i]);
+    }
+    for (p=0; p<n-1; ++p)
+    {
+        for (i=0; i<n-p; ++i)
+        {
+            j = i+p;
+            d = scalar_sub(T[j][j], T[i][i]);
+
+            // solve via S^2 = I if we can.
+            if (!eq(S[i][i], scalar_neg(S[j][j])))
+            {
+                // get S(i,j) from S^2 = I.
+                for (k=i+1; k<=j-1; ++k)
+                {
+                    S[i][j] = scalar_div(scalar_mul(scalar_neg(S[i][k]), S[k][j]), scalar_add(S[i][i], S[j][j]));
+                }
+            }
+            else
+            {
+                // get S(i,j) from S*T = T*S.
+                s = scalar_mul(T[i][j], scalar_sub(S[j][j], S[i][i]));
+                if (p > 0)
+                {
+                    for (k=i+1; k<=j-1; ++k)
+                    {
+                        s = scalar_add(s, scalar_sub(scalar_mul(T[i][k], S[k][j]), scalar_mul(S[i][k], T[k][j])));
+                    }
+                }
+                S[i][j] = scalar_div(s, d);
+            }
+        }
+    }
+    return S;
+}
+function signm(A)
+{
+    var QT = schur(A, true, true), Q = QT[0], T = QT[1];
+    return mul(mul(Q, signm_tri(T)), ctranspose(Q));
+}
+fn.signm = function(A) {
+    if (is_scalar(A)) return fn.sign(A);
+    if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("signm");
+    return signm(A);
 };
 fn.cosm = function(A) {
     if (is_scalar(A)) return fn.cos(A);
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("cosm");
     return dotdiv(add(expm(dotmul(A, i)), expm(dotmul(A, scalar_mul(J, i)))), two);
 };
-fn.sinhm = function(A) {
-    if (is_scalar(A)) return fn.sinh(A);
-    if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("sinhm");
-    return dotdiv(sub(expm(A), expm(dotmul(A, J))), two);
+fn.sinm = function(A) {
+    if (is_scalar(A)) return fn.sin(A);
+    if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("sinm");
+    return dotdiv(sub(expm(dotmul(A, i)), expm(dotmul(A, scalar_mul(J, i)))), scalar_mul(two, i));
 };
 fn.coshm = function(A) {
     if (is_scalar(A)) return fn.cosh(A);
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("coshm");
     return dotdiv(add(expm(A), expm(dotmul(A, J))), two);
 };
-function logm(A)
+fn.sinhm = function(A) {
+    if (is_scalar(A)) return fn.sinh(A);
+    if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("sinhm");
+    return dotdiv(sub(expm(A), expm(dotmul(A, J))), two);
+};
+/*function normAm(A, m)
 {
-    // log(A) by inverse squaring(sqrt), Taylor approximation and inverse scaling
-    var QT = schur(A, true, true),
-        Q = QT[0], T = QT[1],
-        k = max([O, n_add(I, realMath.floor(realMath.log2(norm(T, inf))))]),
-        twok = n_pow(two, k),
-        An, logA, i, N;
-    // inverse squaring (sqrt)
-    for (i=1,k=_(k); i<=k; ++i)
+    return norm(pow(A, m), inf);
+    var n = ROWS(A), e, j, c, mv;
+    // for positive matrices only
+    e = ones(n, 1);
+    A = ctranspose(A);
+    for (j=1; j<=m; ++j)
     {
-        T = sqrtm_tri(T);
+        e = mul(A, e);
     }
-    A = mul(mul(Q, T), ctranspose(Q));
-    An = A; // should be close to I
-    // Taylor expansion of log(I+A) up to N terms,
-    // A - A^2/2 + A^3/3 - A^4/4 + ..
-    logA = An;
-    for (i=2,N=100; i<=N; ++i)
+    c = norm(e, inf);
+    //mv = m;
+    return c;//[c, mv];
+}*/
+function acosm(A)
+{
+    // adapted from https://github.com/higham/matrix-inv-trig-hyp/blob/master/acosm.m
+
+    // Beta values for the backward error analysis.
+    var beta = [
+     __(0.000034417071) // k = 1
+    ,__(0.004807320816) // k = 2
+    ,__(0.039685094175) // k = 3
+    ,__(0.126262963075) // k = 4
+    ,__(0.258567093540) // k = 5
+    ,__(0.416519074566) // k = 6
+    ,__(0.580947286323) // k = 7
+    ,__(0.738997052037) // k = 8
+    ,__(0.883885725911) // k = 9
+    ,__(1.013025759393) // k = 10
+    ,__(1.126269612452) // k = 11
+    ,__(1.224699157280) // k = 12
+    ],
+    WT = schur(A, true, true),
+    W = WT[0], T = WT[1],
+    d = diag(T),
+    n, In, s, k,
+    d2, d3, d4, d5,
+    a2, a3, a4,
+    p, q, P, Q,
+    Z, powZ, ZZ, S1, S2;
+
+    if (any(d, function(d) {return n_eq(imag(d), O) && (n_eq(real(d), J) || n_eq(real(d), I));}))
     {
-        An = mul(A, An);
-        logA = i & 1 ? add(logA, dotdiv(An, __(i))) : sub(logA, dotdiv(An, __(i)));
+        console.warn("acosm: input must not have an eigenvalue of 1 or -1 else result may be unreliable!");
     }
-    // inverse scaling
-    return dotmul(logA, twok);
+
+    n = ROWS(A);
+    In = eye(n);
+    s = 0;
+    k = 0;
+
+    // Compute lower bound on the number of square roots required.
+    while (gt(norm(sub(I, d), inf), beta[7]))
+    {
+        ++s;
+        d = fn.sqrt(dotdiv(add(I, d), two));
+    }
+    for (i=1; i<=s; ++i)
+    {
+        T = sqrtm_tri(dotdiv(add(In, T), two));
+    }
+
+    // Determine degree of approximant.
+    while (0 === k)
+    {
+        Z = sub(In, T);
+
+        powZ = mul(Z, Z);
+        d2 = n_pow(norm(powZ, I), 1/2);
+        powZ = mul(Z, powZ);
+        d3 = n_pow(norm(powZ, I), 1/3);
+        a2 = n_gt(d2, d3) ? d2 : d3;
+        if (n_le(a2, beta[0])) {k = 1; break;}
+        if (n_le(a2, beta[1])) {k = 2; break;}
+        powZ = mul(Z, powZ);
+        d4 = n_pow(norm(powZ, I), 1/4);
+        a3 = n_gt(d3, d4) ? d3 : d4;
+        if (n_le(a3, beta[2])) {k = 3; break;}
+        if (n_le(a3, beta[3])) {k = 4; break;}
+        if (n_le(a3, beta[4])) {k = 5; break;}
+        powZ = mul(Z, powZ);
+        d5 = n_pow(norm(powZ, I), 1/5);
+        a4 = n_gt(d4, d5) ? d4 : d5;
+        a4 = n_lt(a3, a4) ? a3 : a4;
+        if (n_le(a4, beta[5])) {k = 6; break;}
+        if (n_le(a4, beta[6])) {k = 7; break;}
+        if (n_le(a4, beta[7])) {k = 8; break;}
+
+        T = sqrtm_tri(dotdiv(add(In, T), two));
+        ++s;
+    }
+
+    // Pade coefficients obtained with Mathematica (rounded to floating point).
+    // For better efficiency the Pade approximants should be evaluated
+    // using the Paterson-Stockmeyer algorithm.
+    if (1 === k)
+    {
+        p = [
+        I,
+        __(-0.1417)
+        ];
+
+        q = [
+        I,
+        __(-0.2250)
+        ];
+    }
+    else if (2 === k)
+    {
+        p = [
+        I,
+        __(-0.3891),
+        __(0.0187)
+        ];
+
+        q = [
+        I,
+        __(-0.4724),
+        __(0.0393)
+        ];
+    }
+    else if (3 === k)
+    {
+        p = [
+        I,
+        __(-0.6381843806),
+        __(0.0998258508),
+        __(-0.0024223030)
+        ];
+
+        q = [
+        I,
+        __(-0.7215177140),
+        __(0.1412023270),
+        __(-0.0062410636)
+        ];
+    }
+    else if (4 === k)
+    {
+        p = [
+        I,
+        __(-0.8877087699),
+        __(0.2433623027),
+        __(-0.0212197774),
+        __(0.0003104661)
+        ];
+
+        q = [
+        I,
+        __(-0.9710421032),
+        __(0.3055324779),
+        __(-0.0340541349),
+        __(0.0009394670)
+        ];
+    }
+    else if (5 === k)
+    {
+        p = [
+        I,
+        __(-1.1374227978),
+        __(0.4493652033),
+        __(-0.0719901333),
+        __(0.0040450280),
+        __(-0.0000395692)
+        ];
+
+        q = [
+        I,
+        __(-1.2207561311),
+        __(0.5323448809),
+        __(-0.0990433864),
+        __(0.0072305607),
+        __(-0.0001367979)
+        ];
+    }
+    else if (6 === k)
+    {
+        p = [
+        I,
+        __(-1.3872329589),
+        __(0.7178511241),
+        __(-0.1703500659),
+        __(0.0182193375),
+        __(-0.0007178871),
+        __(0.0000050248)
+        ];
+
+        q = [
+        I,
+        __(-1.4705662922),
+        __(0.8216483151),
+        __(-0.2168279980),
+        __(0.0271898450),
+        __(-0.0014099871),
+        __(0.0000194672)
+        ];
+    }
+    else if (7 === k)
+    {
+        p = [
+        I,
+        __(-1.6370982760),
+        __(1.0488276715),
+        __(-0.3319213490),
+        __(0.0537536569),
+        __(-0.0041439924),
+        __(0.0001211160),
+        __(-0.0000006365)
+        ];
+
+        q = [
+        I,
+        __(-1.7204316094),
+        __(1.1734469723),
+        __(-0.4030308611),
+        __(0.0730391826),
+        __(-0.0066542668),
+        __(0.0002586530),
+        __(-0.0000027240)
+        ];
+    }
+    else if (8 === k)
+    {
+        p = [
+        I,
+        __(-1.8869980457),
+        __(1.4422987012),
+        __(-0.5723275787),
+        __(0.1254739271),
+        __(-0.0149128371),
+        __(0.0008717583),
+        __(-0.0000196760),
+        __(0.0000000805)
+        ];
+
+        q = [
+        I,
+        __(-1.9703313790),
+        __(1.5877429828),
+        __(-0.6732761377),
+        __(0.1609063722),
+        __(-0.0215156706),
+        __(0.0014963185),
+        __(-0.0000453099),
+        __(0.0000003763)
+        ];
+    }
+    else
+    {
+        p = [I];
+
+        q = [I];
+    }
+
+    ZZ = array(p.length, function(i, ZZ) {
+        return 0 === i ? In : (1 === i ? Z : mul(Z, ZZ[i-1]));
+    });
+    P = zeros(n, n);
+    Q = zeros(n, n);
+    ZZ.forEach(function(ZZi, i) {
+        P = add(P, dotmul(p[i], ZZi));
+        Q = add(Q, dotmul(q[i], ZZi));
+    });
+    S1 = linsolve(Q, P);
+    S2 = mul(dotmul(S1, sqrt2), sqrtm_tri(Z));
+    S2 = dotmul(n_pow(two, s), S2);
+    return mul(mul(W, S2), ctranspose(W));
 }
-fn.logm = function(A) {
-    if (is_scalar(A)) return fn.log(A);
-    if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("logm");
-    return logm(A);
+fn.acosm = function(A) {
+    if (is_scalar(A)) return fn.acos(A);
+    if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("acosm");
+    return acosm(A);
+};
+fn.asinm = function(A) {
+    // adapted from https://github.com/higham/matrix-inv-trig-hyp/blob/master/asinm.m
+    if (is_scalar(A)) return fn.asin(A);
+    if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("asinm");
+    return sub(eye(ROWS(A), __(pi/2)), acosm(A));
+};
+function acoshm(A)
+{
+    // adapted from https://github.com/higham/matrix-inv-trig-hyp/blob/master/acoshm.m
+    var QT = schur(A, true, true), Q = QT[0], T = QT[1];
+    /*var d = diag(T);
+    if (any(imag(d) == 0 && 0 < real(d) && real(d) <= 1))
+    {
+        return Q*(logm(T + sqrtm(T - eye(size(T))) * sqrtm(T + eye(size(T)))))*ctranspose(Q);
+    }
+    else
+    {*/
+        // let acosm issue errors for eigenvals 1 or -1.
+        return dotmul(mul(mul(Q, mul(signm_tri(dotmul(T, scalar_mul(J, i))), acosm(T))), ctranspose(Q)), i);
+    /*}*/
+}
+fn.acoshm = function(A) {
+    if (is_scalar(A)) return fn.acosh(A);
+    if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("acoshm");
+    return acoshm(A);
+};
+fn.asinhm = function(A) {
+    // adapted from https://github.com/higham/matrix-inv-trig-hyp/blob/master/asinhm.m
+    if (is_scalar(A)) return fn.asinh(A);
+    if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("asinhm");
+    return dotmul(asinm(dotmul(A, scalar_mul(J, i))), i);
 };
 var __a1 =  0.254829592,
     __a2 = -0.284496736,
@@ -7791,7 +8189,7 @@ function median(x, dim)
     {
         if (!x.length) return nan;
         x = sort(x);
-        return x.length & 1 ? x[(x.length >> 1)] : scalar_div(scalar_add(x[(x.length >> 1)], x[(x.length >> 1) - 1]), __(2));
+        return x.length & 1 ? x[(x.length >> 1)] : scalar_div(scalar_add(x[(x.length >> 1)], x[(x.length >> 1) - 1]), two);
     }
     else if (is_matrix(x))
     {
@@ -8475,9 +8873,11 @@ fn.kmeans = varargout(function(nargout, X, k) {
     return ans;
 });function pwcdanneal(D, k, alpha, max_iter)
 {
-    // "Pairwise Data Clustering by Deterministic Annealing",
-    // Thomas Hofmann, Joachim M. Buhmann,
-    // IEEE Transactions on Pattern Analysis and Machine Intelligence, 1997
+    /*
+    "Pairwise Data Clustering by Deterministic Annealing",
+    Thomas Hofmann, Joachim M. Buhmann,
+    IEEE Transactions on Pattern Analysis and Machine Intelligence, 1997
+    */
     // D is the square distance or dissimilarity matrix
     // M is the assignment matrix which consists of the
     // a posteriori probabilities of a component zi for a given class ck
@@ -9005,10 +9405,6 @@ function fft1_r(x, inv, output)
         }
     }
 }
-var SQRT1_2 = stdMath.SQRT1_2;
-update.push(function() {
-    SQRT1_2 = __(stdMath.SQRT1_2);
-});
 function fft1_i(x, inv, output)
 {
     // Loops go like O(n log n):
@@ -9039,8 +9435,8 @@ function fft1_i(x, inv, output)
                 right_r = n_sub(n_mul(f_r, t), n_mul(f_i, s));
                 right_i = n_add(n_mul(f_i, t), n_mul(f_r, s));
 
-                output[l_index] = new complex(n_mul(n_add(left_r, right_r), SQRT1_2), n_mul(n_add(left_i, right_i), SQRT1_2));
-                output[r_index] = new complex(n_mul(n_sub(left_r, right_r), SQRT1_2), n_mul(n_sub(left_i, right_i), SQRT1_2));
+                output[l_index] = new complex(n_mul(n_add(left_r, right_r), sqrt1_2), n_mul(n_add(left_i, right_i), sqrt1_2));
+                output[r_index] = new complex(n_mul(n_sub(left_r, right_r), sqrt1_2), n_mul(n_sub(left_i, right_i), sqrt1_2));
 
                 t = n_sub(n_mul(f_r, del_f_r), n_mul(f_i, del_f_i));
                 s = n_add(n_mul(f_r, del_f_i), n_mul(f_i, del_f_r));
@@ -10511,12 +10907,13 @@ var OP = {
     '+': {
      name         : 'add'
     ,arity        : 2
+    ,arityalt     : 1
     ,fixity       : INFIX
     ,associativity: LEFT
     ,commutativity: COMMUTATIVE
     ,priority     : 25
     ,fn           : function(arg0, arg1) {
-                        return add(arg0, arg1);
+                        return 1 === arguments.length ? arg0 : add(arg0, arg1);
                     }
     },
     '-': {
@@ -10605,7 +11002,7 @@ var OP = {
     ,commutativity: COMMUTATIVE
     ,priority     : 32
     ,fn           : function(arg0, arg1) {
-                        return TRUE(arg0) && TRUE(arg1) ? I : O;
+                        return TRUE(arg0) && TRUE(arg1) ? 1 : 0;
                     }
     },
     '||': {
@@ -10616,7 +11013,7 @@ var OP = {
     ,commutativity: COMMUTATIVE
     ,priority     : 33
     ,fn           : function(arg0, arg1) {
-                        return TRUE(arg0) || TRUE(arg1) ? I : O;
+                        return TRUE(arg0) || TRUE(arg1) ? 1 : 0;
                     }
     },
     'xor': {
@@ -10628,7 +11025,7 @@ var OP = {
     ,priority     : 33
     ,fn           : function(arg0, arg1) {
                         var a = TRUE(arg0), b = TRUE(arg1);
-                        return (a && !b) || (b && !a) ? I : O;
+                        return (a && !b) || (b && !a) ? 1 : 0;
                     }
     },
     '~': {
@@ -10639,7 +11036,29 @@ var OP = {
     ,commutativity: ANTICOMMUTATIVE
     ,priority     : 31
     ,fn           : function(arg0) {
-                        return TRUE(arg0) ? O : I;
+                        return TRUE(arg0) ? 0 : 1;
+                    }
+    },
+    '&': {
+     name         : 'band'
+    ,arity        : 2
+    ,fixity       : INFIX
+    ,associativity: LEFT
+    ,commutativity: COMMUTATIVE
+    ,priority     : 41
+    ,fn           : function(arg0, arg1) {
+                        return bitand(arg0, arg1);
+                    }
+    },
+    '|': {
+     name         : 'bor'
+    ,arity        : 2
+    ,fixity       : INFIX
+    ,associativity: LEFT
+    ,commutativity: COMMUTATIVE
+    ,priority     : 41
+    ,fn           : function(arg0, arg1) {
+                        return bitor(arg0, arg1);
                     }
     },
     '=': {
@@ -11456,10 +11875,22 @@ function parse(s, ctx, lineStart, posStart)
             }
             if (match = eat('%'))
             {
-                // comment
+                // line comment
                 j = s.indexOf("\n");
                 s = s.slice(-1 < j ? j+1 : s.length);
                 if (-1 < j) ++l;
+                i = 0;
+                end(true);
+                continue;
+            }
+            if (match = eat('{%'))
+            {
+                // block comment
+                j = s.indexOf("%}");
+                if (-1 === j) j = s.length;
+                tmp = s.slice(0, j+2);
+                s = s.slice(j+2);
+                l += tmp.split("\n").length-1;
                 i = 0;
                 end(true);
                 continue;
@@ -11471,9 +11902,9 @@ function parse(s, ctx, lineStart, posStart)
                 terms.unshift(expr("'" === match[0] ? term.split('') : term));
                 continue;
             }
-            if (match = eat(/^(&&|\|\|)[^&\|]/, 1))
+            if (match = eat(/^(&&|\|\||&|\|)[^&\|]/, 1))
             {
-                // logical and/or
+                // logical/bitwise and/or
                 op = match[1];
                 ops.unshift([op, i, l]);
                 merge();

@@ -4,7 +4,7 @@ A **scientific computing environment** in pure JavaScript for browser and nodejs
 
 ![SciLite](./scilite.png)
 
-**v.0.9.12 in progress** (118 kB minified)
+**v.0.9.12 in progress** (122 kB minified)
 
 [![SciLite](./scilite-live.png)](https://foo123.github.io/examples/scilite/)
 
@@ -48,8 +48,9 @@ let [Ref, Pivots] = fn.rref.nargout(2)(A); // variable output
 
 ### Todo
 * implement more builtin functions from Octave/Matlab (IN PROGRESS)
-* complete any incomplete implementation of the usual matrix decompositions, eg `qr`, `schur`, `eig`, `qz` **[ALMOST DONE]**
-* complete any incomplete implementation of the usual matrix functions, eg `sqrtm`, `expm`, `logm` **[ALMOST DONE]**
+* complete implementation of the usual matrix decompositions, eg `lu`, `qr`, `schur`, `eig`, `qz`, `svd` **[ALMOST DONE]**
+* complete implementation of the usual matrix functions, eg `sqrtm`, `expm`, `logm` **[DONE]**
+* complete implementation of extra matrix functions, eg `cosm`, `acosm`, .. **[DONE]**
 * implement generalized/polynomial eigen decomposition (TODO)
 * implement more machine learning functions (eg `isodata`, ..) (IN PROGRESS)
 * implement some independent component/subspace analysis functions (eg `jade`) (IN PROGRESS)
