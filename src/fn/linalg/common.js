@@ -143,7 +143,7 @@ function concat(A, B, axis)
         });
     }
 }
-function is_tri(A, type, strict, eps, setzero)
+function is_tri(A, type, strict, eps, setzero, setcopy)
 {
     var nr = ROWS(A), nc = COLS(A), n, r, c;
     if ((false !== strict) && (nr !== nc)) return false;
@@ -179,6 +179,7 @@ function is_tri(A, type, strict, eps, setzero)
     }
     if ((true === setzero) && n_gt(eps, O))
     {
+        if (setcopy && setcopy._) A = setcopy._ = copy(A);
         if (('upper' === type) || ('diagonal' === type))
         {
             for (r=0; r<n; ++r)

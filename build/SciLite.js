@@ -3,7 +3,7 @@
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
 * @version: 0.9.12
-* 2026-01-17 12:04:43
+* 2026-01-17 14:06:51
 * https://github.com/foo123/SciLite
 *
 **//**
@@ -11,7 +11,7 @@
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
 * @version: 0.9.12
-* 2026-01-17 12:04:43
+* 2026-01-17 14:06:51
 * https://github.com/foo123/SciLite
 *
 **/
@@ -1590,22 +1590,39 @@ function dotpow(a, b)
 }
 $_.dotpow = dotpow;
 fn.power = dotpow;
-function mul_tri(A, B)
+function mul_tri(A, B, lower)
 {
-    // faster matrix-matrix mul for A,B nxn upper triangular
+    // faster matrix-matrix mul for A,B nxn triangular
     if (COLS(A) === ROWS(B))
     {
-        return matrix(ROWS(A), COLS(B), function(i, j) {
-            if (j < i) return O; // upper triangular
-            for (var cij=O,k=i,kmax=j+1; k<kmax; ++k)
-            {
-                cij = scalar_add(cij, scalar_mul(A[i][k], B[k][j]));
-            }
-            return cij;
-        });
+        if (true === lower)
+        {
+            // lower triangular
+            return matrix(ROWS(A), COLS(B), function(i, j) {
+                if (j > i) return O; // lower triangular
+                for (var cij=O,k=j,kmax=i; k<=kmax; ++k)
+                {
+                    cij = scalar_add(cij, scalar_mul(A[i][k], B[k][j]));
+                }
+                return cij;
+            });
+        }
+        else
+        {
+            // upper triangular
+            return matrix(ROWS(A), COLS(B), function(i, j) {
+                if (j < i) return O; // upper triangular
+                for (var cij=O,k=i,kmax=j; k<=kmax; ++k)
+                {
+                    cij = scalar_add(cij, scalar_mul(A[i][k], B[k][j]));
+                }
+                return cij;
+            });
+        }
     }
     throw "mul: matrix-matrix dimensions do not match";
 }
+$_.mult = mul_tri;
 function mul(a, b)
 {
     if (is_scalar(a) && is_scalar(b))
@@ -1618,7 +1635,7 @@ function mul(a, b)
         // matrix-matrix
         if (COLS(a) === ROWS(b))
         {
-            // TODO maybe optimize matrix-matrix multiplication (eg Strassen algorithm)
+            // TODO maybe optimize matrix-matrix multiplication (eg use Strassen algorithm)
             var rows = ROWS(a), cols = COLS(b), rc = ROWS(b);
             return matrix(rows, cols, function(i, j) {
                 for (var cij=O,k=0; k<rc; ++k)
@@ -4933,7 +4950,7 @@ function concat(A, B, axis)
         });
     }
 }
-function is_tri(A, type, strict, eps, setzero)
+function is_tri(A, type, strict, eps, setzero, setcopy)
 {
     var nr = ROWS(A), nc = COLS(A), n, r, c;
     if ((false !== strict) && (nr !== nc)) return false;
@@ -4969,6 +4986,7 @@ function is_tri(A, type, strict, eps, setzero)
     }
     if ((true === setzero) && n_gt(eps, O))
     {
+        if (setcopy && setcopy._) A = setcopy._ = copy(A);
         if (('upper' === type) || ('diagonal' === type))
         {
             for (r=0; r<n; ++r)
@@ -6366,10 +6384,15 @@ function qr(A, wantq, wantp, eps)
     var m = ROWS(A), n = COLS(A),
         Q = wantq ? eye(m) : null,
         R = A, P, p, t,
+        T = {_:1},
         colnorms, max,
         i, j, k, G, G_t, hh;
     eps = __(eps || 0);
-    if (!is_tri(R, "upper", false, eps, true))
+    if (is_tri(R, "upper", false, eps, true, T))
+    {
+        R = T._;
+    }
+    else
     {
         R = copy(A);
         if (wantp)
@@ -6623,6 +6646,7 @@ function schur(A, wantu, docomplex, eps)
         i, k, im,
         il, iu = n-1,
         H, U, normH,
+        T = {_:1},
         s, sI,
         G, G_t, Hmm,
         v, hh,
@@ -6634,10 +6658,10 @@ function schur(A, wantu, docomplex, eps)
 
     eps = null == eps ? __(1e-8) : __(eps);
 
-    if (is_tri(A, 'upper', false, eps, true))
+    if (is_tri(A, "upper", true, eps, true, T))
     {
         // already triangular
-        return wantu ? [eye(n), A] : A;
+        return wantu ? [eye(n), T._] : T._;
     }
 
     // reduce to hessenberg form

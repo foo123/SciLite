@@ -845,22 +845,39 @@ function dotpow(a, b)
 }
 $_.dotpow = dotpow;
 fn.power = dotpow;
-function mul_tri(A, B)
+function mul_tri(A, B, lower)
 {
-    // faster matrix-matrix mul for A,B nxn upper triangular
+    // faster matrix-matrix mul for A,B nxn triangular
     if (COLS(A) === ROWS(B))
     {
-        return matrix(ROWS(A), COLS(B), function(i, j) {
-            if (j < i) return O; // upper triangular
-            for (var cij=O,k=i,kmax=j+1; k<kmax; ++k)
-            {
-                cij = scalar_add(cij, scalar_mul(A[i][k], B[k][j]));
-            }
-            return cij;
-        });
+        if (true === lower)
+        {
+            // lower triangular
+            return matrix(ROWS(A), COLS(B), function(i, j) {
+                if (j > i) return O; // lower triangular
+                for (var cij=O,k=j,kmax=i; k<=kmax; ++k)
+                {
+                    cij = scalar_add(cij, scalar_mul(A[i][k], B[k][j]));
+                }
+                return cij;
+            });
+        }
+        else
+        {
+            // upper triangular
+            return matrix(ROWS(A), COLS(B), function(i, j) {
+                if (j < i) return O; // upper triangular
+                for (var cij=O,k=i,kmax=j; k<=kmax; ++k)
+                {
+                    cij = scalar_add(cij, scalar_mul(A[i][k], B[k][j]));
+                }
+                return cij;
+            });
+        }
     }
     throw "mul: matrix-matrix dimensions do not match";
 }
+$_.mult = mul_tri;
 function mul(a, b)
 {
     if (is_scalar(a) && is_scalar(b))
@@ -873,7 +890,7 @@ function mul(a, b)
         // matrix-matrix
         if (COLS(a) === ROWS(b))
         {
-            // TODO maybe optimize matrix-matrix multiplication (eg Strassen algorithm)
+            // TODO maybe optimize matrix-matrix multiplication (eg use Strassen algorithm)
             var rows = ROWS(a), cols = COLS(b), rc = ROWS(b);
             return matrix(rows, cols, function(i, j) {
                 for (var cij=O,k=0; k<rc; ++k)

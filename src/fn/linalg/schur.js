@@ -129,6 +129,7 @@ function schur(A, wantu, docomplex, eps)
         i, k, im,
         il, iu = n-1,
         H, U, normH,
+        T = {_:1},
         s, sI,
         G, G_t, Hmm,
         v, hh,
@@ -140,10 +141,10 @@ function schur(A, wantu, docomplex, eps)
 
     eps = null == eps ? __(1e-8) : __(eps);
 
-    if (is_tri(A, 'upper', false, eps, true))
+    if (is_tri(A, "upper", true, eps, true, T))
     {
         // already triangular
-        return wantu ? [eye(n), A] : A;
+        return wantu ? [eye(n), T._] : T._;
     }
 
     // reduce to hessenberg form

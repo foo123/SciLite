@@ -3,10 +3,15 @@ function qr(A, wantq, wantp, eps)
     var m = ROWS(A), n = COLS(A),
         Q = wantq ? eye(m) : null,
         R = A, P, p, t,
+        T = {_:1},
         colnorms, max,
         i, j, k, G, G_t, hh;
     eps = __(eps || 0);
-    if (!is_tri(R, "upper", false, eps, true))
+    if (is_tri(R, "upper", false, eps, true, T))
+    {
+        R = T._;
+    }
+    else
     {
         R = copy(A);
         if (wantp)
