@@ -845,6 +845,22 @@ function dotpow(a, b)
 }
 $_.dotpow = dotpow;
 fn.power = dotpow;
+function mul_tri(A, B)
+{
+    // faster matrix-matrix mul for A,B nxn upper triangular
+    if (COLS(A) === ROWS(B))
+    {
+        return matrix(ROWS(A), COLS(B), function(i, j) {
+            if (j < i) return O; // upper triangular
+            for (var cij=O,k=i,kmax=j+1; k<kmax; ++k)
+            {
+                cij = scalar_add(cij, scalar_mul(A[i][k], B[k][j]));
+            }
+            return cij;
+        });
+    }
+    throw "mul: matrix-matrix dimensions do not match";
+}
 function mul(a, b)
 {
     if (is_scalar(a) && is_scalar(b))

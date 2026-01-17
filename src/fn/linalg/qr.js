@@ -6,7 +6,7 @@ function qr(A, wantq, wantp, eps)
         colnorms, max,
         i, j, k, G, G_t, hh;
     eps = __(eps || 0);
-    if (!is_tri(R, "upper", false, eps))
+    if (!is_tri(R, "upper", false, eps, true))
     {
         R = copy(A);
         if (wantp)

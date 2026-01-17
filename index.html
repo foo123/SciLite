@@ -437,10 +437,12 @@ window.MathJax = {
 <br>
 <a href="#" aria-label="run numbers example" onclick="return runExample('numbers');">Numbers</a>
 • <a href="#" aria-label="run strings example" onclick="return runExample('strings');">Strings</a>
-• <a href="#" aria-label="run matrices example" onclick="return runExample('matrices');">Matrices</a>
 <br>
-<a href="#" aria-label="run functions example" onclick="return runExample('functions');">Functions</a>
-• <a href="#" aria-label="run linear algebra example" onclick="return runExample('linalg');">Linear Algebra</a>
+<a href="#" aria-label="run matrices example" onclick="return runExample('matrices');">Matrices</a>
+• <a href="#" aria-label="run functions example" onclick="return runExample('functions');">Functions</a>
+<br>
+<a href="#" aria-label="run linear algebra example" onclick="return runExample('linalg');">Linear Algebra</a>
+• <a href="#" aria-label="run matrix functions example" onclick="return runExample('matrixm');">Matrix Functions</a>
 <br>
 <a href="#" aria-label="run polynomial functions example" onclick="return runExample('polys');">Polys</a>
 • <a href="#" aria-label="run statistics example" onclick="return runExample('stats');">Stats</a>
@@ -634,6 +636,15 @@ function init($)
                 'A = [1+1i, 2; 0, -1j]',
                 '[U,S,V] = svd(A)',
                 'U*S*V\'','U\'*U','V*V\'',
+                '% and more..'
+                ]);
+            break;
+            case 'matrixm':
+                return run_session([
+                '% matrix functions',
+                'A = [1 2;3 4]',
+                'B = expm(A)',
+                'C = logm(B)',
                 '% and more..'
                 ]);
             break;

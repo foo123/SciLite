@@ -1,16 +1,16 @@
-function logm(A)
+function logm_tri(T)
 {
     // log(A) by inverse squaring(sqrt), Taylor approximation and inverse scaling
-    var n = ROWS(A),
-        BT = balance(A, null, true),
+    // for upper triangular T
+    var n = ROWS(T),
+        BT = balance(T, null, true),
         B = BT[0],
-        QT = schur(BT[1], true, true),
-        Q = QT[0],
-        T = QT[1],
         In = eye(n),
         theta = __(0.013325),
         s = 0,
         An, logA, i, N;
+
+    T = BT[1];
 
     // inverse squaring (sqrt)
     while (n_gt(norm(sub(T, In), inf), theta))
@@ -26,14 +26,20 @@ function logm(A)
     logA = An;
     for (i=2,N=10; i<=N; ++i)
     {
-        An = mul(T, An);
+        An = mul_tri(T, An);
         logA = i & 1 ? add(logA, dotdiv(An, __(i))) : sub(logA, dotdiv(An, __(i)));
     }
 
     // inverse scaling
-    logA = dotmul(logA, n_pow(two, s));
+    if (0 < s) logA = dotmul(logA, n_pow(two, s));
 
-    return mul(mul(diag(B), mul(mul(Q, logA), ctranspose(Q))), diag(B.map(function(bi) {return n_inv(bi);})));
+    return mul(mul(diag(B), logA), diag(B.map(function(bi) {return n_inv(bi);})));
+}
+function logm(A)
+{
+    var QT = schur(A, true, true),
+        Q = QT[0], T = QT[1];
+    return mul(mul(Q, logm_tri(T)), ctranspose(Q));
 }
 fn.logm = varargout(function(nargout, A) {
     var logA;

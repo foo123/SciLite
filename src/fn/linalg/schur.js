@@ -140,6 +140,12 @@ function schur(A, wantu, docomplex, eps)
 
     eps = null == eps ? __(1e-8) : __(eps);
 
+    if (is_tri(A, 'upper', false, eps, true))
+    {
+        // already triangular
+        return wantu ? [eye(n), A] : A;
+    }
+
     // reduce to hessenberg form
     // that is invariant under qr algorithm and reduces computations
     H = hess(A, null, wantu, eps);

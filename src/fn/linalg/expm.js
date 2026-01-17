@@ -18,7 +18,7 @@ function expm(A)
     // I + A + A^2/2! + A^3/3! + ..
     // in general converges
     expA = add(In, An);
-    for (i=2,N=100; i<=N; ++i)
+    for (i=2,N=25; i<=N; ++i)
     {
         An = dotdiv(mul(A, An), __(i));
         expA = add(expA, An);

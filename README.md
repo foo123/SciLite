@@ -4,7 +4,7 @@ A **scientific computing environment** in pure JavaScript for browser and nodejs
 
 ![SciLite](./scilite.png)
 
-**v.0.9.12 in progress** (122 kB minified)
+**v.0.9.12 in progress** (123 kB minified)
 
 [![SciLite](./scilite-live.png)](https://foo123.github.io/examples/scilite/)
 

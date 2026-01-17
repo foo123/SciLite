@@ -32,10 +32,13 @@ function acosm(A)
     ,__(1.126269612452) // k = 11
     ,__(1.224699157280) // k = 12
     ],
+    n = ROWS(A),
     WT = schur(A, true, true),
     W = WT[0], T = WT[1],
+    In = eye(n),
+    s = 0,
+    k = 0,
     d = diag(T),
-    n, In, s, k,
     d2, d3, d4, d5,
     a2, a3, a4,
     p, q, P, Q,
@@ -45,11 +48,6 @@ function acosm(A)
     {
         console.warn("acosm: input must not have an eigenvalue of 1 or -1 else result may be unreliable!");
     }
-
-    n = ROWS(A);
-    In = eye(n);
-    s = 0;
-    k = 0;
 
     // Compute lower bound on the number of square roots required.
     while (gt(norm(sub(I, d), inf), beta[7]))
@@ -67,21 +65,21 @@ function acosm(A)
     {
         Z = sub(In, T);
 
-        powZ = mul(Z, Z);
-        d2 = n_pow(norm(powZ, I), 1/2);
-        powZ = mul(Z, powZ);
-        d3 = n_pow(norm(powZ, I), 1/3);
+        powZ = mul_tri(Z, Z);
+        d2 = n_pow(norm(powZ, inf), 1/2);
+        powZ = mul_tri(Z, powZ);
+        d3 = n_pow(norm(powZ, inf), 1/3);
         a2 = n_gt(d2, d3) ? d2 : d3;
         if (n_le(a2, beta[0])) {k = 1; break;}
         if (n_le(a2, beta[1])) {k = 2; break;}
-        powZ = mul(Z, powZ);
-        d4 = n_pow(norm(powZ, I), 1/4);
+        powZ = mul_tri(Z, powZ);
+        d4 = n_pow(norm(powZ, inf), 1/4);
         a3 = n_gt(d3, d4) ? d3 : d4;
         if (n_le(a3, beta[2])) {k = 3; break;}
         if (n_le(a3, beta[3])) {k = 4; break;}
         if (n_le(a3, beta[4])) {k = 5; break;}
-        powZ = mul(Z, powZ);
-        d5 = n_pow(norm(powZ, I), 1/5);
+        powZ = mul_tri(Z, powZ);
+        d5 = n_pow(norm(powZ, inf), 1/5);
         a4 = n_gt(d4, d5) ? d4 : d5;
         a4 = n_lt(a3, a4) ? a3 : a4;
         if (n_le(a4, beta[5])) {k = 6; break;}
@@ -255,7 +253,7 @@ function acosm(A)
     }
 
     ZZ = array(p.length, function(i, ZZ) {
-        return 0 === i ? In : (1 === i ? Z : mul(Z, ZZ[i-1]));
+        return 0 === i ? In : (1 === i ? Z : mul_tri(Z, ZZ[i-1]));
     });
     P = zeros(n, n);
     Q = zeros(n, n);

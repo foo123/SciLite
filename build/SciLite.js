@@ -3,7 +3,7 @@
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
 * @version: 0.9.12
-* 2026-01-16 21:32:27
+* 2026-01-17 12:04:43
 * https://github.com/foo123/SciLite
 *
 **//**
@@ -11,7 +11,7 @@
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
 * @version: 0.9.12
-* 2026-01-16 21:32:27
+* 2026-01-17 12:04:43
 * https://github.com/foo123/SciLite
 *
 **/
@@ -1590,6 +1590,22 @@ function dotpow(a, b)
 }
 $_.dotpow = dotpow;
 fn.power = dotpow;
+function mul_tri(A, B)
+{
+    // faster matrix-matrix mul for A,B nxn upper triangular
+    if (COLS(A) === ROWS(B))
+    {
+        return matrix(ROWS(A), COLS(B), function(i, j) {
+            if (j < i) return O; // upper triangular
+            for (var cij=O,k=i,kmax=j+1; k<kmax; ++k)
+            {
+                cij = scalar_add(cij, scalar_mul(A[i][k], B[k][j]));
+            }
+            return cij;
+        });
+    }
+    throw "mul: matrix-matrix dimensions do not match";
+}
 function mul(a, b)
 {
     if (is_scalar(a) && is_scalar(b))
@@ -4917,7 +4933,7 @@ function concat(A, B, axis)
         });
     }
 }
-function is_tri(A, type, strict, eps)
+function is_tri(A, type, strict, eps, setzero)
 {
     var nr = ROWS(A), nc = COLS(A), n, r, c;
     if ((false !== strict) && (nr !== nc)) return false;
@@ -4949,6 +4965,51 @@ function is_tri(A, type, strict, eps)
         for (c=n; c<nc; ++c)
         {
             for (r=0; r<nr; ++r) if (!le(scalar_abs(A[r][c]), eps)) return false;
+        }
+    }
+    if ((true === setzero) && n_gt(eps, O))
+    {
+        if (('upper' === type) || ('diagonal' === type))
+        {
+            for (r=0; r<n; ++r)
+            {
+                for (c=0; c<r; ++c)
+                {
+                    A[r][c] = O;
+                }
+            }
+        }
+        if (('lower' === type) || ('diagonal' === type))
+        {
+            for (r=0; r<n; ++r)
+            {
+                for (c=r+1; c<n; ++c)
+                {
+                    A[r][c] = O;
+                }
+            }
+        }
+        if (nr > nc)
+        {
+            // should be all zero
+            for (r=n; r<nr; ++r)
+            {
+                for (c=0; c<nc; ++c)
+                {
+                    A[r][c] = O;
+                }
+            }
+        }
+        else if (nr < nc)
+        {
+            // should be all zero
+            for (c=n; c<nc; ++c)
+            {
+                for (r=0; r<nr; ++r)
+                {
+                    A[r][c] = O;
+                }
+            }
         }
     }
     return true;
@@ -6308,7 +6369,7 @@ function qr(A, wantq, wantp, eps)
         colnorms, max,
         i, j, k, G, G_t, hh;
     eps = __(eps || 0);
-    if (!is_tri(R, "upper", false, eps))
+    if (!is_tri(R, "upper", false, eps, true))
     {
         R = copy(A);
         if (wantp)
@@ -6572,6 +6633,12 @@ function schur(A, wantu, docomplex, eps)
         max_iter = 100 * n, tol;
 
     eps = null == eps ? __(1e-8) : __(eps);
+
+    if (is_tri(A, 'upper', false, eps, true))
+    {
+        // already triangular
+        return wantu ? [eye(n), A] : A;
+    }
 
     // reduce to hessenberg form
     // that is invariant under qr algorithm and reduces computations
@@ -7661,7 +7728,7 @@ function expm(A)
     // I + A + A^2/2! + A^3/3! + ..
     // in general converges
     expA = add(In, An);
-    for (i=2,N=100; i<=N; ++i)
+    for (i=2,N=25; i<=N; ++i)
     {
         An = dotdiv(mul(A, An), __(i));
         expA = add(expA, An);
@@ -7678,19 +7745,19 @@ fn.expm = function(A) {
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("expm");
     return expm(A);
 };
-function logm(A)
+function logm_tri(T)
 {
     // log(A) by inverse squaring(sqrt), Taylor approximation and inverse scaling
-    var n = ROWS(A),
-        BT = balance(A, null, true),
+    // for upper triangular T
+    var n = ROWS(T),
+        BT = balance(T, null, true),
         B = BT[0],
-        QT = schur(BT[1], true, true),
-        Q = QT[0],
-        T = QT[1],
         In = eye(n),
         theta = __(0.013325),
         s = 0,
         An, logA, i, N;
+
+    T = BT[1];
 
     // inverse squaring (sqrt)
     while (n_gt(norm(sub(T, In), inf), theta))
@@ -7706,14 +7773,20 @@ function logm(A)
     logA = An;
     for (i=2,N=10; i<=N; ++i)
     {
-        An = mul(T, An);
+        An = mul_tri(T, An);
         logA = i & 1 ? add(logA, dotdiv(An, __(i))) : sub(logA, dotdiv(An, __(i)));
     }
 
     // inverse scaling
-    logA = dotmul(logA, n_pow(two, s));
+    if (0 < s) logA = dotmul(logA, n_pow(two, s));
 
-    return mul(mul(diag(B), mul(mul(Q, logA), ctranspose(Q))), diag(B.map(function(bi) {return n_inv(bi);})));
+    return mul(mul(diag(B), logA), diag(B.map(function(bi) {return n_inv(bi);})));
+}
+function logm(A)
+{
+    var QT = schur(A, true, true),
+        Q = QT[0], T = QT[1];
+    return mul(mul(Q, logm_tri(T)), ctranspose(Q));
 }
 fn.logm = varargout(function(nargout, A) {
     var logA;
@@ -7848,10 +7921,13 @@ function acosm(A)
     ,__(1.126269612452) // k = 11
     ,__(1.224699157280) // k = 12
     ],
+    n = ROWS(A),
     WT = schur(A, true, true),
     W = WT[0], T = WT[1],
+    In = eye(n),
+    s = 0,
+    k = 0,
     d = diag(T),
-    n, In, s, k,
     d2, d3, d4, d5,
     a2, a3, a4,
     p, q, P, Q,
@@ -7861,11 +7937,6 @@ function acosm(A)
     {
         console.warn("acosm: input must not have an eigenvalue of 1 or -1 else result may be unreliable!");
     }
-
-    n = ROWS(A);
-    In = eye(n);
-    s = 0;
-    k = 0;
 
     // Compute lower bound on the number of square roots required.
     while (gt(norm(sub(I, d), inf), beta[7]))
@@ -7883,21 +7954,21 @@ function acosm(A)
     {
         Z = sub(In, T);
 
-        powZ = mul(Z, Z);
-        d2 = n_pow(norm(powZ, I), 1/2);
-        powZ = mul(Z, powZ);
-        d3 = n_pow(norm(powZ, I), 1/3);
+        powZ = mul_tri(Z, Z);
+        d2 = n_pow(norm(powZ, inf), 1/2);
+        powZ = mul_tri(Z, powZ);
+        d3 = n_pow(norm(powZ, inf), 1/3);
         a2 = n_gt(d2, d3) ? d2 : d3;
         if (n_le(a2, beta[0])) {k = 1; break;}
         if (n_le(a2, beta[1])) {k = 2; break;}
-        powZ = mul(Z, powZ);
-        d4 = n_pow(norm(powZ, I), 1/4);
+        powZ = mul_tri(Z, powZ);
+        d4 = n_pow(norm(powZ, inf), 1/4);
         a3 = n_gt(d3, d4) ? d3 : d4;
         if (n_le(a3, beta[2])) {k = 3; break;}
         if (n_le(a3, beta[3])) {k = 4; break;}
         if (n_le(a3, beta[4])) {k = 5; break;}
-        powZ = mul(Z, powZ);
-        d5 = n_pow(norm(powZ, I), 1/5);
+        powZ = mul_tri(Z, powZ);
+        d5 = n_pow(norm(powZ, inf), 1/5);
         a4 = n_gt(d4, d5) ? d4 : d5;
         a4 = n_lt(a3, a4) ? a3 : a4;
         if (n_le(a4, beta[5])) {k = 6; break;}
@@ -8071,7 +8142,7 @@ function acosm(A)
     }
 
     ZZ = array(p.length, function(i, ZZ) {
-        return 0 === i ? In : (1 === i ? Z : mul(Z, ZZ[i-1]));
+        return 0 === i ? In : (1 === i ? Z : mul_tri(Z, ZZ[i-1]));
     });
     P = zeros(n, n);
     Q = zeros(n, n);
@@ -8098,17 +8169,21 @@ fn.asinm = function(A) {
 function acoshm(A)
 {
     // adapted from https://github.com/higham/matrix-inv-trig-hyp/blob/master/acoshm.m
-    var QT = schur(A, true, true), Q = QT[0], T = QT[1];
-    /*var d = diag(T);
-    if (any(imag(d) == 0 && 0 < real(d) && real(d) <= 1))
+    var n = ROWS(A),
+        QT = schur(A, true, true),
+        Q = QT[0],
+        T = QT[1],
+        d = diag(T),
+        In = eye(n);
+    if (any(d, function(d) {return n_eq(imag(d), O) && n_lt(O, real(d)) && n_le(real(d), I);}))
     {
-        return Q*(logm(T + sqrtm(T - eye(size(T))) * sqrtm(T + eye(size(T)))))*ctranspose(Q);
+        return mul(mul(Q, logm_tri(add(T, mul_tri(sqrtm_tri(sub(T, In)), sqrtm_tri(add(T, In)))))), ctranspose(Q));
     }
     else
-    {*/
+    {
         // let acosm issue errors for eigenvals 1 or -1.
-        return dotmul(mul(mul(Q, mul(signm_tri(dotmul(T, scalar_mul(J, i))), acosm(T))), ctranspose(Q)), i);
-    /*}*/
+        return dotmul(mul(mul(Q, mul_tri(signm_tri(dotmul(T, scalar_mul(J, i))), acosm(T))), ctranspose(Q)), i);
+    }
 }
 fn.acoshm = function(A) {
     if (is_scalar(A)) return fn.acosh(A);
@@ -8119,7 +8194,7 @@ fn.asinhm = function(A) {
     // adapted from https://github.com/higham/matrix-inv-trig-hyp/blob/master/asinhm.m
     if (is_scalar(A)) return fn.asinh(A);
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("asinhm");
-    return dotmul(asinm(dotmul(A, scalar_mul(J, i))), i);
+    return dotmul(fn.asinm(dotmul(A, scalar_mul(J, i))), i);
 };
 var __a1 =  0.254829592,
     __a2 = -0.284496736,

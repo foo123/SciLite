@@ -143,7 +143,7 @@ function concat(A, B, axis)
         });
     }
 }
-function is_tri(A, type, strict, eps)
+function is_tri(A, type, strict, eps, setzero)
 {
     var nr = ROWS(A), nc = COLS(A), n, r, c;
     if ((false !== strict) && (nr !== nc)) return false;
@@ -175,6 +175,51 @@ function is_tri(A, type, strict, eps)
         for (c=n; c<nc; ++c)
         {
             for (r=0; r<nr; ++r) if (!le(scalar_abs(A[r][c]), eps)) return false;
+        }
+    }
+    if ((true === setzero) && n_gt(eps, O))
+    {
+        if (('upper' === type) || ('diagonal' === type))
+        {
+            for (r=0; r<n; ++r)
+            {
+                for (c=0; c<r; ++c)
+                {
+                    A[r][c] = O;
+                }
+            }
+        }
+        if (('lower' === type) || ('diagonal' === type))
+        {
+            for (r=0; r<n; ++r)
+            {
+                for (c=r+1; c<n; ++c)
+                {
+                    A[r][c] = O;
+                }
+            }
+        }
+        if (nr > nc)
+        {
+            // should be all zero
+            for (r=n; r<nr; ++r)
+            {
+                for (c=0; c<nc; ++c)
+                {
+                    A[r][c] = O;
+                }
+            }
+        }
+        else if (nr < nc)
+        {
+            // should be all zero
+            for (c=n; c<nc; ++c)
+            {
+                for (r=0; r<nr; ++r)
+                {
+                    A[r][c] = O;
+                }
+            }
         }
     }
     return true;
