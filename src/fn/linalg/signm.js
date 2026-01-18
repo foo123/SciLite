@@ -56,7 +56,7 @@ function signm_tri(T)
 }
 function signm(A)
 {
-    var QT = schur(A, true, true), Q = QT[0], T = QT[1];
+    var QT = schur(A, true, "complex"), Q = QT[0], T = QT[1];
     return mul(mul(Q, signm_tri(T)), ctranspose(Q));
 }
 fn.signm = function(A) {

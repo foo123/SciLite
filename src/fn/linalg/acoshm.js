@@ -2,7 +2,7 @@ function acoshm(A)
 {
     // adapted from https://github.com/higham/matrix-inv-trig-hyp/blob/master/acoshm.m
     var n = ROWS(A),
-        QT = schur(A, true, true),
+        QT = schur(A, true, "complex"),
         Q = QT[0],
         T = QT[1],
         d = diag(T),

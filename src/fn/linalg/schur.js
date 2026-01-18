@@ -115,7 +115,7 @@ function subdiagonal_negligible_entry(A, i, eps)
     }
     return i;
 }
-function schur(A, wantu, docomplex, eps)
+function schur(A, wantu, mode, eps)
 {
     /*
     "Understanding the QR Algorithm", David S. Watkins, 1982
@@ -137,13 +137,13 @@ function schur(A, wantu, docomplex, eps)
         lhs, rhs,
         iter = 0,
         total_iter = 0,
-        max_iter = 100 * n, tol;
+        max_iter = 0, tol;
 
-    eps = null == eps ? __(1e-8) : __(eps);
+    eps = __(eps || 1e-10);
 
     if (is_tri(A, "upper", true, eps, true, T))
     {
-        // already triangular
+        // already upper triangular
         return wantu ? [eye(n), T._] : T._;
     }
 
@@ -156,7 +156,8 @@ function schur(A, wantu, docomplex, eps)
         H = H[1];
     }
 
-    if (docomplex)
+    max_iter = 100 * n;
+    if ("complex" === mode)
     {
         // complex qr algorithm for hessenberg matrix with shifts and deflation
         // rows 0,...,il-1 are decoupled from the rest because H(il,il-1) is zero
@@ -212,7 +213,8 @@ function schur(A, wantu, docomplex, eps)
         // rows 0,...,il-1 are decoupled from the rest because H(il,il-1) is zero
         // rows il,...,iu is the part we are working on
         // rows iu+1,...,end are already brought in triangular form
-        tol = n_mul(norm(H, I), n_mul(eps, eps));
+        normH = norm(H, inf/*I*/);
+        tol = n_mul(normH, n_mul(eps, eps));
         //tol = n_gt(normH, constant.realmin) ? normH : constant.realmin;
         s = [O];
         sI = [O, O, O];
@@ -324,5 +326,5 @@ function schur(A, wantu, docomplex, eps)
 fn.schur = varargout(function(nargout, A, mode) {
     if (is_scalar(A)) A = [[A]];
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("schur");
-    return schur(A, 1 < nargout, "complex" === mode || !fn.isreal(A));
+    return schur(A, 1 < nargout, "complex" === mode || !fn.isreal(A) ? "complex" : "real");
 });

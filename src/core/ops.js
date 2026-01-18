@@ -850,13 +850,16 @@ function mul_tri(A, B, lower)
     // faster matrix-matrix mul for A,B nxn triangular
     if (COLS(A) === ROWS(B))
     {
-        if (true === lower)
+        if ("lower" === lower)
         {
             // lower triangular
             return matrix(ROWS(A), COLS(B), function(i, j) {
                 if (j > i) return O; // lower triangular
                 for (var cij=O,k=j,kmax=i; k<=kmax; ++k)
                 {
+                    // j <= i
+                    // A[i][:]  = x(1) .. x(i) .. 0
+                    // B[:][j]' =   0  .. x(j) .. x(n)
                     cij = scalar_add(cij, scalar_mul(A[i][k], B[k][j]));
                 }
                 return cij;
@@ -869,6 +872,9 @@ function mul_tri(A, B, lower)
                 if (j < i) return O; // upper triangular
                 for (var cij=O,k=i,kmax=j; k<=kmax; ++k)
                 {
+                    // j >= i
+                    // A[i][:]  =  0   .. x(i) .. x(n)
+                    // B[:][j]' = x(1) .. x(j) .. 0
                     cij = scalar_add(cij, scalar_mul(A[i][k], B[k][j]));
                 }
                 return cij;

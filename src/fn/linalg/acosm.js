@@ -33,7 +33,7 @@ function acosm(A)
     ,__(1.224699157280) // k = 12
     ],
     n = ROWS(A),
-    WT = schur(A, true, true),
+    WT = schur(A, true, "complex"),
     W = WT[0], T = WT[1],
     In = eye(n),
     s = 0,

@@ -37,7 +37,7 @@ function logm_tri(T)
 }
 function logm(A)
 {
-    var QT = schur(A, true, true),
+    var QT = schur(A, true, "complex"),
         Q = QT[0], T = QT[1];
     return mul(mul(Q, logm_tri(T)), ctranspose(Q));
 }

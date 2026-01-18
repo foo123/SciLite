@@ -145,36 +145,40 @@ function concat(A, B, axis)
 }
 function is_tri(A, type, strict, eps, setzero, setcopy)
 {
-    var nr = ROWS(A), nc = COLS(A), n, r, c;
+    var nr = ROWS(A), nc = COLS(A), n, r, c, tol;
     if ((false !== strict) && (nr !== nc)) return false;
 
     eps = __(eps || 0);
     n = stdMath.min(nr, nc);
+    tol = n_gt(eps, O) ? n_mul(n_div(sum(array(n, function(i) {return scalar_abs(A[i][i]);})), n), eps) : O;
     for (r=0; r<n; ++r)
     {
+        //tol = n_mul(scalar_abs(A[r][r]), eps);
         if (('lower' === type) || ('diagonal' === type))
         {
-            for (c=r+1; c<n; ++c) if (!le(scalar_abs(A[r][c]), eps)) return false;
+            for (c=r+1; c<n; ++c) if (!le(scalar_abs(A[r][c]), tol)) return false;
         }
         if (('upper' === type) || ('diagonal' === type))
         {
-            for (c=0; c<r; ++c) if (!le(scalar_abs(A[r][c]), eps)) return false;
+            for (c=0; c<r; ++c) if (!le(scalar_abs(A[r][c]), tol)) return false;
         }
     }
     if (nr > nc)
     {
         // should be all zero
+        //tol = n_mul(scalar_abs(A[n-1][n-1]), eps);
         for (r=n; r<nr; ++r)
         {
-            for (c=0; c<nc; ++c) if (!le(scalar_abs(A[r][c]), eps)) return false;
+            for (c=0; c<nc; ++c) if (!le(scalar_abs(A[r][c]), tol)) return false;
         }
     }
     else if (nr < nc)
     {
         // should be all zero
+        //tol = n_mul(scalar_abs(A[n-1][n-1]), eps);
         for (c=n; c<nc; ++c)
         {
-            for (r=0; r<nr; ++r) if (!le(scalar_abs(A[r][c]), eps)) return false;
+            for (r=0; r<nr; ++r) if (!le(scalar_abs(A[r][c]), tol)) return false;
         }
     }
     if ((true === setzero) && n_gt(eps, O))

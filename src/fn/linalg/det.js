@@ -83,19 +83,19 @@ function det(A, explicit, eps)
     if (n !== COLS(A))
     {
         // not square, zero
-        return 0;
+        return O;
     }
     else if (1 === n)
     {
         // scalar, trivial
         return A[0][0];
     }
-    else if (is_tri(A, 'lower', true, eps) || is_tri(A, 'upper', true, eps))
+    else if (is_tri(A, "lower", true, eps) || is_tri(A, "upper", true, eps))
     {
         // triangular, product of diagonal entries
         return A.reduce(function(det, ai, i) {
             return scalar_mul(det, A[i][i]);
-        }, 1);
+        }, I);
     }
     else
     {

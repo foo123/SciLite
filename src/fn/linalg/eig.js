@@ -1,7 +1,8 @@
-function eig_power(A)
+function eig_power(A, eps)
 {
+    // eig power iteration method
+    eps = __(eps || 1e-10);
     var e, d, v, w,
-        eps = __(1e-10),
         n, N = ROWS(A),
         V = new Array(N),
         W = new Array(N),
@@ -24,27 +25,40 @@ function eig_power(A)
 fn.eig = varargout(function(nargout, A, nobalance) {
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("eig");
     if (is_matrix(nobalance)) not_supported("eig");
-    var T = null, ans;
+    var T = null, QT, ans;
     if ('nobalance' !== nobalance)
     {
-        T = balance(A, two, true);
+        T = balance(A, null, true);
         A = T[1];
         T = T[0];
     }
-    // TODO implement more general and efficient eig routine
     if (1 < nargout)
     {
-        ans = eig_power(A);
+        // TODO implement more general and efficient eig routine
+        ans = eig_power(A, 1e-12);
         return [T ? mul(diag(T), ans[0]) : ans[0], diag(ans[1]), T ? mul(diag(T.map(function(ti) {return n_inv(ti);})), ans[2]) : ans[2]];
     }
     else
     {
-        return realify((is_tri(A, 'upper', true, 1e-15) || is_tri(A, 'lower', true, 1e-15) ? array(ROWS(A), function(i) {
+        // eigenvectors can also be found from the nullspace of A-λI
+        if (/*!is_tri(A, "upper", true, 1e-12) &&*/ !is_tri(A, "lower", true, 1e-12))
+        {
+            // triangularize via schur, schur checks if already upper triangular
+            A = schur(A, false, "complex", 1e-12);
+        }
+        // triangular, get diagonal values
+        return realify(array(ROWS(A), function(i) {return A[i][i];}).sort(function(a, b) {
+            var aa = scalar_abs(a), ab = scalar_abs(b)
+            return n_gt(ab, aa) ? 1 : (n_lt(ab, aa) ? -1 : 0);
+        }));
+        /*
+        return realify((is_tri(A, 'upper', true, 1e-12) || is_tri(A, 'lower', true, 1e-12) ? array(ROWS(A), function(i) {
                 return A[i][i];
             }) : roots(charpoly(A))).sort(function(a, b) {
                 var aa = scalar_abs(a), ab = scalar_abs(b)
                 return n_gt(ab, aa) ? 1 : (n_lt(ab, aa) ? -1 : 0);
             })
         );
+        */
     }
 });

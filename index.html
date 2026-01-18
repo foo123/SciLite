@@ -442,7 +442,7 @@ window.MathJax = {
 • <a href="#" aria-label="run functions example" onclick="return runExample('functions');">Functions</a>
 <br>
 <a href="#" aria-label="run linear algebra example" onclick="return runExample('linalg');">Linear Algebra</a>
-• <a href="#" aria-label="run matrix functions example" onclick="return runExample('matrixm');">Matrix Functions</a>
+• <a href="#" aria-label="run matrix functions example" onclick="return runExample('matfun');">Matrix Functions</a>
 <br>
 <a href="#" aria-label="run polynomial functions example" onclick="return runExample('polys');">Polys</a>
 • <a href="#" aria-label="run statistics example" onclick="return runExample('stats');">Stats</a>
@@ -639,12 +639,14 @@ function init($)
                 '% and more..'
                 ]);
             break;
-            case 'matrixm':
+            case 'matfun':
                 return run_session([
                 '% matrix functions',
                 'A = [1 2;3 4]',
                 'B = expm(A)',
                 'C = logm(B)',
+                'D = sqrtm(A)',
+                'D*D',
                 '% and more..'
                 ]);
             break;

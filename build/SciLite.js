@@ -3,7 +3,7 @@
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
 * @version: 0.9.12
-* 2026-01-17 14:06:51
+* 2026-01-18 13:38:57
 * https://github.com/foo123/SciLite
 *
 **//**
@@ -11,7 +11,7 @@
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
 * @version: 0.9.12
-* 2026-01-17 14:06:51
+* 2026-01-18 13:38:57
 * https://github.com/foo123/SciLite
 *
 **/
@@ -1595,13 +1595,16 @@ function mul_tri(A, B, lower)
     // faster matrix-matrix mul for A,B nxn triangular
     if (COLS(A) === ROWS(B))
     {
-        if (true === lower)
+        if ("lower" === lower)
         {
             // lower triangular
             return matrix(ROWS(A), COLS(B), function(i, j) {
                 if (j > i) return O; // lower triangular
                 for (var cij=O,k=j,kmax=i; k<=kmax; ++k)
                 {
+                    // j <= i
+                    // A[i][:]  = x(1) .. x(i) .. 0
+                    // B[:][j]' =   0  .. x(j) .. x(n)
                     cij = scalar_add(cij, scalar_mul(A[i][k], B[k][j]));
                 }
                 return cij;
@@ -1614,6 +1617,9 @@ function mul_tri(A, B, lower)
                 if (j < i) return O; // upper triangular
                 for (var cij=O,k=i,kmax=j; k<=kmax; ++k)
                 {
+                    // j >= i
+                    // A[i][:]  =  0   .. x(i) .. x(n)
+                    // B[:][j]' = x(1) .. x(j) .. 0
                     cij = scalar_add(cij, scalar_mul(A[i][k], B[k][j]));
                 }
                 return cij;
@@ -4952,36 +4958,40 @@ function concat(A, B, axis)
 }
 function is_tri(A, type, strict, eps, setzero, setcopy)
 {
-    var nr = ROWS(A), nc = COLS(A), n, r, c;
+    var nr = ROWS(A), nc = COLS(A), n, r, c, tol;
     if ((false !== strict) && (nr !== nc)) return false;
 
     eps = __(eps || 0);
     n = stdMath.min(nr, nc);
+    tol = n_gt(eps, O) ? n_mul(n_div(sum(array(n, function(i) {return scalar_abs(A[i][i]);})), n), eps) : O;
     for (r=0; r<n; ++r)
     {
+        //tol = n_mul(scalar_abs(A[r][r]), eps);
         if (('lower' === type) || ('diagonal' === type))
         {
-            for (c=r+1; c<n; ++c) if (!le(scalar_abs(A[r][c]), eps)) return false;
+            for (c=r+1; c<n; ++c) if (!le(scalar_abs(A[r][c]), tol)) return false;
         }
         if (('upper' === type) || ('diagonal' === type))
         {
-            for (c=0; c<r; ++c) if (!le(scalar_abs(A[r][c]), eps)) return false;
+            for (c=0; c<r; ++c) if (!le(scalar_abs(A[r][c]), tol)) return false;
         }
     }
     if (nr > nc)
     {
         // should be all zero
+        //tol = n_mul(scalar_abs(A[n-1][n-1]), eps);
         for (r=n; r<nr; ++r)
         {
-            for (c=0; c<nc; ++c) if (!le(scalar_abs(A[r][c]), eps)) return false;
+            for (c=0; c<nc; ++c) if (!le(scalar_abs(A[r][c]), tol)) return false;
         }
     }
     else if (nr < nc)
     {
         // should be all zero
+        //tol = n_mul(scalar_abs(A[n-1][n-1]), eps);
         for (c=n; c<nc; ++c)
         {
-            for (r=0; r<nr; ++r) if (!le(scalar_abs(A[r][c]), eps)) return false;
+            for (r=0; r<nr; ++r) if (!le(scalar_abs(A[r][c]), tol)) return false;
         }
     }
     if ((true === setzero) && n_gt(eps, O))
@@ -6033,19 +6043,19 @@ function det(A, explicit, eps)
     if (n !== COLS(A))
     {
         // not square, zero
-        return 0;
+        return O;
     }
     else if (1 === n)
     {
         // scalar, trivial
         return A[0][0];
     }
-    else if (is_tri(A, 'lower', true, eps) || is_tri(A, 'upper', true, eps))
+    else if (is_tri(A, "lower", true, eps) || is_tri(A, "upper", true, eps))
     {
         // triangular, product of diagonal entries
         return A.reduce(function(det, ai, i) {
             return scalar_mul(det, A[i][i]);
-        }, 1);
+        }, I);
     }
     else
     {
@@ -6632,7 +6642,7 @@ function subdiagonal_negligible_entry(A, i, eps)
     }
     return i;
 }
-function schur(A, wantu, docomplex, eps)
+function schur(A, wantu, mode, eps)
 {
     /*
     "Understanding the QR Algorithm", David S. Watkins, 1982
@@ -6654,13 +6664,13 @@ function schur(A, wantu, docomplex, eps)
         lhs, rhs,
         iter = 0,
         total_iter = 0,
-        max_iter = 100 * n, tol;
+        max_iter = 0, tol;
 
-    eps = null == eps ? __(1e-8) : __(eps);
+    eps = __(eps || 1e-10);
 
     if (is_tri(A, "upper", true, eps, true, T))
     {
-        // already triangular
+        // already upper triangular
         return wantu ? [eye(n), T._] : T._;
     }
 
@@ -6673,7 +6683,8 @@ function schur(A, wantu, docomplex, eps)
         H = H[1];
     }
 
-    if (docomplex)
+    max_iter = 100 * n;
+    if ("complex" === mode)
     {
         // complex qr algorithm for hessenberg matrix with shifts and deflation
         // rows 0,...,il-1 are decoupled from the rest because H(il,il-1) is zero
@@ -6729,7 +6740,8 @@ function schur(A, wantu, docomplex, eps)
         // rows 0,...,il-1 are decoupled from the rest because H(il,il-1) is zero
         // rows il,...,iu is the part we are working on
         // rows iu+1,...,end are already brought in triangular form
-        tol = n_mul(norm(H, I), n_mul(eps, eps));
+        normH = norm(H, inf/*I*/);
+        tol = n_mul(normH, n_mul(eps, eps));
         //tol = n_gt(normH, constant.realmin) ? normH : constant.realmin;
         s = [O];
         sI = [O, O, O];
@@ -6841,12 +6853,13 @@ function schur(A, wantu, docomplex, eps)
 fn.schur = varargout(function(nargout, A, mode) {
     if (is_scalar(A)) A = [[A]];
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("schur");
-    return schur(A, 1 < nargout, "complex" === mode || !fn.isreal(A));
+    return schur(A, 1 < nargout, "complex" === mode || !fn.isreal(A) ? "complex" : "real");
 });
-function eig_power(A)
+function eig_power(A, eps)
 {
+    // eig power iteration method
+    eps = __(eps || 1e-10);
     var e, d, v, w,
-        eps = __(1e-10),
         n, N = ROWS(A),
         V = new Array(N),
         W = new Array(N),
@@ -6869,28 +6882,41 @@ function eig_power(A)
 fn.eig = varargout(function(nargout, A, nobalance) {
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("eig");
     if (is_matrix(nobalance)) not_supported("eig");
-    var T = null, ans;
+    var T = null, QT, ans;
     if ('nobalance' !== nobalance)
     {
-        T = balance(A, two, true);
+        T = balance(A, null, true);
         A = T[1];
         T = T[0];
     }
-    // TODO implement more general and efficient eig routine
     if (1 < nargout)
     {
-        ans = eig_power(A);
+        // TODO implement more general and efficient eig routine
+        ans = eig_power(A, 1e-12);
         return [T ? mul(diag(T), ans[0]) : ans[0], diag(ans[1]), T ? mul(diag(T.map(function(ti) {return n_inv(ti);})), ans[2]) : ans[2]];
     }
     else
     {
-        return realify((is_tri(A, 'upper', true, 1e-15) || is_tri(A, 'lower', true, 1e-15) ? array(ROWS(A), function(i) {
+        // eigenvectors can also be found from the nullspace of A-λI
+        if (/*!is_tri(A, "upper", true, 1e-12) &&*/ !is_tri(A, "lower", true, 1e-12))
+        {
+            // triangularize via schur, schur checks if already upper triangular
+            A = schur(A, false, "complex", 1e-12);
+        }
+        // triangular, get diagonal values
+        return realify(array(ROWS(A), function(i) {return A[i][i];}).sort(function(a, b) {
+            var aa = scalar_abs(a), ab = scalar_abs(b)
+            return n_gt(ab, aa) ? 1 : (n_lt(ab, aa) ? -1 : 0);
+        }));
+        /*
+        return realify((is_tri(A, 'upper', true, 1e-12) || is_tri(A, 'lower', true, 1e-12) ? array(ROWS(A), function(i) {
                 return A[i][i];
             }) : roots(charpoly(A))).sort(function(a, b) {
                 var aa = scalar_abs(a), ab = scalar_abs(b)
                 return n_gt(ab, aa) ? 1 : (n_lt(ab, aa) ? -1 : 0);
             })
         );
+        */
     }
 });
 function svd(A, eta, wantu, wantv)
@@ -7721,7 +7747,7 @@ function sqrtm(A)
     Acta Numerica (2010), pp. 159–208,
     Algorithm 4.6 based on Schur method due to Bjorck and Hammarling (1983)
     */
-    var QT = schur(A, true, true),
+    var QT = schur(A, true, "complex"),
         Q = QT[0], T = QT[1];
     return mul(mul(Q, sqrtm_tri(T)), ctranspose(Q));
 }
@@ -7808,7 +7834,7 @@ function logm_tri(T)
 }
 function logm(A)
 {
-    var QT = schur(A, true, true),
+    var QT = schur(A, true, "complex"),
         Q = QT[0], T = QT[1];
     return mul(mul(Q, logm_tri(T)), ctranspose(Q));
 }
@@ -7883,7 +7909,7 @@ function signm_tri(T)
 }
 function signm(A)
 {
-    var QT = schur(A, true, true), Q = QT[0], T = QT[1];
+    var QT = schur(A, true, "complex"), Q = QT[0], T = QT[1];
     return mul(mul(Q, signm_tri(T)), ctranspose(Q));
 }
 fn.signm = function(A) {
@@ -7946,7 +7972,7 @@ function acosm(A)
     ,__(1.224699157280) // k = 12
     ],
     n = ROWS(A),
-    WT = schur(A, true, true),
+    WT = schur(A, true, "complex"),
     W = WT[0], T = WT[1],
     In = eye(n),
     s = 0,
@@ -8194,7 +8220,7 @@ function acoshm(A)
 {
     // adapted from https://github.com/higham/matrix-inv-trig-hyp/blob/master/acoshm.m
     var n = ROWS(A),
-        QT = schur(A, true, true),
+        QT = schur(A, true, "complex"),
         Q = QT[0],
         T = QT[1],
         d = diag(T),

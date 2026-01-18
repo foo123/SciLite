@@ -66,7 +66,7 @@ function sqrtm(A)
     Acta Numerica (2010), pp. 159–208,
     Algorithm 4.6 based on Schur method due to Bjorck and Hammarling (1983)
     */
-    var QT = schur(A, true, true),
+    var QT = schur(A, true, "complex"),
         Q = QT[0], T = QT[1];
     return mul(mul(Q, sqrtm_tri(T)), ctranspose(Q));
 }
