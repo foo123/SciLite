@@ -697,6 +697,47 @@ function gauss_jordan(A, with_pivots, odim, eps)
 
     return with_pivots ? [m, pivots, det, aug] : m;
 }
+function solve_by_substitution(T, x, type)
+{
+    x = vec(x);
+    var n = ROWS(x);
+    if ("lower" === type)
+    {
+        // lower triangular, forward substitution
+        if (is_matrix(x))
+        {
+            return matrix(n, COLS(x), function(m, k, y) {
+                for (var Ty=O,i=0; i<m; ++i) Ty = scalar_add(Ty, scalar_mul(T[m][i], y[i][k]));
+                return scalar_div(scalar_sub(x[m][k], Ty), T[m][m]);
+            });
+        }
+        else
+        {
+            return array(n, function(m, y) {
+                for (var Ty=O,i=0; i<m; ++i) Ty = scalar_add(Ty, scalar_mul(T[m][i], y[i]));
+                return scalar_div(scalar_sub(x[m], Ty), T[m][m]);
+            });
+        }
+    }
+    else
+    {
+        // upper triangular, backward substitution
+        if (is_matrix(x))
+        {
+            return matrix(n, COLS(x), function(m, k, y) {
+                for (var Ty=O,i=0; i<m; ++i) Ty = scalar_add(Ty, scalar_mul(T[n-1-m][n-1-i], y[n-1-i][k]));
+                return scalar_div(scalar_sub(x[n-1-m][k], Ty), T[n-1-m][n-1-m]);
+            }).reverse();
+        }
+        else
+        {
+            return array(n, function(m, y) {
+                for (var Ty=O,i=0; i<m; ++i) Ty = scalar_add(Ty, scalar_mul(T[n-1-m][n-1-i], y[n-1-i]));
+                return scalar_div(scalar_sub(x[n-1-m], Ty), T[n-1-m][n-1-m]);
+            }).reverse();
+        }
+    }
+}
 var ref = gauss_jordan;
 function largest_eig(A, N, eps, valueonly)
 {

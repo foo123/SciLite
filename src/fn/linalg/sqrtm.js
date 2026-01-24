@@ -1,4 +1,4 @@
-function sqrtm_tri(T)
+function sqrtm_tri(T, stat)
 {
     /*
     "Computing matrix functions",
@@ -9,7 +9,8 @@ function sqrtm_tri(T)
     // sqrtm of upper triangular matrix
     var n = ROWS(T),
         U = matrix(n, n, O),
-        i, j, k, kl, UU;
+        i, j, k, kl, UU, p, q,
+        stat_ = {err:0};
     for (j=0; j<n; ++j)
     {
         U[j][j] = fn.sqrt(T[j][j]);
@@ -20,12 +21,27 @@ function sqrtm_tri(T)
             {
                 UU = scalar_add(UU, scalar_mul(U[i][k], U[k][j]));
             }
-            U[i][j] = scalar_div(scalar_sub(T[i][j], UU), scalar_add(U[i][i], U[j][j]));
+            p = scalar_sub(T[i][j], UU);
+            q = scalar_add(U[i][i], U[j][j]);
+            if (eq(p, O))
+            {
+                U[i][j] = O;
+            }
+            else if (eq(q, O))
+            {
+                stat_.err = 1;
+                U[i][j] = scalar_div(p, q);
+            }
+            else
+            {
+                U[i][j] = scalar_div(p, q);
+            }
         }
     }
+    if (stat && (null != stat.err)) stat.err = stat_.err;
     return U;
 }
-function sqrtm(A)
+function sqrtm(A, stat)
 {
     /*
     "A new stable and avoiding inversion iteration for computing matrix square root",
@@ -68,7 +84,7 @@ function sqrtm(A)
     */
     var QT = schur(A, true, "complex"),
         Q = QT[0], T = QT[1];
-    return mul(mul(Q, sqrtm_tri(T)), ctranspose(Q));
+    return mul(mul(Q, sqrtm_tri(T, stat)), ctranspose(Q));
 }
 fn.sqrtm = varargout(function(nargout, A) {
     if (2 < nargout) throw "sqrtm: output not supported";

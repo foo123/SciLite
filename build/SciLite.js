@@ -3,7 +3,7 @@
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
 * @version: 0.9.12
-* 2026-01-18 13:38:57
+* 2026-01-24 19:17:12
 * https://github.com/foo123/SciLite
 *
 **//**
@@ -11,7 +11,7 @@
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
 * @version: 0.9.12
-* 2026-01-18 13:38:57
+* 2026-01-24 19:17:12
 * https://github.com/foo123/SciLite
 *
 **/
@@ -5510,6 +5510,47 @@ function gauss_jordan(A, with_pivots, odim, eps)
 
     return with_pivots ? [m, pivots, det, aug] : m;
 }
+function solve_by_substitution(T, x, type)
+{
+    x = vec(x);
+    var n = ROWS(x);
+    if ("lower" === type)
+    {
+        // lower triangular, forward substitution
+        if (is_matrix(x))
+        {
+            return matrix(n, COLS(x), function(m, k, y) {
+                for (var Ty=O,i=0; i<m; ++i) Ty = scalar_add(Ty, scalar_mul(T[m][i], y[i][k]));
+                return scalar_div(scalar_sub(x[m][k], Ty), T[m][m]);
+            });
+        }
+        else
+        {
+            return array(n, function(m, y) {
+                for (var Ty=O,i=0; i<m; ++i) Ty = scalar_add(Ty, scalar_mul(T[m][i], y[i]));
+                return scalar_div(scalar_sub(x[m], Ty), T[m][m]);
+            });
+        }
+    }
+    else
+    {
+        // upper triangular, backward substitution
+        if (is_matrix(x))
+        {
+            return matrix(n, COLS(x), function(m, k, y) {
+                for (var Ty=O,i=0; i<m; ++i) Ty = scalar_add(Ty, scalar_mul(T[n-1-m][n-1-i], y[n-1-i][k]));
+                return scalar_div(scalar_sub(x[n-1-m][k], Ty), T[n-1-m][n-1-m]);
+            }).reverse();
+        }
+        else
+        {
+            return array(n, function(m, y) {
+                for (var Ty=O,i=0; i<m; ++i) Ty = scalar_add(Ty, scalar_mul(T[n-1-m][n-1-i], y[n-1-i]));
+                return scalar_div(scalar_sub(x[n-1-m], Ty), T[n-1-m][n-1-m]);
+            }).reverse();
+        }
+    }
+}
 var ref = gauss_jordan;
 function largest_eig(A, N, eps, valueonly)
 {
@@ -6879,10 +6920,13 @@ function eig_power(A, eps)
     }
     return [realify(transpose(V)), realify(D), realify(transpose(W))];
 }
+function eig_tri(A, eps)
+{
+}
 fn.eig = varargout(function(nargout, A, nobalance) {
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("eig");
     if (is_matrix(nobalance)) not_supported("eig");
-    var T = null, QT, ans;
+    var T = null, Q, ans;
     if ('nobalance' !== nobalance)
     {
         T = balance(A, null, true);
@@ -6892,12 +6936,17 @@ fn.eig = varargout(function(nargout, A, nobalance) {
     if (1 < nargout)
     {
         // TODO implement more general and efficient eig routine
-        ans = eig_power(A, 1e-12);
-        return [T ? mul(diag(T), ans[0]) : ans[0], diag(ans[1]), T ? mul(diag(T.map(function(ti) {return n_inv(ti);})), ans[2]) : ans[2]];
+        //ans = eig_power(A, 1e-12);
+        // triangularize via schur
+        // eigenvectors can also be found from the nullspace of A-λI via fast backsubstitution
+        Q = schur(A, true, "complex", 1e-12);
+        A = Q[1];
+        Q = Q[0];
+        ans = eig_tri(A, 1e-12);
+        return [T ? mul(diag(T), mul(Q, ans[0])) : mul(Q, ans[0]), diag(ans[1]), T ? mul(diag(T.map(function(ti) {return n_inv(ti);})), mul(ctranspose(Q), ans[2])) : mul(ctranspose(Q), ans[2])];
     }
     else
     {
-        // eigenvectors can also be found from the nullspace of A-λI
         if (/*!is_tri(A, "upper", true, 1e-12) &&*/ !is_tri(A, "lower", true, 1e-12))
         {
             // triangularize via schur, schur checks if already upper triangular
@@ -7679,7 +7728,7 @@ fn.smithForm = varargout(function(nargout, A) {
     var ans = snf(fn.round(fn.real(A)), 1 < nargout, 1 < nargout);
     return 1 < nargout ? [ans[1], ans[2], ans[0]] : ans;
 });
-function sqrtm_tri(T)
+function sqrtm_tri(T, stat)
 {
     /*
     "Computing matrix functions",
@@ -7690,7 +7739,8 @@ function sqrtm_tri(T)
     // sqrtm of upper triangular matrix
     var n = ROWS(T),
         U = matrix(n, n, O),
-        i, j, k, kl, UU;
+        i, j, k, kl, UU, p, q,
+        stat_ = {err:0};
     for (j=0; j<n; ++j)
     {
         U[j][j] = fn.sqrt(T[j][j]);
@@ -7701,12 +7751,27 @@ function sqrtm_tri(T)
             {
                 UU = scalar_add(UU, scalar_mul(U[i][k], U[k][j]));
             }
-            U[i][j] = scalar_div(scalar_sub(T[i][j], UU), scalar_add(U[i][i], U[j][j]));
+            p = scalar_sub(T[i][j], UU);
+            q = scalar_add(U[i][i], U[j][j]);
+            if (eq(p, O))
+            {
+                U[i][j] = O;
+            }
+            else if (eq(q, O))
+            {
+                stat_.err = 1;
+                U[i][j] = scalar_div(p, q);
+            }
+            else
+            {
+                U[i][j] = scalar_div(p, q);
+            }
         }
     }
+    if (stat && (null != stat.err)) stat.err = stat_.err;
     return U;
 }
-function sqrtm(A)
+function sqrtm(A, stat)
 {
     /*
     "A new stable and avoiding inversion iteration for computing matrix square root",
@@ -7749,7 +7814,7 @@ function sqrtm(A)
     */
     var QT = schur(A, true, "complex"),
         Q = QT[0], T = QT[1];
-    return mul(mul(Q, sqrtm_tri(T)), ctranspose(Q));
+    return mul(mul(Q, sqrtm_tri(T, stat)), ctranspose(Q));
 }
 fn.sqrtm = varargout(function(nargout, A) {
     if (2 < nargout) throw "sqrtm: output not supported";
@@ -7795,7 +7860,7 @@ fn.expm = function(A) {
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("expm");
     return expm(A);
 };
-function logm_tri(T)
+function logm_tri(T, stat)
 {
     // log(A) by inverse squaring(sqrt), Taylor approximation and inverse scaling
     // for upper triangular T
@@ -7804,16 +7869,20 @@ function logm_tri(T)
         B = BT[0],
         In = eye(n),
         theta = __(0.013325),
-        s = 0,
-        An, logA, i, N;
+        s = 0, tries = 0,
+        An, logA, i, N,
+        stat_ = {err:0};
 
     T = BT[1];
 
     // inverse squaring (sqrt)
     while (n_gt(norm(sub(T, In), inf), theta))
     {
-        T = sqrtm_tri(T);
+        T = sqrtm_tri(T, stat_);
         ++s;
+        ++tries;
+        if (tries > 20) stat_.err = 1;
+        if (stat_.err) break;
     }
 
     T = sub(T, In);
@@ -7821,25 +7890,29 @@ function logm_tri(T)
     // Taylor expansion of log(I+A) up to N terms,
     // A - A^2/2 + A^3/3 - A^4/4 + ..
     logA = An;
-    for (i=2,N=10; i<=N; ++i)
+    if (!stat_.err)
     {
-        An = mul_tri(T, An);
-        logA = i & 1 ? add(logA, dotdiv(An, __(i))) : sub(logA, dotdiv(An, __(i)));
+        for (i=2,N=10; i<=N; ++i)
+        {
+            An = mul_tri(T, An);
+            logA = i & 1 ? add(logA, dotdiv(An, __(i))) : sub(logA, dotdiv(An, __(i)));
+        }
     }
 
     // inverse scaling
     if (0 < s) logA = dotmul(logA, n_pow(two, s));
 
+    if (stat && (null != stat.err)) stat.err = stat_.err;
     return mul(mul(diag(B), logA), diag(B.map(function(bi) {return n_inv(bi);})));
 }
-function logm(A)
+function logm(A, stat)
 {
     var QT = schur(A, true, "complex"),
         Q = QT[0], T = QT[1];
-    return mul(mul(Q, logm_tri(T)), ctranspose(Q));
+    return mul(mul(Q, logm_tri(T, stat)), ctranspose(Q));
 }
 fn.logm = varargout(function(nargout, A) {
-    var logA;
+    var logA, stat = {err:0};
     if (is_scalar(A))
     {
         logA = fn.log(A);
@@ -7847,9 +7920,9 @@ fn.logm = varargout(function(nargout, A) {
     else
     {
         if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("logm");
-        logA = logm(A);
+        logA = logm(A, stat);
     }
-    return 1 < nargout ? [logA, 0] : logA;
+    return 1 < nargout ? [logA, stat.err] : logA;
 });
 function sgn(z)
 {
