@@ -24,6 +24,7 @@ function eig_power(A, eps)
 }
 function eig_tri(A, eps)
 {
+    // TODO
 }
 fn.eig = varargout(function(nargout, A, nobalance) {
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("eig");
@@ -38,7 +39,9 @@ fn.eig = varargout(function(nargout, A, nobalance) {
     if (1 < nargout)
     {
         // TODO implement more general and efficient eig routine
-        //ans = eig_power(A, 1e-12);
+        ans = eig_power(A, 1e-12);
+        return [T ? mul(diag(T), ans[0]) : ans[0], diag(ans[1]), T ? mul(diag(T.map(function(ti) {return n_inv(ti);})), ans[2]) : ans[2]];
+        /*
         // triangularize via schur
         // eigenvectors can also be found from the nullspace of A-λI via fast backsubstitution
         Q = schur(A, true, "complex", 1e-12);
@@ -46,6 +49,7 @@ fn.eig = varargout(function(nargout, A, nobalance) {
         Q = Q[0];
         ans = eig_tri(A, 1e-12);
         return [T ? mul(diag(T), mul(Q, ans[0])) : mul(Q, ans[0]), diag(ans[1]), T ? mul(diag(T.map(function(ti) {return n_inv(ti);})), mul(ctranspose(Q), ans[2])) : mul(ctranspose(Q), ans[2])];
+        */
     }
     else
     {
