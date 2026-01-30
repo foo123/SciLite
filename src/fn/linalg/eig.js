@@ -24,23 +24,25 @@ function eig_power(A, eps)
 }
 function eig_from_schur(A)
 {
-    var n = ROWS(A), i = 0, eig = new Array(n);
+    var n = ROWS(A), i = 0, e = new Array(n);
     for (;i<n;)
     {
         if ((i+1 < n) && !eq(A[i+1][i], O))
         {
-            eig[i] = new complex(A[i][i], A[i][i+1]);
+            // 2x2 block, complex conjugate values
+            e[i] = new complex(A[i][i], A[i][i+1]);
             ++i;
-            eig[i] = new complex(A[i][i], A[i][i-1]);
+            e[i] = new complex(A[i][i], A[i][i-1]);
             ++i;
         }
         else
         {
-            eig[i] = A[i][i];
+            // 1x1 block, diagonal value
+            e[i] = A[i][i];
             ++i;
         }
     }
-    return eig;
+    return e;
 }
 function eig_tri(A, eps)
 {
@@ -73,16 +75,22 @@ fn.eig = varargout(function(nargout, A, nobalance) {
     }
     else
     {
-        if (/*!is_tri(A, "upper", true, 1e-12) &&*/ !is_tri(A, "lower", true, 1e-12))
+        if (is_tri(A, "lower", true, 1e-12))
+        {
+            // lower triangular, diagonal entries
+            ans = realify(array(ROWS(A), function(i) {return A[i][i];}));
+        }
+        else
         {
             // triangularize via schur, schur checks if already upper triangular
-            A = schur(A, false, "real", 1e-12);
+            ans = realify(eig_from_schur(schur(A, false, "real", 1e-12)));
         }
-        // triangular, get diagonal values
-        return realify(eig_from_schur(A).sort(function(a, b) {
-            var aa = scalar_abs(a), ab = scalar_abs(b)
-            return n_gt(ab, aa) ? 1 : (n_lt(ab, aa) ? -1 : 0);
-        }));
+        // get sorted eigen values
+        return ans.sort(function(a, b) {
+            var aa = scalar_abs(a), ab = scalar_abs(b),
+                ra = real(a), rb = real(b);
+            return n_gt(ab, aa) ? 1 : (n_lt(ab, aa) ? -1 : (n_gt(rb, ra) ? 1 : (n_lt(rb, ra) ? -1 : 0)));
+        });
         /*
         return realify((is_tri(A, 'upper', true, 1e-12) || is_tri(A, 'lower', true, 1e-12) ? array(ROWS(A), function(i) {
                 return A[i][i];
