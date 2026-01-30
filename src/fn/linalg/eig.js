@@ -22,6 +22,26 @@ function eig_power(A, eps)
     }
     return [realify(transpose(V)), realify(D), realify(transpose(W))];
 }
+function eig_from_schur(A)
+{
+    var n = ROWS(A), i = 0, eig = new Array(n);
+    for (;i<n;)
+    {
+        if ((i+1 < n) && !eq(A[i+1][i], O))
+        {
+            eig[i] = new complex(A[i][i], A[i][i+1]);
+            ++i;
+            eig[i] = new complex(A[i][i], A[i][i-1]);
+            ++i;
+        }
+        else
+        {
+            eig[i] = A[i][i];
+            ++i;
+        }
+    }
+    return eig;
+}
 function eig_tri(A, eps)
 {
     // TODO
@@ -44,7 +64,7 @@ fn.eig = varargout(function(nargout, A, nobalance) {
         /*
         // triangularize via schur
         // eigenvectors can also be found from the nullspace of A-λI via fast backsubstitution
-        Q = schur(A, true, "complex", 1e-12);
+        Q = schur(A, true, "real", 1e-12);
         A = Q[1];
         Q = Q[0];
         ans = eig_tri(A, 1e-12);
@@ -56,10 +76,10 @@ fn.eig = varargout(function(nargout, A, nobalance) {
         if (/*!is_tri(A, "upper", true, 1e-12) &&*/ !is_tri(A, "lower", true, 1e-12))
         {
             // triangularize via schur, schur checks if already upper triangular
-            A = schur(A, false, "complex", 1e-12);
+            A = schur(A, false, "real", 1e-12);
         }
         // triangular, get diagonal values
-        return realify(array(ROWS(A), function(i) {return A[i][i];}).sort(function(a, b) {
+        return realify(eig_from_schur(A).sort(function(a, b) {
             var aa = scalar_abs(a), ab = scalar_abs(b)
             return n_gt(ab, aa) ? 1 : (n_lt(ab, aa) ? -1 : 0);
         }));
