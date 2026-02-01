@@ -24,22 +24,33 @@ function eig_power(A, eps)
 }
 function eig_from_schur(A)
 {
-    var n = ROWS(A), i = 0, e = new Array(n);
+    var n = ROWS(A), i = 0, e = new Array(n),
+        a, b, c, d, p, q, D;
     for (;i<n;)
     {
         if ((i+1 < n) && !eq(A[i+1][i], O))
         {
             // 2x2 block, complex conjugate values
-            e[i] = new complex(A[i][i], A[i][i+1]);
-            ++i;
-            e[i] = new complex(A[i][i], A[i][i-1]);
-            ++i;
+            //e[i] = new complex(A[i][i], A[i][i+1]);
+            //++i;
+            //e[i] = new complex(A[i][i], A[i][i-1]);
+            //++i;
+            a = A[i][i];
+            b = A[i][i+1];
+            c = A[i+1][i];
+            d = A[i+1][i+1];
+            p = scalar_add(a, d);
+            q = scalar_sub(scalar_mul(a, d), scalar_mul(b, c));
+            D = fn.sqrt(scalar_sub(scalar_mul(p, p), scalar_mul(q, 4)));
+            e[i] = scalar_div(scalar_add(p, D), two);
+            e[i+1] = scalar_div(scalar_sub(p, D), two);
+            i += 2;
         }
         else
         {
             // 1x1 block, diagonal value
             e[i] = A[i][i];
-            ++i;
+            i += 1;
         }
     }
     return e;

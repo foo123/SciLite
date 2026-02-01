@@ -55,6 +55,10 @@ var decimal = null,
         _: {},
         // builtin functions
         fn: {},
+        // symbolic computation
+        sym: {
+            fn: {}
+        },
         // operators
         op: {},
         // constants

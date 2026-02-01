@@ -841,7 +841,7 @@ function init($)
     if (params.session.length)
     {
         document.getElementById('arbitrary_precision').checked = params.arbprec;
-        arbitraryPrecision(params.arbprec);
+        $.arbitraryPrecision(params.arbprec);
         run_session(params.session).then(() => 0); // other session loaded
     }
     else
