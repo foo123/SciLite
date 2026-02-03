@@ -697,49 +697,34 @@ function gauss_jordan(A, with_pivots, odim, eps)
 
     return with_pivots ? [m, pivots, det, aug] : m;
 }
-function solve_by_substitution(T, x, type)
+function solve_by_substitution(type, T, y, free_vars)
 {
-    x = vec(x);
-    var n = ROWS(x);
+    if (!free_vars) free_vars = [I];
+    var n = ROWS(T), fk = 0, fn = free_vars.length;
+    if (y) y = vec(y);
     if ("lower" === type)
     {
         // lower triangular, forward substitution
-        if (is_matrix(x))
-        {
-            return matrix(n, COLS(x), function(m, k, y) {
-                for (var Ty=O,i=0; i<m; ++i) Ty = scalar_add(Ty, scalar_mul(T[m][i], y[i][k]));
-                return scalar_div(scalar_sub(x[m][k], Ty), T[m][m]);
-            });
-        }
-        else
-        {
-            return array(n, function(m, y) {
-                for (var Ty=O,i=0; i<m; ++i) Ty = scalar_add(Ty, scalar_mul(T[m][i], y[i]));
-                return scalar_div(scalar_sub(x[m], Ty), T[m][m]);
-            });
-        }
+        return array(n, function(m, x) {
+            for (var Tx=O,i=0; i<m; ++i) Tx = scalar_add(Tx, scalar_mul(T[m][i], x[i]));
+            Tx = scalar_sub(y ? y[m] : O, Tx);
+            if (eq(T[m][m], O) && eq(Tx, O)) return fk < fn ? free_vars[fk++] : (free_vars[fn-1] || O); // free variable
+            return scalar_div(Tx, T[m][m]);
+        });
     }
     else
     {
         // upper triangular, backward substitution
-        if (is_matrix(x))
-        {
-            return matrix(n, COLS(x), function(m, k, y) {
-                for (var Ty=O,i=0; i<m; ++i) Ty = scalar_add(Ty, scalar_mul(T[n-1-m][n-1-i], y[n-1-i][k]));
-                return scalar_div(scalar_sub(x[n-1-m][k], Ty), T[n-1-m][n-1-m]);
-            }).reverse();
-        }
-        else
-        {
-            return array(n, function(m, y) {
-                for (var Ty=O,i=0; i<m; ++i) Ty = scalar_add(Ty, scalar_mul(T[n-1-m][n-1-i], y[n-1-i]));
-                return scalar_div(scalar_sub(x[n-1-m], Ty), T[n-1-m][n-1-m]);
-            }).reverse();
-        }
+        return array(n, function(m, x) {
+            for (var Tx=O,i=0; i<m; ++i) Tx = scalar_add(Tx, scalar_mul(T[n-1-m][n-1-i], x[i]));
+            Tx = scalar_sub(y ? y[n-1-m] : O, Tx);
+            if (eq(T[n-1-m][n-1-m], O) && eq(Tx, O)) return fk < fn ? free_vars[fk++] : (free_vars[fn-1] || O); // free variable
+            return scalar_div(Tx, T[n-1-m][n-1-m]);
+        }).reverse();
     }
 }
 var ref = gauss_jordan;
-function largest_eig(A, N, eps, valueonly)
+/*function largest_eig(A, N, eps, valueonly)
 {
     // power method
     var iter,
@@ -797,4 +782,4 @@ function largest_eig(A, N, eps, valueonly)
         }
         return [k, v, w];
     }
-}
+}*/

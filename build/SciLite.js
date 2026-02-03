@@ -3,7 +3,7 @@
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
 * @version: 0.9.12
-* 2026-02-01 18:24:06
+* 2026-02-03 12:38:57
 * https://github.com/foo123/SciLite
 *
 **//**
@@ -11,7 +11,7 @@
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
 * @version: 0.9.12
-* 2026-02-01 18:24:06
+* 2026-02-03 12:38:57
 * https://github.com/foo123/SciLite
 *
 **/
@@ -5514,49 +5514,34 @@ function gauss_jordan(A, with_pivots, odim, eps)
 
     return with_pivots ? [m, pivots, det, aug] : m;
 }
-function solve_by_substitution(T, x, type)
+function solve_by_substitution(type, T, y, free_vars)
 {
-    x = vec(x);
-    var n = ROWS(x);
+    if (!free_vars) free_vars = [I];
+    var n = ROWS(T), fk = 0, fn = free_vars.length;
+    if (y) y = vec(y);
     if ("lower" === type)
     {
         // lower triangular, forward substitution
-        if (is_matrix(x))
-        {
-            return matrix(n, COLS(x), function(m, k, y) {
-                for (var Ty=O,i=0; i<m; ++i) Ty = scalar_add(Ty, scalar_mul(T[m][i], y[i][k]));
-                return scalar_div(scalar_sub(x[m][k], Ty), T[m][m]);
-            });
-        }
-        else
-        {
-            return array(n, function(m, y) {
-                for (var Ty=O,i=0; i<m; ++i) Ty = scalar_add(Ty, scalar_mul(T[m][i], y[i]));
-                return scalar_div(scalar_sub(x[m], Ty), T[m][m]);
-            });
-        }
+        return array(n, function(m, x) {
+            for (var Tx=O,i=0; i<m; ++i) Tx = scalar_add(Tx, scalar_mul(T[m][i], x[i]));
+            Tx = scalar_sub(y ? y[m] : O, Tx);
+            if (eq(T[m][m], O) && eq(Tx, O)) return fk < fn ? free_vars[fk++] : (free_vars[fn-1] || O); // free variable
+            return scalar_div(Tx, T[m][m]);
+        });
     }
     else
     {
         // upper triangular, backward substitution
-        if (is_matrix(x))
-        {
-            return matrix(n, COLS(x), function(m, k, y) {
-                for (var Ty=O,i=0; i<m; ++i) Ty = scalar_add(Ty, scalar_mul(T[n-1-m][n-1-i], y[n-1-i][k]));
-                return scalar_div(scalar_sub(x[n-1-m][k], Ty), T[n-1-m][n-1-m]);
-            }).reverse();
-        }
-        else
-        {
-            return array(n, function(m, y) {
-                for (var Ty=O,i=0; i<m; ++i) Ty = scalar_add(Ty, scalar_mul(T[n-1-m][n-1-i], y[n-1-i]));
-                return scalar_div(scalar_sub(x[n-1-m], Ty), T[n-1-m][n-1-m]);
-            }).reverse();
-        }
+        return array(n, function(m, x) {
+            for (var Tx=O,i=0; i<m; ++i) Tx = scalar_add(Tx, scalar_mul(T[n-1-m][n-1-i], x[i]));
+            Tx = scalar_sub(y ? y[n-1-m] : O, Tx);
+            if (eq(T[n-1-m][n-1-m], O) && eq(Tx, O)) return fk < fn ? free_vars[fk++] : (free_vars[fn-1] || O); // free variable
+            return scalar_div(Tx, T[n-1-m][n-1-m]);
+        }).reverse();
     }
 }
 var ref = gauss_jordan;
-function largest_eig(A, N, eps, valueonly)
+/*function largest_eig(A, N, eps, valueonly)
 {
     // power method
     var iter,
@@ -5614,7 +5599,7 @@ function largest_eig(A, N, eps, valueonly)
         }
         return [k, v, w];
     }
-}
+}*/
 fn.planerot = varargout(function(nargout, x) {
     x = vec(x);
     if (!is_vector(x) || (2 !== x.length)) not_supported("planerot");
@@ -6603,7 +6588,7 @@ function real_qr_shift(A, i, sI, s, type)
         }
     }
 }
-function split22block(A, U, i, s)
+function split22block(A, U, i, s, forcesplit)
 {
     // compute the eigenvalues of 2x2 block submatrix
     // by solving the quadratic characteristic equation
@@ -6615,10 +6600,11 @@ function split22block(A, U, i, s)
     A[i][i] = scalar_add(A[i][i], s[0]);
     A[i-1][i-1] = scalar_add(A[i-1][i-1], s[0]);
 
-    if (ge(q, O))
+    if (forcesplit || ge(q, O))
     {
-        // 2 real eigenvalues, block 2x2 submatrix can be diagonalized
-        z = realMath.sqrt(scalar_abs(q));
+        // force split, or
+        // 2 real eigenvalues, so block 2x2 submatrix can be diagonalized
+        z = fn.sqrt(q);
         G = compute_givens(ge(p, O) ? scalar_add(p, z) : scalar_sub(p, z), A[i][i-1]);
         G_t = [scalar_conj(G[0]), scalar_neg(scalar_conj(G[1]))];
         A = rotmul('left', G_t, i-1, i, A, i-1, null);//m_matT.rightCols(size - i + 1).applyOnTheLeft(i-1, i, rot.adjoint());
@@ -6805,7 +6791,7 @@ function schur(A, wantu, mode, eps)
             else if (il+1 === iu)
             {
                 // 2 roots
-                split22block(H, U, iu, s);
+                split22block(H, U, iu, s, 'realcomplex' === mode);
                 iu -= 2;
                 iter = 0;
             }
@@ -6900,7 +6886,7 @@ fn.schur = varargout(function(nargout, A, mode) {
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("schur");
     return schur(A, 1 < nargout, "complex" === mode || !fn.isreal(A) ? "complex" : "real");
 });
-function eig_power(A, eps)
+/*function eig_pow(A, wantv, wantw, eps)
 {
     // eig power iteration method
     eps = __(eps || 1e-10);
@@ -6922,9 +6908,13 @@ function eig_power(A, eps)
         W[n] = w;
         A = sub(A, mul(mul(scalar_div(d, dot(v, w, true)), v), w));
     }
-    return [realify(transpose(V)), realify(D), realify(transpose(W))];
-}
-function eig_from_schur(A)
+    return [
+    realify(D),
+    realify(transpose(V)),
+    realify(transpose(W))
+    ];
+}*/
+/*function eig_from_schur(A)
 {
     var n = ROWS(A), i = 0, e = new Array(n),
         a, b, c, d, p, q, D;
@@ -6956,62 +6946,108 @@ function eig_from_schur(A)
         }
     }
     return e;
-}
-function eig_tri(A, eps)
+}*/
+function eig_schur(A, wantv, wantw, eps)
 {
-    // TODO
+    // triangularize via schur
+    // eigenvectors can be found from the nullspace of A-λI via fast backsubstitution
+    var Q = schur(A, true, !fn.isreal(A) ? "complex" : "realcomplex", eps),
+        i, j, n,
+        D, V, W, v, w,
+        lambda, Alambda,
+        multiplicity, free;
+    A = Q[1];
+    Q = Q[0];
+    n = ROWS(A);
+    D = eig_sort(array(n, function(i) {return realify(A[i][i]);}));
+    if (wantv || wantw)
+    {
+        if (wantv) V = new Array(n);
+        if (wantw) W = new Array(n);
+        free = array(n, O);
+        for (i=0; i<n; ++i)
+        {
+            multiplicity = 1;
+            lambda = D[i];
+            j = i-1;
+            while ((j >= 0) && n_le(scalar_abs(scalar_sub(lambda, D[j])), eps))
+            {
+                ++multiplicity;
+                --j;
+            }
+            Alambda = matrix(n, n, function(i, j) {
+                return i === j ? scalar_sub(A[i][i], lambda) : A[i][j];
+            });
+            free[multiplicity-1] = I; // generate different eigenvector based on multiplicity of eigenvalue
+            if (wantv)
+            {
+                v = solve_by_substitution("upper", Alambda, null, free);
+                V[i] = dotdiv(v, norm(v));
+            }
+            if (wantw)
+            {
+                w = conj(solve_by_substitution("lower", ctranspose(Alambda), null, free));
+                W[i] = dotdiv(w, norm(w));
+            }
+            free[multiplicity-1] = O;
+        }
+    }
+    return [
+    D,
+    wantv ? mul(Q, realify(transpose(V))) : null,
+    wantw ? mul(ctranspose(Q), realify(transpose(W))) : null
+    ];
+}
+function eig_sort(eig)
+{
+    return eig.sort(function(a, b) {
+        var aa = scalar_abs(a), ab = scalar_abs(b),
+            ra = real(a), rb = real(b);
+        return n_gt(ab, aa) ? 1 : (n_lt(ab, aa) ? -1 : (n_gt(rb, ra) ? 1 : (n_lt(rb, ra) ? -1 : 0)));
+    });
 }
 fn.eig = varargout(function(nargout, A, nobalance) {
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("eig");
     if (is_matrix(nobalance)) not_supported("eig");
-    var T = null, Q, ans;
+    var T = null, ans;
     if ('nobalance' !== nobalance)
     {
-        T = balance(A, null, true);
-        A = T[1];
-        T = T[0];
+        if (1 < nargout)
+        {
+            T = balance(A, null, true);
+            A = T[1];
+            T = T[0];
+        }
+        else
+        {
+            A = balance(A, null, false);
+        }
     }
     if (1 < nargout)
     {
-        // TODO implement more general and efficient eig routine
-        ans = eig_power(A, 1e-12);
-        return [T ? mul(diag(T), ans[0]) : ans[0], diag(ans[1]), T ? mul(diag(T.map(function(ti) {return n_inv(ti);})), ans[2]) : ans[2]];
-        /*
-        // triangularize via schur
-        // eigenvectors can also be found from the nullspace of A-λI via fast backsubstitution
-        Q = schur(A, true, "real", 1e-12);
-        A = Q[1];
-        Q = Q[0];
-        ans = eig_tri(A, 1e-12);
-        return [T ? mul(diag(T), mul(Q, ans[0])) : mul(Q, ans[0]), diag(ans[1]), T ? mul(diag(T.map(function(ti) {return n_inv(ti);})), mul(ctranspose(Q), ans[2])) : mul(ctranspose(Q), ans[2])];
-        */
+        //ans = eig_pow(A, 1 < nargout, 2 < nargout, 1e-16);
+        ans = eig_schur(A, 1 < nargout, 2 < nargout, 1e-16);
+        return [T && ans[1] ? mul(diag(T), ans[1]) : ans[1], diag(ans[0]), T && ans[2] ? mul(diag(T.map(function(ti) {return n_inv(ti);})), ans[2]) : ans[2]];
     }
     else
     {
-        if (is_tri(A, "lower", true, 1e-12))
+        if (is_tri(A, "lower", true, 1e-16))
         {
             // lower triangular, diagonal entries
-            ans = realify(array(ROWS(A), function(i) {return A[i][i];}));
+            // pass
         }
         else
         {
             // triangularize via schur, schur checks if already upper triangular
-            ans = realify(eig_from_schur(schur(A, false, "real", 1e-12)));
+            A = schur(A, false, !fn.isreal(A) ? "complex" : "realcomplex", 1e-16);
         }
         // get sorted eigen values
-        return ans.sort(function(a, b) {
-            var aa = scalar_abs(a), ab = scalar_abs(b),
-                ra = real(a), rb = real(b);
-            return n_gt(ab, aa) ? 1 : (n_lt(ab, aa) ? -1 : (n_gt(rb, ra) ? 1 : (n_lt(rb, ra) ? -1 : 0)));
-        });
+        return eig_sort(realify(array(ROWS(A), function(i) {return A[i][i];})));
         /*
-        return realify((is_tri(A, 'upper', true, 1e-12) || is_tri(A, 'lower', true, 1e-12) ? array(ROWS(A), function(i) {
+        return eig_sort(realify((is_tri(A, 'upper', true, 1e-16) || is_tri(A, 'lower', true, 1e-16) ? array(ROWS(A), function(i) {
                 return A[i][i];
-            }) : roots(charpoly(A))).sort(function(a, b) {
-                var aa = scalar_abs(a), ab = scalar_abs(b)
-                return n_gt(ab, aa) ? 1 : (n_lt(ab, aa) ? -1 : 0);
-            })
-        );
+            }) : roots(charpoly(A)))
+        ));
         */
     }
 });

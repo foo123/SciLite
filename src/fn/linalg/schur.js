@@ -31,7 +31,7 @@ function real_qr_shift(A, i, sI, s, type)
         }
     }
 }
-function split22block(A, U, i, s)
+function split22block(A, U, i, s, forcesplit)
 {
     // compute the eigenvalues of 2x2 block submatrix
     // by solving the quadratic characteristic equation
@@ -43,10 +43,11 @@ function split22block(A, U, i, s)
     A[i][i] = scalar_add(A[i][i], s[0]);
     A[i-1][i-1] = scalar_add(A[i-1][i-1], s[0]);
 
-    if (ge(q, O))
+    if (forcesplit || ge(q, O))
     {
-        // 2 real eigenvalues, block 2x2 submatrix can be diagonalized
-        z = realMath.sqrt(scalar_abs(q));
+        // force split, or
+        // 2 real eigenvalues, so block 2x2 submatrix can be diagonalized
+        z = fn.sqrt(q);
         G = compute_givens(ge(p, O) ? scalar_add(p, z) : scalar_sub(p, z), A[i][i-1]);
         G_t = [scalar_conj(G[0]), scalar_neg(scalar_conj(G[1]))];
         A = rotmul('left', G_t, i-1, i, A, i-1, null);//m_matT.rightCols(size - i + 1).applyOnTheLeft(i-1, i, rot.adjoint());
@@ -233,7 +234,7 @@ function schur(A, wantu, mode, eps)
             else if (il+1 === iu)
             {
                 // 2 roots
-                split22block(H, U, iu, s);
+                split22block(H, U, iu, s, 'realcomplex' === mode);
                 iu -= 2;
                 iter = 0;
             }

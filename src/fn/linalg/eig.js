@@ -1,4 +1,4 @@
-function eig_power(A, eps)
+/*function eig_pow(A, wantv, wantw, eps)
 {
     // eig power iteration method
     eps = __(eps || 1e-10);
@@ -20,9 +20,13 @@ function eig_power(A, eps)
         W[n] = w;
         A = sub(A, mul(mul(scalar_div(d, dot(v, w, true)), v), w));
     }
-    return [realify(transpose(V)), realify(D), realify(transpose(W))];
-}
-function eig_from_schur(A)
+    return [
+    realify(D),
+    realify(transpose(V)),
+    realify(transpose(W))
+    ];
+}*/
+/*function eig_from_schur(A)
 {
     var n = ROWS(A), i = 0, e = new Array(n),
         a, b, c, d, p, q, D;
@@ -54,62 +58,108 @@ function eig_from_schur(A)
         }
     }
     return e;
-}
-function eig_tri(A, eps)
+}*/
+function eig_schur(A, wantv, wantw, eps)
 {
-    // TODO
+    // triangularize via schur
+    // eigenvectors can be found from the nullspace of A-λI via fast backsubstitution
+    var Q = schur(A, true, !fn.isreal(A) ? "complex" : "realcomplex", eps),
+        i, j, n,
+        D, V, W, v, w,
+        lambda, Alambda,
+        multiplicity, free;
+    A = Q[1];
+    Q = Q[0];
+    n = ROWS(A);
+    D = eig_sort(array(n, function(i) {return realify(A[i][i]);}));
+    if (wantv || wantw)
+    {
+        if (wantv) V = new Array(n);
+        if (wantw) W = new Array(n);
+        free = array(n, O);
+        for (i=0; i<n; ++i)
+        {
+            multiplicity = 1;
+            lambda = D[i];
+            j = i-1;
+            while ((j >= 0) && n_le(scalar_abs(scalar_sub(lambda, D[j])), eps))
+            {
+                ++multiplicity;
+                --j;
+            }
+            Alambda = matrix(n, n, function(i, j) {
+                return i === j ? scalar_sub(A[i][i], lambda) : A[i][j];
+            });
+            free[multiplicity-1] = I; // generate different eigenvector based on multiplicity of eigenvalue
+            if (wantv)
+            {
+                v = solve_by_substitution("upper", Alambda, null, free);
+                V[i] = dotdiv(v, norm(v));
+            }
+            if (wantw)
+            {
+                w = conj(solve_by_substitution("lower", ctranspose(Alambda), null, free));
+                W[i] = dotdiv(w, norm(w));
+            }
+            free[multiplicity-1] = O;
+        }
+    }
+    return [
+    D,
+    wantv ? mul(Q, realify(transpose(V))) : null,
+    wantw ? mul(ctranspose(Q), realify(transpose(W))) : null
+    ];
+}
+function eig_sort(eig)
+{
+    return eig.sort(function(a, b) {
+        var aa = scalar_abs(a), ab = scalar_abs(b),
+            ra = real(a), rb = real(b);
+        return n_gt(ab, aa) ? 1 : (n_lt(ab, aa) ? -1 : (n_gt(rb, ra) ? 1 : (n_lt(rb, ra) ? -1 : 0)));
+    });
 }
 fn.eig = varargout(function(nargout, A, nobalance) {
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("eig");
     if (is_matrix(nobalance)) not_supported("eig");
-    var T = null, Q, ans;
+    var T = null, ans;
     if ('nobalance' !== nobalance)
     {
-        T = balance(A, null, true);
-        A = T[1];
-        T = T[0];
+        if (1 < nargout)
+        {
+            T = balance(A, null, true);
+            A = T[1];
+            T = T[0];
+        }
+        else
+        {
+            A = balance(A, null, false);
+        }
     }
     if (1 < nargout)
     {
-        // TODO implement more general and efficient eig routine
-        ans = eig_power(A, 1e-12);
-        return [T ? mul(diag(T), ans[0]) : ans[0], diag(ans[1]), T ? mul(diag(T.map(function(ti) {return n_inv(ti);})), ans[2]) : ans[2]];
-        /*
-        // triangularize via schur
-        // eigenvectors can also be found from the nullspace of A-λI via fast backsubstitution
-        Q = schur(A, true, "real", 1e-12);
-        A = Q[1];
-        Q = Q[0];
-        ans = eig_tri(A, 1e-12);
-        return [T ? mul(diag(T), mul(Q, ans[0])) : mul(Q, ans[0]), diag(ans[1]), T ? mul(diag(T.map(function(ti) {return n_inv(ti);})), mul(ctranspose(Q), ans[2])) : mul(ctranspose(Q), ans[2])];
-        */
+        //ans = eig_pow(A, 1 < nargout, 2 < nargout, 1e-16);
+        ans = eig_schur(A, 1 < nargout, 2 < nargout, 1e-16);
+        return [T && ans[1] ? mul(diag(T), ans[1]) : ans[1], diag(ans[0]), T && ans[2] ? mul(diag(T.map(function(ti) {return n_inv(ti);})), ans[2]) : ans[2]];
     }
     else
     {
-        if (is_tri(A, "lower", true, 1e-12))
+        if (is_tri(A, "lower", true, 1e-16))
         {
             // lower triangular, diagonal entries
-            ans = realify(array(ROWS(A), function(i) {return A[i][i];}));
+            // pass
         }
         else
         {
             // triangularize via schur, schur checks if already upper triangular
-            ans = realify(eig_from_schur(schur(A, false, "real", 1e-12)));
+            A = schur(A, false, !fn.isreal(A) ? "complex" : "realcomplex", 1e-16);
         }
         // get sorted eigen values
-        return ans.sort(function(a, b) {
-            var aa = scalar_abs(a), ab = scalar_abs(b),
-                ra = real(a), rb = real(b);
-            return n_gt(ab, aa) ? 1 : (n_lt(ab, aa) ? -1 : (n_gt(rb, ra) ? 1 : (n_lt(rb, ra) ? -1 : 0)));
-        });
+        return eig_sort(realify(array(ROWS(A), function(i) {return A[i][i];})));
         /*
-        return realify((is_tri(A, 'upper', true, 1e-12) || is_tri(A, 'lower', true, 1e-12) ? array(ROWS(A), function(i) {
+        return eig_sort(realify((is_tri(A, 'upper', true, 1e-16) || is_tri(A, 'lower', true, 1e-16) ? array(ROWS(A), function(i) {
                 return A[i][i];
-            }) : roots(charpoly(A))).sort(function(a, b) {
-                var aa = scalar_abs(a), ab = scalar_abs(b)
-                return n_gt(ab, aa) ? 1 : (n_lt(ab, aa) ? -1 : 0);
-            })
-        );
+            }) : roots(charpoly(A)))
+        ));
         */
     }
 });
