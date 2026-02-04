@@ -3,7 +3,7 @@
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
 * @version: 0.9.12
-* 2026-02-04 13:01:47
+* 2026-02-04 21:19:10
 * https://github.com/foo123/SciLite
 *
 **//**
@@ -11,7 +11,7 @@
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
 * @version: 0.9.12
-* 2026-02-04 13:01:47
+* 2026-02-04 21:19:10
 * https://github.com/foo123/SciLite
 *
 **/
@@ -6954,23 +6954,37 @@ function eig_schur(A, wantv, wantw, eps)
     // eigenvectors can be found from the nullspace of A-λI via fast backsubstitution
     var Q = schur(A, true, !fn.isreal(A) ? "complex" : "realcomplex", eps),
         i, j, n,
-        D, V, W, v, w,
+        D, V, W,
+        v, w,
+        sortperm,
         lambda, Alambda,
         multiplicity, free;
     A = Q[1];
     Q = Q[0];
     n = ROWS(A);
-    D = eig_sort(array(n, function(i) {return realify(A[i][i]);}));
+    D = array(n, function(i) {return realify(A[i][i]);});
+
     if (wantv || wantw)
     {
+        sortperm = array(n, function(i) {return i;}).sort(function(i, j) {
+            var a = D[i],
+                b = D[j],
+                aa = scalar_abs(a),
+                ab = scalar_abs(b),
+                ra = real(a),
+                rb = real(b);
+            return n_gt(ab, aa) ? 1 : (n_lt(ab, aa) ? -1 : (n_gt(rb, ra) ? 1 : (n_lt(rb, ra) ? -1 : 0)));
+        });
+
         if (wantv) V = new Array(n);
         if (wantw) W = new Array(n);
         free = array(n, O);
+
         for (i=0; i<n; ++i)
         {
             multiplicity = 1;
-            lambda = D[i];
-            j = i-1;
+            lambda = D[sortperm[i]];
+            j = sortperm[i]-1;
             while ((j >= 0) && n_le(scalar_abs(scalar_sub(lambda, D[j])), eps))
             {
                 ++multiplicity;
@@ -6983,12 +6997,12 @@ function eig_schur(A, wantv, wantw, eps)
             if (wantv)
             {
                 v = solve_by_substitution("upper", Alambda, null, free, eps);
-                V[i] = dotdiv(v, norm(v));
+                V[sortperm[i]] = dotdiv(v, norm(v));
             }
             if (wantw)
             {
                 w = conj(solve_by_substitution("lower", ctranspose(Alambda), null, free, eps));
-                W[i] = dotdiv(w, norm(w));
+                W[sortperm[i]] = dotdiv(w, norm(w));
             }
             free[multiplicity-1] = O;
         }
@@ -6999,20 +7013,13 @@ function eig_schur(A, wantv, wantw, eps)
     wantw ? mul(ctranspose(Q), realify(transpose(W))) : null
     ];
 }
-function eig_sort(eig)
-{
-    return eig.sort(function(a, b) {
-        var aa = scalar_abs(a), ab = scalar_abs(b),
-            ra = real(a), rb = real(b);
-        return n_gt(ab, aa) ? 1 : (n_lt(ab, aa) ? -1 : (n_gt(rb, ra) ? 1 : (n_lt(rb, ra) ? -1 : 0)));
-    });
-}
 fn.eig = varargout(function(nargout, A, nobalance) {
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("eig");
     if (is_matrix(nobalance)) not_supported("eig");
     var T = null, ans;
     if ('nobalance' !== nobalance)
     {
+        // always balance the matrix, unless explicitly bypassed
         if (1 < nargout)
         {
             T = balance(A, null, true);
@@ -7042,13 +7049,12 @@ fn.eig = varargout(function(nargout, A, nobalance) {
             // triangularize via schur, schur checks if already upper triangular
             A = schur(A, false, !fn.isreal(A) ? "complex" : "realcomplex", 1e-16);
         }
-        // get sorted eigen values
-        return eig_sort(realify(array(ROWS(A), function(i) {return A[i][i];})));
+        // get eigen values
+        return realify(array(ROWS(A), function(i) {return A[i][i];}));
         /*
-        return eig_sort(realify((is_tri(A, 'upper', true, 1e-16) || is_tri(A, 'lower', true, 1e-16) ? array(ROWS(A), function(i) {
+        return realify(is_tri(A, 'upper', true, 1e-16) || is_tri(A, 'lower', true, 1e-16) ? array(ROWS(A), function(i) {
                 return A[i][i];
-            }) : roots(charpoly(A)))
-        ));
+            }) : roots(charpoly(A)));
         */
     }
 });
