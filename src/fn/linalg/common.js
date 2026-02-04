@@ -697,18 +697,19 @@ function gauss_jordan(A, with_pivots, odim, eps)
 
     return with_pivots ? [m, pivots, det, aug] : m;
 }
-function solve_by_substitution(type, T, y, free_vars)
+function solve_by_substitution(type, T, y, free_vars, eps)
 {
+    eps = __(eps || 0);
     if (!free_vars) free_vars = [I];
-    var n = ROWS(T), fk = 0, fn = free_vars.length;
     if (y) y = vec(y);
+    var n = ROWS(T), fk = 0, fn = free_vars.length;
     if ("lower" === type)
     {
         // lower triangular, forward substitution
         return array(n, function(m, x) {
             for (var Tx=O,i=0; i<m; ++i) Tx = scalar_add(Tx, scalar_mul(T[m][i], x[i]));
             Tx = scalar_sub(y ? y[m] : O, Tx);
-            if (eq(T[m][m], O) && eq(Tx, O)) return fk < fn ? free_vars[fk++] : (free_vars[fn-1] || O); // free variable
+            if (n_le(scalar_abs(T[m][m]), eps) && n_le(scalar_abs(Tx), eps)) return fk < fn ? free_vars[fk++] : (free_vars[fn-1] || O); // free variable
             return scalar_div(Tx, T[m][m]);
         });
     }
@@ -718,7 +719,7 @@ function solve_by_substitution(type, T, y, free_vars)
         return array(n, function(m, x) {
             for (var Tx=O,i=0; i<m; ++i) Tx = scalar_add(Tx, scalar_mul(T[n-1-m][n-1-i], x[i]));
             Tx = scalar_sub(y ? y[n-1-m] : O, Tx);
-            if (eq(T[n-1-m][n-1-m], O) && eq(Tx, O)) return fk < fn ? free_vars[fk++] : (free_vars[fn-1] || O); // free variable
+            if (n_le(scalar_abs(T[n-1-m][n-1-m]), eps) && n_le(scalar_abs(Tx), eps)) return fk < fn ? free_vars[fk++] : (free_vars[fn-1] || O); // free variable
             return scalar_div(Tx, T[n-1-m][n-1-m]);
         }).reverse();
     }

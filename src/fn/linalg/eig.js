@@ -93,12 +93,12 @@ function eig_schur(A, wantv, wantw, eps)
             free[multiplicity-1] = I; // generate different eigenvector based on multiplicity of eigenvalue
             if (wantv)
             {
-                v = solve_by_substitution("upper", Alambda, null, free);
+                v = solve_by_substitution("upper", Alambda, null, free, eps);
                 V[i] = dotdiv(v, norm(v));
             }
             if (wantw)
             {
-                w = conj(solve_by_substitution("lower", ctranspose(Alambda), null, free));
+                w = conj(solve_by_substitution("lower", ctranspose(Alambda), null, free, eps));
                 W[i] = dotdiv(w, norm(w));
             }
             free[multiplicity-1] = O;
