@@ -229,6 +229,46 @@ function is_tri(A, type, strict, eps, setzero, setcopy)
     }
     return true;
 }
+function solve_tri(type, T, y, eps, free_vars)
+{
+    eps = __(eps || 0);
+    if (y) y = vec(y);
+    var n = ROWS(T), fk = 0, fn = free_vars ? free_vars.length : 0;
+    if ("lower" === type)
+    {
+        // lower triangular, forward substitution
+        return array(n, function(m, x) {
+            for (var Tx=O,i=0; i<m; ++i) Tx = scalar_add(Tx, scalar_mul(T[m][i], x[i]));
+            Tx = scalar_sub(y ? y[m] : O, Tx);
+            if (free_vars && n_le(scalar_abs(T[m][m]), eps))
+            {
+                //if (n_le(scalar_abs(Tx), eps))
+                    return fk < fn ? free_vars[fk++] : (free_vars[fn-1] || O); // free variable
+            }
+            else
+            {
+                return scalar_div(Tx, T[m][m]);
+            }
+        });
+    }
+    else
+    {
+        // upper triangular, backward substitution
+        return array(n, function(m, x) {
+            for (var Tx=O,i=0; i<m; ++i) Tx = scalar_add(Tx, scalar_mul(T[n-1-m][n-1-i], x[i]));
+            Tx = scalar_sub(y ? y[n-1-m] : O, Tx);
+            if (free_vars && n_le(scalar_abs(T[n-1-m][n-1-m]), eps))
+            {
+                //if (n_le(scalar_abs(Tx), eps))
+                    return fk < fn ? free_vars[fk++] : (free_vars[fn-1] || O); // free variable
+            }
+            else
+            {
+                return scalar_div(Tx, T[n-1-m][n-1-m]);
+            }
+        }).reverse();
+    }
+}
 function compute_givens(f, g)
 {
     /*
@@ -696,33 +736,6 @@ function gauss_jordan(A, with_pivots, odim, eps)
     if (pivots.length > pl) pivots.length = pl;
 
     return with_pivots ? [m, pivots, det, aug] : m;
-}
-function solve_by_substitution(type, T, y, free_vars, eps)
-{
-    eps = __(eps || 0);
-    if (!free_vars) free_vars = [I];
-    if (y) y = vec(y);
-    var n = ROWS(T), fk = 0, fn = free_vars.length;
-    if ("lower" === type)
-    {
-        // lower triangular, forward substitution
-        return array(n, function(m, x) {
-            for (var Tx=O,i=0; i<m; ++i) Tx = scalar_add(Tx, scalar_mul(T[m][i], x[i]));
-            Tx = scalar_sub(y ? y[m] : O, Tx);
-            if (n_le(scalar_abs(T[m][m]), eps) && n_le(scalar_abs(Tx), eps)) return fk < fn ? free_vars[fk++] : (free_vars[fn-1] || O); // free variable
-            return scalar_div(Tx, T[m][m]);
-        });
-    }
-    else
-    {
-        // upper triangular, backward substitution
-        return array(n, function(m, x) {
-            for (var Tx=O,i=0; i<m; ++i) Tx = scalar_add(Tx, scalar_mul(T[n-1-m][n-1-i], x[i]));
-            Tx = scalar_sub(y ? y[n-1-m] : O, Tx);
-            if (n_le(scalar_abs(T[n-1-m][n-1-m]), eps) && n_le(scalar_abs(Tx), eps)) return fk < fn ? free_vars[fk++] : (free_vars[fn-1] || O); // free variable
-            return scalar_div(Tx, T[n-1-m][n-1-m]);
-        }).reverse();
-    }
 }
 var ref = gauss_jordan;
 /*function largest_eig(A, N, eps, valueonly)

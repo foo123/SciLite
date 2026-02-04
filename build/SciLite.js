@@ -3,7 +3,7 @@
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
 * @version: 0.9.12
-* 2026-02-04 21:19:10
+* 2026-02-05 01:39:38
 * https://github.com/foo123/SciLite
 *
 **//**
@@ -11,7 +11,7 @@
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
 * @version: 0.9.12
-* 2026-02-04 21:19:10
+* 2026-02-05 01:39:38
 * https://github.com/foo123/SciLite
 *
 **/
@@ -5046,6 +5046,46 @@ function is_tri(A, type, strict, eps, setzero, setcopy)
     }
     return true;
 }
+function solve_tri(type, T, y, eps, free_vars)
+{
+    eps = __(eps || 0);
+    if (y) y = vec(y);
+    var n = ROWS(T), fk = 0, fn = free_vars ? free_vars.length : 0;
+    if ("lower" === type)
+    {
+        // lower triangular, forward substitution
+        return array(n, function(m, x) {
+            for (var Tx=O,i=0; i<m; ++i) Tx = scalar_add(Tx, scalar_mul(T[m][i], x[i]));
+            Tx = scalar_sub(y ? y[m] : O, Tx);
+            if (free_vars && n_le(scalar_abs(T[m][m]), eps))
+            {
+                //if (n_le(scalar_abs(Tx), eps))
+                    return fk < fn ? free_vars[fk++] : (free_vars[fn-1] || O); // free variable
+            }
+            else
+            {
+                return scalar_div(Tx, T[m][m]);
+            }
+        });
+    }
+    else
+    {
+        // upper triangular, backward substitution
+        return array(n, function(m, x) {
+            for (var Tx=O,i=0; i<m; ++i) Tx = scalar_add(Tx, scalar_mul(T[n-1-m][n-1-i], x[i]));
+            Tx = scalar_sub(y ? y[n-1-m] : O, Tx);
+            if (free_vars && n_le(scalar_abs(T[n-1-m][n-1-m]), eps))
+            {
+                //if (n_le(scalar_abs(Tx), eps))
+                    return fk < fn ? free_vars[fk++] : (free_vars[fn-1] || O); // free variable
+            }
+            else
+            {
+                return scalar_div(Tx, T[n-1-m][n-1-m]);
+            }
+        }).reverse();
+    }
+}
 function compute_givens(f, g)
 {
     /*
@@ -5513,33 +5553,6 @@ function gauss_jordan(A, with_pivots, odim, eps)
     if (pivots.length > pl) pivots.length = pl;
 
     return with_pivots ? [m, pivots, det, aug] : m;
-}
-function solve_by_substitution(type, T, y, free_vars, eps)
-{
-    eps = __(eps || 0);
-    if (!free_vars) free_vars = [I];
-    if (y) y = vec(y);
-    var n = ROWS(T), fk = 0, fn = free_vars.length;
-    if ("lower" === type)
-    {
-        // lower triangular, forward substitution
-        return array(n, function(m, x) {
-            for (var Tx=O,i=0; i<m; ++i) Tx = scalar_add(Tx, scalar_mul(T[m][i], x[i]));
-            Tx = scalar_sub(y ? y[m] : O, Tx);
-            if (n_le(scalar_abs(T[m][m]), eps) && n_le(scalar_abs(Tx), eps)) return fk < fn ? free_vars[fk++] : (free_vars[fn-1] || O); // free variable
-            return scalar_div(Tx, T[m][m]);
-        });
-    }
-    else
-    {
-        // upper triangular, backward substitution
-        return array(n, function(m, x) {
-            for (var Tx=O,i=0; i<m; ++i) Tx = scalar_add(Tx, scalar_mul(T[n-1-m][n-1-i], x[i]));
-            Tx = scalar_sub(y ? y[n-1-m] : O, Tx);
-            if (n_le(scalar_abs(T[n-1-m][n-1-m]), eps) && n_le(scalar_abs(Tx), eps)) return fk < fn ? free_vars[fk++] : (free_vars[fn-1] || O); // free variable
-            return scalar_div(Tx, T[n-1-m][n-1-m]);
-        }).reverse();
-    }
 }
 var ref = gauss_jordan;
 /*function largest_eig(A, N, eps, valueonly)
@@ -6973,7 +6986,7 @@ function eig_schur(A, wantv, wantw, eps)
                 ab = scalar_abs(b),
                 ra = real(a),
                 rb = real(b);
-            return n_gt(ab, aa) ? 1 : (n_lt(ab, aa) ? -1 : (n_gt(rb, ra) ? 1 : (n_lt(rb, ra) ? -1 : 0)));
+            return (n_gt(ab, aa) ? 1 : (n_lt(ab, aa) ? -1 : (n_gt(rb, ra) ? 1 : (n_lt(rb, ra) ? -1 : 0)))) || (j-i);
         });
 
         if (wantv) V = new Array(n);
@@ -6984,8 +6997,8 @@ function eig_schur(A, wantv, wantw, eps)
         {
             multiplicity = 1;
             lambda = D[sortperm[i]];
-            j = sortperm[i]-1;
-            while ((j >= 0) && n_le(scalar_abs(scalar_sub(lambda, D[j])), eps))
+            j = i-1;
+            while ((j >= 0) && n_le(scalar_abs(scalar_sub(lambda, D[sortperm[j]])), eps))
             {
                 ++multiplicity;
                 --j;
@@ -6996,12 +7009,12 @@ function eig_schur(A, wantv, wantw, eps)
             free[multiplicity-1] = I; // generate different eigenvector based on multiplicity of eigenvalue
             if (wantv)
             {
-                v = solve_by_substitution("upper", Alambda, null, free, eps);
+                v = solve_tri("upper", Alambda, null, eps, free);
                 V[sortperm[i]] = dotdiv(v, norm(v));
             }
             if (wantw)
             {
-                w = conj(solve_by_substitution("lower", ctranspose(Alambda), null, free, eps));
+                w = solve_tri("lower", ctranspose(Alambda), null, eps, free);
                 W[sortperm[i]] = dotdiv(w, norm(w));
             }
             free[multiplicity-1] = O;
@@ -7010,7 +7023,7 @@ function eig_schur(A, wantv, wantw, eps)
     return [
     D,
     wantv ? mul(Q, realify(transpose(V))) : null,
-    wantw ? mul(ctranspose(Q), realify(transpose(W))) : null
+    wantw ? mul(ctranspose(Q), realify(ctranspose(W))) : null
     ];
 }
 fn.eig = varargout(function(nargout, A, nobalance) {
@@ -7041,7 +7054,7 @@ fn.eig = varargout(function(nargout, A, nobalance) {
     {
         if (is_tri(A, "lower", true, 1e-16))
         {
-            // lower triangular, diagonal entries
+            // lower triangular
             // pass
         }
         else
@@ -7049,7 +7062,7 @@ fn.eig = varargout(function(nargout, A, nobalance) {
             // triangularize via schur, schur checks if already upper triangular
             A = schur(A, false, !fn.isreal(A) ? "complex" : "realcomplex", 1e-16);
         }
-        // get eigen values
+        // get eigen values from diagonal
         return realify(array(ROWS(A), function(i) {return A[i][i];}));
         /*
         return realify(is_tri(A, 'upper', true, 1e-16) || is_tri(A, 'lower', true, 1e-16) ? array(ROWS(A), function(i) {

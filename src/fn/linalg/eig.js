@@ -84,7 +84,7 @@ function eig_schur(A, wantv, wantw, eps)
                 ab = scalar_abs(b),
                 ra = real(a),
                 rb = real(b);
-            return n_gt(ab, aa) ? 1 : (n_lt(ab, aa) ? -1 : (n_gt(rb, ra) ? 1 : (n_lt(rb, ra) ? -1 : 0)));
+            return (n_gt(ab, aa) ? 1 : (n_lt(ab, aa) ? -1 : (n_gt(rb, ra) ? 1 : (n_lt(rb, ra) ? -1 : 0)))) || (j-i);
         });
 
         if (wantv) V = new Array(n);
@@ -95,8 +95,8 @@ function eig_schur(A, wantv, wantw, eps)
         {
             multiplicity = 1;
             lambda = D[sortperm[i]];
-            j = sortperm[i]-1;
-            while ((j >= 0) && n_le(scalar_abs(scalar_sub(lambda, D[j])), eps))
+            j = i-1;
+            while ((j >= 0) && n_le(scalar_abs(scalar_sub(lambda, D[sortperm[j]])), eps))
             {
                 ++multiplicity;
                 --j;
@@ -107,12 +107,12 @@ function eig_schur(A, wantv, wantw, eps)
             free[multiplicity-1] = I; // generate different eigenvector based on multiplicity of eigenvalue
             if (wantv)
             {
-                v = solve_by_substitution("upper", Alambda, null, free, eps);
+                v = solve_tri("upper", Alambda, null, eps, free);
                 V[sortperm[i]] = dotdiv(v, norm(v));
             }
             if (wantw)
             {
-                w = conj(solve_by_substitution("lower", ctranspose(Alambda), null, free, eps));
+                w = solve_tri("lower", ctranspose(Alambda), null, eps, free);
                 W[sortperm[i]] = dotdiv(w, norm(w));
             }
             free[multiplicity-1] = O;
@@ -121,7 +121,7 @@ function eig_schur(A, wantv, wantw, eps)
     return [
     D,
     wantv ? mul(Q, realify(transpose(V))) : null,
-    wantw ? mul(ctranspose(Q), realify(transpose(W))) : null
+    wantw ? mul(ctranspose(Q), realify(ctranspose(W))) : null
     ];
 }
 fn.eig = varargout(function(nargout, A, nobalance) {
@@ -152,7 +152,7 @@ fn.eig = varargout(function(nargout, A, nobalance) {
     {
         if (is_tri(A, "lower", true, 1e-16))
         {
-            // lower triangular, diagonal entries
+            // lower triangular
             // pass
         }
         else
@@ -160,7 +160,7 @@ fn.eig = varargout(function(nargout, A, nobalance) {
             // triangularize via schur, schur checks if already upper triangular
             A = schur(A, false, !fn.isreal(A) ? "complex" : "realcomplex", 1e-16);
         }
-        // get eigen values
+        // get eigen values from diagonal
         return realify(array(ROWS(A), function(i) {return A[i][i];}));
         /*
         return realify(is_tri(A, 'upper', true, 1e-16) || is_tri(A, 'lower', true, 1e-16) ? array(ROWS(A), function(i) {
