@@ -4,7 +4,7 @@ A **scientific computing environment** in pure JavaScript for browser and nodejs
 
 ![SciLite](./scilite.png)
 
-**v.0.9.12** (124 kB minified)
+**v.0.9.13** (124 kB minified)
 
 [![SciLite](./scilite-live.png)](https://foo123.github.io/examples/scilite/)
 
@@ -57,6 +57,7 @@ let [Ref, Pivots] = fn.rref.nargout(2)(A); // variable output
 * implement some independent component/subspace analysis functions (eg `jade`) (IN PROGRESS)
 * support arbitrary precision computations **[DONE]**
 * support symbolic computations (TODO)
+* support higher-dimensional nd-arrays (TODO)
 * support GPU computations and mix of CPU/GPU computations (TODO)
 * support user-defined functions similar to Octave/Matlab (TODO)
 

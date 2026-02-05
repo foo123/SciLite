@@ -238,8 +238,6 @@ function solve_tri(type, T, y, eps, free_vars)
     {
         // lower triangular, forward substitution
         return array(n, function(m, x) {
-            for (var Tx=O,i=0; i<m; ++i) Tx = scalar_add(Tx, scalar_mul(T[m][i], x[i]));
-            Tx = scalar_sub(y ? y[m] : O, Tx);
             if (free_vars && n_le(scalar_abs(T[m][m]), eps))
             {
                 //if (n_le(scalar_abs(Tx), eps))
@@ -247,6 +245,8 @@ function solve_tri(type, T, y, eps, free_vars)
             }
             else
             {
+                for (var Tx=O,i=0; i<m; ++i) Tx = scalar_add(Tx, scalar_mul(T[m][i], x[i]));
+                Tx = scalar_sub(y ? y[m] : O, Tx);
                 return scalar_div(Tx, T[m][m]);
             }
         });
@@ -255,8 +255,6 @@ function solve_tri(type, T, y, eps, free_vars)
     {
         // upper triangular, backward substitution
         return array(n, function(m, x) {
-            for (var Tx=O,i=0; i<m; ++i) Tx = scalar_add(Tx, scalar_mul(T[n-1-m][n-1-i], x[i]));
-            Tx = scalar_sub(y ? y[n-1-m] : O, Tx);
             if (free_vars && n_le(scalar_abs(T[n-1-m][n-1-m]), eps))
             {
                 //if (n_le(scalar_abs(Tx), eps))
@@ -264,6 +262,8 @@ function solve_tri(type, T, y, eps, free_vars)
             }
             else
             {
+                for (var Tx=O,i=0; i<m; ++i) Tx = scalar_add(Tx, scalar_mul(T[n-1-m][n-1-i], x[i]));
+                Tx = scalar_sub(y ? y[n-1-m] : O, Tx);
                 return scalar_div(Tx, T[n-1-m][n-1-m]);
             }
         }).reverse();

@@ -1,8 +1,14 @@
-fn.squeeze = function(x) {
-    /*if (is_matrix(x))
+function squeeze(x)
+{
+    if (is_array(x))
     {
-        if (1 === ROWS(x)) return x[0];
-        if (1 === COLS(x)) return x.map(function(xi) {return xi[0];});
-    }*/
-    return x;
+        return 1 === x.length ? squeeze(x[0]) : array(x.length, function(i) {return squeeze(x[i]);});
+    }
+    else
+    {
+        return x;
+    }
+}
+fn.squeeze = function(x) {
+    return is_nd(x) ? squeeze(x) : x;
 };
