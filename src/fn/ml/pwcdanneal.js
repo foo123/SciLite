@@ -20,6 +20,17 @@ function pwcdanneal(D, k, alpha, max_iter)
     // at the worst case the components cannot be grouped
     //max_classes=n;
 
+    // how to choose initial temperature? [corresponds to initial energy==>max eigenvalue]
+    Tstart = _(realMath.sqrt(n_mul(norm(D, I), norm(D, inf)))); // max eig estimate
+
+    if (!Tstart)
+    {
+        // trivial
+        return matrix(n, k, function(i, j) {
+            return 0 === j ? 1 : 0;
+        });
+    }
+
     // initialize in (0,1) uniformly
     M = matrix(n, k, function() {return stdMath.random();});
     // normalize each row to sum to unity
@@ -31,14 +42,12 @@ function pwcdanneal(D, k, alpha, max_iter)
     E = matrix(n, k, function() {return stdMath.random();});
     prevE = matrix(n, k, 0);
 
-    // how to choose initial temperature? [corresponds to initial energy==>max eigenvalue]
-    Tstart = _(realMath.sqrt(n_mul(norm(D, I), norm(D, inf)))); // max eig estimate
-    Tfinal = Tstart/1000;
     D = tonumber(D);
     DM = matrix(n, k, 0);
     sum = array(k, 0);
+    Tfinal = Tstart/1000;
     T = Tstart;
-    while ((alpha < 1) && (T > Tfinal))
+    while ((alpha < 1) && (T > 0) && (T > Tfinal))
     {
         for (iter=1; iter<=max_iter; ++iter)
         {

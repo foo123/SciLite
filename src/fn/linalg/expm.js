@@ -7,9 +7,10 @@ function expm(A)
     */
     // exp(A) by scaling, Taylor approximation and squaring
     var n = ROWS(A),
+        eps = __(1e-12),
         i, N,
-        In = eye(n),
-        expA, An,
+        In = eye(n), An,
+        expA, expA_prev,
         k = max([O, n_add(I, realMath.floor(realMath.log2(norm(A, inf))))]);
     // down-scaling by a power of 2
     A = dotdiv(A, n_pow(two, k));
@@ -20,8 +21,10 @@ function expm(A)
     expA = add(In, An);
     for (i=2,N=25; i<=N; ++i)
     {
+        expA_prev = expA;
         An = dotdiv(mul(A, An), __(i));
         expA = add(expA, An);
+        if (n_le(max(max(abs(sub(expA, expA_prev)))), eps)) break; // converged
     }
     // fast squaring
     for (i=1,k=_(k); i<=k; ++i)
