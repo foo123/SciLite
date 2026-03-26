@@ -21,6 +21,13 @@ function any(x, check)
             }
         }
     }
+    else if (is_nd(x))
+    {
+        for (var i=0,n=x.length; i<n; ++i)
+        {
+            if (any(x[i], function(xi) {return check.apply(null, [xi, i+1].concat([].slice.call(arguments, 1)));})) return 1;
+        }
+    }
     return 0;
 }
 $_.any = any;

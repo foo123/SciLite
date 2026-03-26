@@ -1,3 +1,11 @@
+// nd-array support via TensorView
+$_.tensorview = function(TensorView) {
+    if ("function" === typeof TensorView)
+    {
+        tensorview = TensorView;
+    }
+};
+
 // arbitrary precision arithmetic
 $_.decimal = function(Decimal) {
     if ("function" === typeof Decimal)
@@ -198,7 +206,7 @@ function ndarray(dims, v)
         {
             return ndarray(dims.slice(1), function(j) {
                 return is_callable(v) ? v([i].concat(j)) : v;
-            });
+            }, true);
         }
         return is_callable(v) ? v([i]) : v;
     }) : [];
@@ -261,6 +269,15 @@ function vec(x)
     return x;
 }
 $_.vec = vec;
+function val(x)
+{
+    if (is_array(x) /*&& (1 === x.length)*/)
+    {
+        return val(x[0]);
+    }
+    return x;
+}
+$_.val = val;
 
 function ROWS(mat)
 {
@@ -425,7 +442,8 @@ function num2str(x)
     }
     else if (is_num(x))
     {
-        x = x.toFixed(4).replace(/\.0{4}$/, '');
+        var absx = scalar_abs(x);
+        x = n_le(absx, 1e-5) && n_ge(absx, 1e-14) ? String(x) : (x.toFixed(4).replace(/\.0{4}$/, ''));
     }
     else if (is_complex(x))
     {
@@ -460,6 +478,10 @@ function texify(x)
     else if (is_complex(x))
     {
         x = String(x).split('e').join('\\text{e}').split('nan').join('\\text{nan}').split('inf').join('\\text{inf}');
+    }
+    else if (is_nd(x))
+    {
+        x = tensorview(x).toTex($_.MAXPRINTSIZE, texify, 1);
     }
     else if (is_matrix(x))
     {
@@ -507,7 +529,7 @@ $_.tex = function(x) {
             }
             else if (is_array(x[0]))
             {
-                if (is_array(x[0][0]) || !is_array(x[1]) || (x[0].length !== x[1].length))
+                if (/*is_array(x[0][0]) ||*/ !is_array(x[1]) || (x[0].length !== x[1].length))
                 {
                     x = "\\[" + x.map(texify).join("\\]\n\\[") + "\\]";
                 }
@@ -560,6 +582,10 @@ function stringify(x)
     else if (is_complex(x))
     {
         x = String(x);
+    }
+    else if (is_nd(x))
+    {
+        x = tensorview(x).toString($_.MAXPRINTSIZE, stringify, 1);
     }
     else if (is_matrix(x))
     {
@@ -618,7 +644,7 @@ $_.str = function(x) {
             }
             else if (is_array(x[0]))
             {
-                if (is_array(x[0][0]) || !is_array(x[1]) || (x[0].length !== x[1].length))
+                if (/*is_array(x[0][0]) ||*/ !is_array(x[1]) || (x[0].length !== x[1].length))
                 {
                     x = x.map(stringify).join("\n\n");
                 }

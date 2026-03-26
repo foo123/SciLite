@@ -20,7 +20,8 @@ else if (!(name in root)) /* Browser/WebWorker/.. */
   /* module factory */        function ModuleFactory__$(undef) {
 "use strict";
 
-var decimal = null,
+var tensorview = null,
+    decimal = null,
     complex = null,
     stdMath = Math,
     realMath = {},

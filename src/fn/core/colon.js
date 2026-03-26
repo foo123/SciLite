@@ -1,12 +1,12 @@
 function colon(a, b, c)
 {
-    var ans;
+    var ans, sz;
     if ((1 === arguments.length) && is_array(a))
     {
         // a(:)
         if (is_2d(a))
         {
-            var rows = ROWS(a), cols = COLS(a), i, j, k;
+            /*var rows = ROWS(a), cols = COLS(a), i, j, k;
             ans = new Array(cols*rows);
             for (k=0,j=0; j<cols; ++j)
             {
@@ -15,7 +15,10 @@ function colon(a, b, c)
                     ans[k++] = a[i][j];
                 }
             }
-            return ans;
+            return ans;*/
+            sz = size(a);
+            // use octave-compatible columnwise-ordering by permuting back and forth
+            return tensorview(a, {shape:sz,ndarray:sz}).permute(array(sz.length, function(i) {return sz.length-1-i;})).toArray();
         }
         return a;
     }

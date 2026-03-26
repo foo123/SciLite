@@ -3,6 +3,9 @@
 
 const $ = require('./SciLite.js');
 
+// support nd-arrays
+$._.tensorview(require('./TensorView.js'));
+
 // optionally use arbitrary precision arithmetic via Decimal
 $._.decimal(require('./decimal.js'));
 

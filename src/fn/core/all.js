@@ -23,6 +23,14 @@ function all(x, check)
         }
         return 1;
     }
+    else if (is_nd(x))
+    {
+        for (var i=0,n=x.length; i<n; ++i)
+        {
+            if (!all(x[i], function(xi) {return check.apply(null, [xi, i+1].concat([].slice.call(arguments, 1)));})) return 0;
+        }
+        return 1;
+    }
     return 0;
 }
 $_.all = all;

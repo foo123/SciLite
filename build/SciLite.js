@@ -2,16 +2,16 @@
 *
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
-* @version: 0.9.13
-* 2026-02-05 15:23:17
+* @version: 0.9.14
+* 2026-03-26 14:16:12
 * https://github.com/foo123/SciLite
 *
 **//**
 *
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
-* @version: 0.9.13
-* 2026-02-05 15:23:17
+* @version: 0.9.14
+* 2026-03-26 14:16:12
 * https://github.com/foo123/SciLite
 *
 **/
@@ -28,7 +28,8 @@ else if (!(name in root)) /* Browser/WebWorker/.. */
   /* module factory */        function ModuleFactory__$(undef) {
 "use strict";
 
-var decimal = null,
+var tensorview = null,
+    decimal = null,
     complex = null,
     stdMath = Math,
     realMath = {},
@@ -58,7 +59,7 @@ var decimal = null,
 
     // lib
     $ = {
-        VERSION: "0.9.13",
+        VERSION: "0.9.14",
         // common functions
         _: {},
         // builtin functions
@@ -85,6 +86,14 @@ var decimal = null,
     constant = $.constant,
     fn = $.fn
 ;
+// nd-array support via TensorView
+$_.tensorview = function(TensorView) {
+    if ("function" === typeof TensorView)
+    {
+        tensorview = TensorView;
+    }
+};
+
 // arbitrary precision arithmetic
 $_.decimal = function(Decimal) {
     if ("function" === typeof Decimal)
@@ -285,7 +294,7 @@ function ndarray(dims, v)
         {
             return ndarray(dims.slice(1), function(j) {
                 return is_callable(v) ? v([i].concat(j)) : v;
-            });
+            }, true);
         }
         return is_callable(v) ? v([i]) : v;
     }) : [];
@@ -348,6 +357,15 @@ function vec(x)
     return x;
 }
 $_.vec = vec;
+function val(x)
+{
+    if (is_array(x) /*&& (1 === x.length)*/)
+    {
+        return val(x[0]);
+    }
+    return x;
+}
+$_.val = val;
 
 function ROWS(mat)
 {
@@ -512,7 +530,8 @@ function num2str(x)
     }
     else if (is_num(x))
     {
-        x = x.toFixed(4).replace(/\.0{4}$/, '');
+        var absx = scalar_abs(x);
+        x = n_le(absx, 1e-5) && n_ge(absx, 1e-14) ? String(x) : (x.toFixed(4).replace(/\.0{4}$/, ''));
     }
     else if (is_complex(x))
     {
@@ -547,6 +566,10 @@ function texify(x)
     else if (is_complex(x))
     {
         x = String(x).split('e').join('\\text{e}').split('nan').join('\\text{nan}').split('inf').join('\\text{inf}');
+    }
+    else if (is_nd(x))
+    {
+        x = tensorview(x).toTex($_.MAXPRINTSIZE, texify, 1);
     }
     else if (is_matrix(x))
     {
@@ -594,7 +617,7 @@ $_.tex = function(x) {
             }
             else if (is_array(x[0]))
             {
-                if (is_array(x[0][0]) || !is_array(x[1]) || (x[0].length !== x[1].length))
+                if (/*is_array(x[0][0]) ||*/ !is_array(x[1]) || (x[0].length !== x[1].length))
                 {
                     x = "\\[" + x.map(texify).join("\\]\n\\[") + "\\]";
                 }
@@ -647,6 +670,10 @@ function stringify(x)
     else if (is_complex(x))
     {
         x = String(x);
+    }
+    else if (is_nd(x))
+    {
+        x = tensorview(x).toString($_.MAXPRINTSIZE, stringify, 1);
     }
     else if (is_matrix(x))
     {
@@ -705,7 +732,7 @@ $_.str = function(x) {
             }
             else if (is_array(x[0]))
             {
-                if (is_array(x[0][0]) || !is_array(x[1]) || (x[0].length !== x[1].length))
+                if (/*is_array(x[0][0]) ||*/ !is_array(x[1]) || (x[0].length !== x[1].length))
                 {
                     x = x.map(stringify).join("\n\n");
                 }
@@ -879,6 +906,16 @@ function n_inv(a)
 }
 $_.ninv = n_inv;
 
+function arr_eq(a, b)
+{
+    if (a.length !== b.length) return 0;
+    for (var i=0,n=a.length; i<n; ++i)
+    {
+        if (!eq(a[i], b[i])) return 0;
+    }
+    return 1;
+}
+
 // numeric ops (overloaded)
 function eq(a, b)
 {
@@ -888,6 +925,7 @@ function eq(a, b)
         else if (is_scalar(b)) return a === String(b) ? 1 : 0;
         else if (is_vector(b)) return b.map(function(bi) {return eq(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return eq(a, b[i][j]);});
+        else if (is_nd(b)) return b.map(function(bi) {return eq(a, bi);});
     }
     else if (is_num(a))
     {
@@ -896,6 +934,7 @@ function eq(a, b)
         else if (is_complex(b)) return n_eq(b.re, a) && n_eq(b.im, O) ? 1 : 0;
         else if (is_vector(b)) return b.map(function(bi) {return eq(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return eq(a, b[i][j]);});
+        else if (is_nd(b)) return b.map(function(bi) {return eq(a, bi);});
     }
     else if (is_complex(a))
     {
@@ -904,6 +943,7 @@ function eq(a, b)
         else if (is_complex(b)) return n_eq(a.re, b.re) && n_eq(a.im, b.im) ? 1 : 0;
         else if (is_vector(b)) return b.map(function(bi) {return eq(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return eq(a, b[i][j]);});
+        else if (is_nd(b)) return b.map(function(bi) {return eq(a, bi);});
     }
     else if (is_vector(a))
     {
@@ -920,6 +960,11 @@ function eq(a, b)
         {
             if (a.length !== COLS(b)) throw "eq: inputs have incompatible dimensions";
             return matrix(ROWS(b), COLS(b), function(i, j) {return eq(a[j], b[i][j]);});
+        }
+        else if (is_nd(b))
+        {
+            if (a.length !== b.length) throw "eq: inputs have incompatible dimensions";
+            return b.map(function(bi, i) {return eq(a[i], bi);});
         }
     }
     else if (is_matrix(a))
@@ -938,6 +983,33 @@ function eq(a, b)
             if ((ROWS(a) !== ROWS(b)) || (COLS(a) !== COLS(b))) throw "eq: inputs have incompatible dimensions";
             return matrix(ROWS(a), COLS(a), function(i, j) {return eq(a[i][j], b[i][j]);});
         }
+        else if (is_nd(b))
+        {
+            if ((ROWS(a) !== ROWS(b)) || (COLS(a) !== COLS(b))) throw "eq: inputs have incompatible dimensions";
+            return b.map(function(bi, i) {return eq(a[i], bi);});
+        }
+    }
+    else if (is_nd(a))
+    {
+        if (is_string(b) || is_scalar(b))
+        {
+            return a.map(function(ai) {return eq(ai, b);});
+        }
+        else if (is_vector(b))
+        {
+            if (a.length !== b.length) throw "eq: inputs have incompatible dimensions";
+            return a.map(function(ai, i) {return eq(ai, b[i]);});
+        }
+        else if (is_matrix(b))
+        {
+            if ((ROWS(a) !== ROWS(b)) || (COLS(a) !== COLS(b))) throw "eq: inputs have incompatible dimensions";
+            return a.map(function(ai, i) {return eq(ai, b[i]);});
+        }
+        else if (is_nd(b))
+        {
+            if (!arr_eq(size(a), size(b))) throw "eq: inputs have incompatible dimensions";
+            return a.map(function(ai, i) {return eq(ai, b[i]);});
+        }
     }
     return 0;
 }
@@ -950,6 +1022,7 @@ function ne(a, b)
         else if (is_scalar(b)) return a === String(b) ? 0 : 1;
         else if (is_vector(b)) return b.map(function(bi) {return ne(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return ne(a, b[i][j]);});
+        else if (is_nd(b)) return b.map(function(bi) {return ne(a, bi);});
     }
     else if (is_num(a))
     {
@@ -958,6 +1031,7 @@ function ne(a, b)
         else if (is_complex(b)) return n_eq(b.re, a) && n_eq(b.im, O) ? 0 : 1;
         else if (is_vector(b)) return b.map(function(bi) {return ne(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return ne(a, b[i][j]);});
+        else if (is_nd(b)) return b.map(function(bi) {return ne(a, bi);});
     }
     else if (is_complex(a))
     {
@@ -966,6 +1040,7 @@ function ne(a, b)
         else if (is_complex(b)) return n_eq(a.re, b.re) && n_eq(a.im, b.im) ? 0 : 1;
         else if (is_vector(b)) return b.map(function(bi) {return ne(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return ne(a, b[i][j]);});
+        else if (is_nd(b)) return b.map(function(bi) {return ne(a, bi);});
     }
     else if (is_vector(a))
     {
@@ -982,6 +1057,11 @@ function ne(a, b)
         {
             if (a.length !== COLS(b)) throw "ne: inputs have incompatible dimensions";
             return matrix(ROWS(b), COLS(b), function(i, j) {return ne(a[j], b[i][j]);});
+        }
+        else if (is_nd(b))
+        {
+            if (a.length !== b.length) throw "ne: inputs have incompatible dimensions";
+            return b.map(function(bi, i) {return ne(a[i], bi);});
         }
     }
     else if (is_matrix(a))
@@ -1000,6 +1080,33 @@ function ne(a, b)
             if ((ROWS(a) !== ROWS(b)) || (COLS(a) !== COLS(b))) throw "ne: inputs have incompatible dimensions";
             return matrix(ROWS(a), COLS(a), function(i, j) {return ne(a[i][j], b[i][j]);});
         }
+        else if (is_nd(b))
+        {
+            if ((ROWS(a) !== ROWS(b)) || (COLS(a) !== COLS(b))) throw "ne: inputs have incompatible dimensions";
+            return b.map(function(bi, i) {return ne(a[i], bi);});
+        }
+    }
+    else if (is_nd(a))
+    {
+        if (is_string(b) || is_scalar(b))
+        {
+            return a.map(function(ai) {return ne(ai, b);});
+        }
+        else if (is_vector(b))
+        {
+            if (a.length !== b.length) throw "ne: inputs have incompatible dimensions";
+            return a.map(function(ai, i) {return ne(ai, b[i]);});
+        }
+        else if (is_matrix(b))
+        {
+            if ((ROWS(a) !== ROWS(b)) || (COLS(a) !== COLS(b))) throw "ne: inputs have incompatible dimensions";
+            return a.map(function(ai, i) {return ne(ai, b[i]);});
+        }
+        else if (is_nd(b))
+        {
+            if (!arr_eq(size(a), size(b))) throw "ne: inputs have incompatible dimensions";
+            return a.map(function(ai, i) {return ne(ai, b[i]);});
+        }
     }
     return 0;
 }
@@ -1012,6 +1119,7 @@ function lt(a, b)
         else if (is_scalar(b)) return a < String(b) ? 1 : 0;
         else if (is_vector(b)) return b.map(function(bi) {return lt(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return lt(a, b[i][j]);});
+        else if (is_nd(b)) return b.map(function(bi) {return lt(a, bi);});
     }
     else if (is_num(a))
     {
@@ -1020,6 +1128,7 @@ function lt(a, b)
         else if (is_complex(b)) return n_lt(b.re, a) && n_eq(b.im, O) ? 1 : 0;
         else if (is_vector(b)) return b.map(function(bi) {return lt(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return lt(a, b[i][j]);});
+        else if (is_nd(b)) return b.map(function(bi) {return lt(a, bi);});
     }
     else if (is_complex(a))
     {
@@ -1028,6 +1137,7 @@ function lt(a, b)
         else if (is_complex(b)) return (n_lt(a.re, b.re) && n_eq(a.im, O) && n_eq(b.im, O)) || (n_lt(a.im, b.im) && n_eq(a.re, O) && n_eq(b.re, O)) ? 1 : 0;
         else if (is_vector(b)) return b.map(function(bi) {return lt(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return lt(a, b[i][j]);});
+        else if (is_nd(b)) return b.map(function(bi) {return lt(a, bi);});
     }
     else if (is_vector(a))
     {
@@ -1044,6 +1154,11 @@ function lt(a, b)
         {
             if (a.length !== COLS(b)) throw "lt: inputs have incompatible dimensions";
             return matrix(ROWS(b), COLS(b), function(i, j) {return lt(a[j], b[i][j]);});
+        }
+        else if (is_nd(b))
+        {
+            if (a.length !== b.length) throw "lt: inputs have incompatible dimensions";
+            return b.map(function(bi, i) {return lt(a[i], bi);});
         }
     }
     else if (is_matrix(a))
@@ -1062,6 +1177,33 @@ function lt(a, b)
             if ((ROWS(a) !== ROWS(b)) || (COLS(a) !== COLS(b))) throw "lt: inputs have incompatible dimensions";
             return matrix(ROWS(a), COLS(a), function(i, j) {return lt(a[i][j], b[i][j]);});
         }
+        else if (is_nd(b))
+        {
+            if ((ROWS(a) !== ROWS(b)) || (COLS(a) !== COLS(b))) throw "lt: inputs have incompatible dimensions";
+            return b.map(function(bi, i) {return lt(a[i], bi);});
+        }
+    }
+    else if (is_nd(a))
+    {
+        if (is_string(b) || is_scalar(b))
+        {
+            return a.map(function(ai) {return lt(ai, b);});
+        }
+        else if (is_vector(b))
+        {
+            if (a.length !== b.length) throw "lt: inputs have incompatible dimensions";
+            return a.map(function(ai, i) {return lt(ai, b[i]);});
+        }
+        else if (is_matrix(b))
+        {
+            if ((ROWS(a) !== ROWS(b)) || (COLS(a) !== COLS(b))) throw "lt: inputs have incompatible dimensions";
+            return a.map(function(ai, i) {return lt(ai, b[i]);});
+        }
+        else if (is_nd(b))
+        {
+            if (!arr_eq(size(a), size(b))) throw "lt: inputs have incompatible dimensions";
+            return a.map(function(ai, i) {return lt(ai, b[i]);});
+        }
     }
     return 0;
 }
@@ -1074,6 +1216,7 @@ function gt(a, b)
         else if (is_scalar(b)) return a > String(b) ? 1 : 0;
         else if (is_vector(b)) return b.map(function(bi) {return gt(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return gt(a, b[i][j]);});
+        else if (is_nd(b)) return b.map(function(bi) {return gt(a, bi);});
     }
     else if (is_num(a))
     {
@@ -1082,6 +1225,7 @@ function gt(a, b)
         else if (is_complex(b)) return n_gt(b.re, a) && n_eq(b.im, O) ? 1 : 0;
         else if (is_vector(b)) return b.map(function(bi) {return gt(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return gt(a, b[i][j]);});
+        else if (is_nd(b)) return b.map(function(bi) {return gt(a, bi);});
     }
     else if (is_complex(a))
     {
@@ -1090,6 +1234,7 @@ function gt(a, b)
         else if (is_complex(b)) return (n_gt(a.re, b.re) && n_eq(a.im, O) && n_eq(b.im, O)) || (n_gt(a.im, b.im) && n_eq(a.re, O) && n_eq(b.re, O)) ? 1 : 0;
         else if (is_vector(b)) return b.map(function(bi) {return gt(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return gt(a, b[i][j]);});
+        else if (is_nd(b)) return b.map(function(bi) {return gt(a, bi);});
     }
     else if (is_vector(a))
     {
@@ -1106,6 +1251,11 @@ function gt(a, b)
         {
             if (a.length !== COLS(b)) throw "gt: inputs have incompatible dimensions";
             return matrix(ROWS(b), COLS(b), function(i, j) {return gt(a[j], b[i][j]);});
+        }
+        else if (is_nd(b))
+        {
+            if (a.length !== b.length) throw "gt: inputs have incompatible dimensions";
+            return b.map(function(bi, i) {return gt(a[i], bi);});
         }
     }
     else if (is_matrix(a))
@@ -1124,6 +1274,33 @@ function gt(a, b)
             if ((ROWS(a) !== ROWS(b)) || (COLS(a) !== COLS(b))) throw "gt: inputs have incompatible dimensions";
             return matrix(ROWS(a), COLS(a), function(i, j) {return gt(a[i][j], b[i][j]);});
         }
+        else if (is_nd(b))
+        {
+            if ((ROWS(a) !== ROWS(b)) || (COLS(a) !== COLS(b))) throw "gt: inputs have incompatible dimensions";
+            return b.map(function(bi, i) {return gt(a[i], bi);});
+        }
+    }
+    else if (is_nd(a))
+    {
+        if (is_string(b) || is_scalar(b))
+        {
+            return a.map(function(ai) {return gt(ai, b);});
+        }
+        else if (is_vector(b))
+        {
+            if (a.length !== b.length) throw "gt: inputs have incompatible dimensions";
+            return a.map(function(ai, i) {return gt(ai, b[i]);});
+        }
+        else if (is_matrix(b))
+        {
+            if ((ROWS(a) !== ROWS(b)) || (COLS(a) !== COLS(b))) throw "gt: inputs have incompatible dimensions";
+            return a.map(function(ai, i) {return gt(ai, b[i]);});
+        }
+        else if (is_nd(b))
+        {
+            if (!arr_eq(size(a), size(b))) throw "gt: inputs have incompatible dimensions";
+            return a.map(function(ai, i) {return gt(ai, b[i]);});
+        }
     }
     return 0;
 }
@@ -1136,6 +1313,7 @@ function le(a, b)
         else if (is_scalar(b)) return a <= String(b) ? 1 : 0;
         else if (is_vector(b)) return b.map(function(bi) {return le(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return le(a, b[i][j]);});
+        else if (is_nd(b)) return b.map(function(bi) {return le(a, bi);});
     }
     else if (is_num(a))
     {
@@ -1144,6 +1322,7 @@ function le(a, b)
         else if (is_complex(b)) return n_le(b.re, a) && n_eq(b.im, O) ? 1 : 0;
         else if (is_vector(b)) return b.map(function(bi) {return le(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return le(a, b[i][j]);});
+        else if (is_nd(b)) return b.map(function(bi) {return le(a, bi);});
     }
     else if (is_complex(a))
     {
@@ -1152,6 +1331,7 @@ function le(a, b)
         else if (is_complex(b)) return (n_le(a.re, b.re) && n_eq(a.im, O) && n_eq(b.im, O)) || (n_le(a.im, b.im) && n_eq(a.re, O) && n_eq(b.re, O)) ? 1 : 0;
         else if (is_vector(b)) return b.map(function(bi) {return le(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return le(a, b[i][j]);});
+        else if (is_nd(b)) return b.map(function(bi) {return le(a, bi);});
     }
     else if (is_vector(a))
     {
@@ -1168,6 +1348,11 @@ function le(a, b)
         {
             if (a.length !== COLS(b)) throw "le: inputs have incompatible dimensions";
             return matrix(ROWS(b), COLS(b), function(i, j) {return le(a[j], b[i][j]);});
+        }
+        else if (is_nd(b))
+        {
+            if (a.length !== b.length) throw "le: inputs have incompatible dimensions";
+            return b.map(function(bi, i) {return le(a[i], bi);});
         }
     }
     else if (is_matrix(a))
@@ -1186,6 +1371,33 @@ function le(a, b)
             if ((ROWS(a) !== ROWS(b)) || (COLS(a) !== COLS(b))) throw "le: inputs have incompatible dimensions";
             return matrix(ROWS(a), COLS(a), function(i, j) {return le(a[i][j], b[i][j]);});
         }
+        else if (is_nd(b))
+        {
+            if ((ROWS(a) !== ROWS(b)) || (COLS(a) !== COLS(b))) throw "le: inputs have incompatible dimensions";
+            return b.map(function(bi, i) {return le(a[i], bi);});
+        }
+    }
+    else if (is_nd(a))
+    {
+        if (is_string(b) || is_scalar(b))
+        {
+            return a.map(function(ai) {return le(ai, b);});
+        }
+        else if (is_vector(b))
+        {
+            if (a.length !== b.length) throw "le: inputs have incompatible dimensions";
+            return a.map(function(ai, i) {return le(ai, b[i]);});
+        }
+        else if (is_matrix(b))
+        {
+            if ((ROWS(a) !== ROWS(b)) || (COLS(a) !== COLS(b))) throw "le: inputs have incompatible dimensions";
+            return a.map(function(ai, i) {return le(ai, b[i]);});
+        }
+        else if (is_nd(b))
+        {
+            if (!arr_eq(size(a), size(b))) throw "le: inputs have incompatible dimensions";
+            return a.map(function(ai, i) {return le(ai, b[i]);});
+        }
     }
     return 0;
 }
@@ -1198,6 +1410,7 @@ function ge(a, b)
         else if (is_scalar(b)) return a >= String(b) ? 1 : 0;
         else if (is_vector(b)) return b.map(function(bi) {return ge(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return ge(a, b[i][j]);});
+        else if (is_nd(b)) return b.map(function(bi) {return ge(a, bi);});
     }
     else if (is_num(a))
     {
@@ -1206,6 +1419,7 @@ function ge(a, b)
         else if (is_complex(b)) return n_ge(b.re, a) && n_eq(b.im, O) ? 1 : 0;
         else if (is_vector(b)) return b.map(function(bi) {return ge(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return ge(a, b[i][j]);});
+        else if (is_nd(b)) return b.map(function(bi) {return ge(a, bi);});
     }
     else if (is_complex(a))
     {
@@ -1214,6 +1428,7 @@ function ge(a, b)
         else if (is_complex(b)) return (n_ge(a.re, b.re) && n_eq(a.im, O) && n_eq(b.im, O)) || (n_ge(a.im, b.im) && n_eq(a.re, O) && n_eq(b.re, O)) ? 1 : 0;
         else if (is_vector(b)) return b.map(function(bi) {return ge(a, bi);});
         else if (is_matrix(b)) return matrix(ROWS(b), COLS(b), function(i, j) {return ge(a, b[i][j]);});
+        else if (is_nd(b)) return b.map(function(bi) {return ge(a, bi);});
     }
     else if (is_vector(a))
     {
@@ -1231,6 +1446,11 @@ function ge(a, b)
             if (a.length !== COLS(b)) throw "ge: inputs have incompatible dimensions";
             return matrix(ROWS(b), COLS(b), function(i, j) {return ge(a[j], b[i][j]);});
         }
+        else if (is_nd(b))
+        {
+            if (a.length !== b.length) throw "ge: inputs have incompatible dimensions";
+            return b.map(function(bi, i) {return ge(a[i], bi);});
+        }
     }
     else if (is_matrix(a))
     {
@@ -1247,6 +1467,33 @@ function ge(a, b)
         {
             if ((ROWS(a) !== ROWS(b)) || (COLS(a) !== COLS(b))) throw "ge: inputs have incompatible dimensions";
             return matrix(ROWS(a), COLS(a), function(i, j) {return ge(a[i][j], b[i][j]);});
+        }
+        else if (is_nd(b))
+        {
+            if ((ROWS(a) !== ROWS(b)) || (COLS(a) !== COLS(b))) throw "ge: inputs have incompatible dimensions";
+            return b.map(function(bi, i) {return ge(a[i], bi);});
+        }
+    }
+    else if (is_nd(a))
+    {
+        if (is_string(b) || is_scalar(b))
+        {
+            return a.map(function(ai) {return ge(ai, b);});
+        }
+        else if (is_vector(b))
+        {
+            if (a.length !== b.length) throw "ge: inputs have incompatible dimensions";
+            return a.map(function(ai, i) {return ge(ai, b[i]);});
+        }
+        else if (is_matrix(b))
+        {
+            if ((ROWS(a) !== ROWS(b)) || (COLS(a) !== COLS(b))) throw "ge: inputs have incompatible dimensions";
+            return a.map(function(ai, i) {return ge(ai, b[i]);});
+        }
+        else if (is_nd(b))
+        {
+            if (!arr_eq(size(a), size(b))) throw "ge: inputs have incompatible dimensions";
+            return a.map(function(ai, i) {return ge(ai, b[i]);});
         }
     }
     return 0;
@@ -1344,6 +1591,20 @@ function add(a, b)
         // scalar-scalar
         return scalar_add(a, b);
     }
+    else if (is_nd(a) && is_nd(b))
+    {
+        // ndarray-ndarray
+        if (arr_eq(size(a), size(b)))
+        {
+            return a.map(function(ai, i) {
+                return add(ai, b[i]);
+            });
+        }
+        else
+        {
+            throw "add: array dimensions do not match";
+        }
+    }
     else if (is_matrix(a) && is_matrix(b))
     {
         // matrix-matrix
@@ -1377,12 +1638,12 @@ function add(a, b)
     }
     else if (is_array(a))
     {
-        // matrix-scalar
+        // array-scalar
         return a.map(function(ai) {return add(ai, b);});
     }
     else if (is_array(b))
     {
-        // scalar-matrix
+        // scalar-array
         return b.map(function(bi) {return add(a, bi);});
     }
     not_supported("add");
@@ -1394,6 +1655,20 @@ function sub(a, b)
     {
         // scalar-scalar
         return scalar_sub(a, b);
+    }
+    else if (is_nd(a) && is_nd(b))
+    {
+        // ndarray-ndarray
+        if (arr_eq(size(a), size(b)))
+        {
+            return a.map(function(ai, i) {
+                return sub(ai, b[i]);
+            });
+        }
+        else
+        {
+            throw "sub: array dimensions do not match";
+        }
     }
     else if (is_matrix(a) && is_matrix(b))
     {
@@ -1428,12 +1703,12 @@ function sub(a, b)
     }
     else if (is_array(a))
     {
-        // matrix-scalar
+        // array-scalar
         return a.map(function(ai) {return sub(ai, b);});
     }
     else if (is_array(b))
     {
-        // scalar-matrix
+        // scalar-array
         return b.map(function(bi) {return sub(a, bi);});
     }
     not_supported("sub");
@@ -1445,6 +1720,20 @@ function dotmul(a, b)
     {
         // scalar-scalar
         return scalar_mul(a, b);
+    }
+    else if (is_nd(a) && is_nd(b))
+    {
+        // ndarray-ndarray
+        if (arr_eq(size(a), size(b)))
+        {
+            return a.map(function(ai, i) {
+                return dotmul(ai, b[i]);
+            });
+        }
+        else
+        {
+            throw "dotmul: array dimensions do not match";
+        }
     }
     else if (is_matrix(a) && is_matrix(b))
     {
@@ -1479,12 +1768,12 @@ function dotmul(a, b)
     }
     else if (is_array(a))
     {
-        // matrix-scalar
+        // array-scalar
         return a.map(function(ai) {return dotmul(ai, b);});
     }
     else if (is_array(b))
     {
-        // scalar-matrix
+        // scalar-array
         return b.map(function(bi) {return dotmul(a, bi);});
     }
     not_supported("dotmul");
@@ -1497,6 +1786,20 @@ function dotdiv(a, b)
     {
         // scalar-scalar
         return scalar_div(a, b);
+    }
+    else if (is_nd(a) && is_nd(b))
+    {
+        // ndarray-ndarray
+        if (arr_eq(size(a), size(b)))
+        {
+            return a.map(function(ai, i) {
+                return dotdiv(ai, b[i]);
+            });
+        }
+        else
+        {
+            throw "dotdiv: array dimensions do not match";
+        }
     }
     else if (is_matrix(a) && is_matrix(b))
     {
@@ -1531,12 +1834,12 @@ function dotdiv(a, b)
     }
     else if (is_array(a))
     {
-        // matrix-scalar
+        // array-scalar
         return a.map(function(ai) {return dotdiv(ai, b);});
     }
     else if (is_array(b))
     {
-        // scalar-matrix
+        // scalar-array
         return b.map(function(bi) {return dotdiv(a, bi);});
     }
     not_supported("dotdiv");
@@ -1548,6 +1851,20 @@ function dotpow(a, b)
     {
         // scalar-scalar
         return scalar_pow(a, b);
+    }
+    else if (is_nd(a) && is_nd(b))
+    {
+        // ndarray-ndarray
+        if (arr_eq(size(a), size(b)))
+        {
+            return a.map(function(ai, i) {
+                return dotpow(ai, b[i]);
+            });
+        }
+        else
+        {
+            throw "dotpow: array dimensions do not match";
+        }
     }
     else if (is_matrix(a) && is_matrix(b))
     {
@@ -1582,12 +1899,12 @@ function dotpow(a, b)
     }
     else if (is_array(a))
     {
-        // matrix-scalar
+        // array-scalar
         return a.map(function(ai) {return dotpow(ai, b);});
     }
     else if (is_array(b))
     {
-        // scalar-matrix
+        // scalar-array
         return b.map(function(bi) {return dotpow(a, bi);});
     }
     not_supported("dotpow");
@@ -1708,12 +2025,12 @@ function mul(a, b)
     }
     else if (is_array(a))
     {
-        // matrix-scalar
+        // array-scalar
         return a.map(function(ai) {return mul(ai, b);});
     }
     else if (is_array(b))
     {
-        // scalar-matrix
+        // scalar-array
         return b.map(function(bi) {return mul(a, bi);});
     }
     not_supported("mul");
@@ -1773,7 +2090,7 @@ function neg(a)
 }
 $_.neg = neg;
 
-function get(mat, rrange = ':', crange = null)
+/*function get(mat, rrange = ':', crange = null)
 {
     // indices start from 1 to end
     // B=A(:,[5 6]); B=get(A,':',[5,6]);
@@ -1864,9 +2181,92 @@ function get(mat, rrange = ':', crange = null)
         throw "get: invalid range";
     }
     return mat;
+}*/
+function get(mat /*, ..slices*/)
+{
+    // indices start from 1 to end
+    // B=A(:,[5 6]); B=get(A,':','4,5');
+    var slices = [].slice.call(arguments, 1), sz = size(mat), tot, ret;
+    if (1 === slices.length)
+    {
+        if (is_array(slices[0]) && arr_eq(sz, size(slices[0])) && all(slices[0], function(v) {return 0 === _(v) || 1 === _(v);}))
+        {
+            ret = tensorview(mat, {shape:sz, ndarray:sz}).select(tonumber(slices[0])).permute(array(sz.length, function(i) {return sz.length-1-i;})).toArray();
+            if (1 === ret.length) ret = ret[0];
+        }
+        else
+        {
+            tot = prod(sz);
+            ret = tensorview(tensorview(mat, {shape:sz, ndarray:sz}).permute(array(sz.length, function(i) {return sz.length-1-i;})).toArray()).slice(slices.map(function(slice, dim) {
+                if (is_string(slice))
+                {
+                    return slice;
+                }
+                else if (is_int(slice))
+                {
+                    var index = _(slice);
+                    if (1 <= index && index <= tot) return index-1;
+                    throw "get: index out of bounds";
+                }
+                else if (is_vector(slice))
+                {
+                    return slice.map(function(index) {
+                        index = _(index);
+                        if (1 <= index && index <= tot) return index-1;
+                        throw "get: index out of bounds";
+                    });
+                }
+                else
+                {
+                    throw "get: invalid range";
+                }
+            })).toArray();
+            if (1 === ret.length) ret = ret[0];
+        }
+    }
+    else
+    {
+        ret = tensorview(mat, {shape:sz, ndarray:sz}).slice(slices.map(function(slice, dim) {
+            if (is_string(slice))
+            {
+                return slice;
+            }
+            else if (is_int(slice))
+            {
+                var index = _(slice);
+                if (1 <= index && index <= sz[dim]) return index-1;
+                throw "get: index out of bounds";
+            }
+            else if (is_vector(slice))
+            {
+                return slice.map(function(index) {
+                    index = _(index);
+                    if (1 <= index && index <= sz[dim]) return index-1;
+                    throw "get: index out of bounds";
+                });
+            }
+            else
+            {
+                throw "get: invalid range";
+            }
+        }));
+        if (1 === ret.length)
+        {
+            ret = ret.get(array(ret.dimension, 0));
+        }
+        else if (0 === ret.length)
+        {
+            ret = [];
+        }
+        else
+        {
+            ret = squeeze(ret.toNDArray()); // remove trivial dimensions
+        }
+    }
+    return ret;
 }
 $_.get = get;
-function set(mat, rrange = ':', crange = null, val = null)
+/*function set(mat, rrange = ':', crange = null, val = null)
 {
     // indices start from 1 to end
     // A(:,[5 6]) = B; set(A,':',[5,6], B);
@@ -2085,6 +2485,104 @@ function set(mat, rrange = ':', crange = null, val = null)
             throw "set: invalid value or range does not match dimensions";
         }
         throw "set: invalid range";
+    }
+    return mat;
+}*/
+function set(mat /*, ..slices, val*/)
+{
+    // indices start from 1 to end
+    // B=A(:,[5 6]); B=get(A,':','4,5');
+    var slices = [].slice.call(arguments, 1, -1),
+        val = arguments[arguments.length-1],
+        sz = size(mat), szv, tot, ret;
+    if (!mat.length && slices.length)
+    {
+        szv = size(val);
+        slices.forEach(function(slice, dim) {
+            if (!(((dim < szv.length) && (':' === slice)) || ((dim >= szv.length) && (1 === _(slice)))))
+            {
+                throw "set: invalid range";
+            }
+        });
+        mat = tensorview(copy(val), {shape:szv.concat(array(slices.length-szv.length, 1))}).toNDArray();
+    }
+    else if (sz.length < slices.length)
+    {
+        szv = size(val);
+        slices.forEach(function(slice, dim) {
+            if (!(((dim < szv.length) && (':' === slice)) || ((dim === slices.length-1) && (2 === _(slice))) || ((dim >= szv.length) && (1 === _(slice)))))
+            {
+                throw "set: invalid range";
+            }
+        });
+        mat = tensorview(mat, {shape: sz.concat(array(slices.length-sz.length, 1))}).concat(tensorview(val, {shape: szv.concat(array(slices.length-szv.length, 1))}), slices.length-1).toNDArray();
+    }
+    else if (is_int(slices[slices.length-1]) && (sz[sz.length-1]+1 === _(slices[slices.length-1])))
+    {
+        szv = size(val);
+        mat = tensorview(mat, {shape: sz}).concat(tensorview(val, {shape: is_scalar(val) ? (sz.slice(0, -1).concat(1)) : (szv.concat(array(slices.length-szv.length, 1)))}), slices.length-1).toNDArray();
+    }
+    else if (1 === slices.length)
+    {
+        if (is_array(slices[0]) && arr_eq(sz, size(slices[0])) && all(slices[0], function(v) {return 0 === _(v) || 1 === _(v);}))
+        {
+            tensorview(mat, {shape:sz, ndarray:sz}).select(tonumber(slices[0])).setFrom(tensorview(val));
+        }
+        else
+        {
+            tot = prod(sz);
+            tensorview(mat, {shape:sz, ndarray:sz}).permute(array(sz.length, function(i) {return sz.length-1-i;})).reshape([tot]).slice(slices.map(function(slice, dim) {
+                if (is_string(slice))
+                {
+                    return slice;
+                }
+                else if (is_int(slice))
+                {
+                    var index = _(slice);
+                    if (1 <= index && index <= tot) return index-1;
+                    throw "set: index out of bounds";
+                }
+                else if (is_vector(slice))
+                {
+                    return slice.map(function(index) {
+                        index = _(index);
+                        if (1 <= index && index <= tot) return index-1;
+                        throw "set: index out of bounds";
+                    });
+                }
+                else
+                {
+                    throw "set: invalid range";
+                }
+            })).setFrom(tensorview(val));
+        }
+    }
+    else
+    {
+        tensorview(mat, {shape:sz, ndarray:sz}).slice(slices.map(function(slice, dim) {
+            if (is_string(slice))
+            {
+                return slice;
+            }
+            else if (is_int(slice))
+            {
+                var index = _(slice);
+                if (1 <= index && index <= sz[dim]) return index-1;
+                throw "set: index out of bounds";
+            }
+            else if (is_vector(slice))
+            {
+                return slice.map(function(index) {
+                    index = _(index);
+                    if (1 <= index && index <= sz[dim]) return index-1;
+                    throw "set: index out of bounds";
+                });
+            }
+            else
+            {
+                throw "set: invalid range";
+            }
+        })).setFrom(tensorview(val));
     }
     return mat;
 }
@@ -3411,13 +3909,13 @@ fn.ndgrid = varargout(function(nargout) {
 });
 function colon(a, b, c)
 {
-    var ans;
+    var ans, sz;
     if ((1 === arguments.length) && is_array(a))
     {
         // a(:)
         if (is_2d(a))
         {
-            var rows = ROWS(a), cols = COLS(a), i, j, k;
+            /*var rows = ROWS(a), cols = COLS(a), i, j, k;
             ans = new Array(cols*rows);
             for (k=0,j=0; j<cols; ++j)
             {
@@ -3426,7 +3924,10 @@ function colon(a, b, c)
                     ans[k++] = a[i][j];
                 }
             }
-            return ans;
+            return ans;*/
+            sz = size(a);
+            // use octave-compatible columnwise-ordering by permuting back and forth
+            return tensorview(a, {shape:sz,ndarray:sz}).permute(array(sz.length, function(i) {return sz.length-1-i;})).toArray();
         }
         return a;
     }
@@ -3473,38 +3974,61 @@ fn.colon = function(a, b, c) {
     }
     return colon.apply(null, arguments);
 };
-function cat(type, A, B)
+function cat_horz(A, B)
 {
-    if ("horz" === type)
+    if (is_1d(A) && is_1d(B))
     {
-        if (is_1d(A) && is_1d(B))
-        {
-            return A.concat(B);
-        }
-        else if (is_2d(A) && is_2d(B) && (ROWS(A) === ROWS(B)))
-        {
-            return A.map(function(Ai, i) {
-                return Ai.concat(B[i]);
-            });
-        }
+        return A.concat(B);
     }
-    if ("vert" === type)
+    else if (is_2d(A) && is_2d(B) && (ROWS(A) === ROWS(B)))
     {
-        if (is_1d(A) && is_1d(B))
-        {
-            return A.concat(B);
-        }
-        else if (is_2d(A) && is_2d(B) && (COLS(A) === COLS(B)))
-        {
-            return A.concat(B);
-        }
+        return A.map(function(Ai, i) {
+            return Ai.concat(B[i]);
+        });
     }
-    not_supported("cat");
+}
+function cat_vert(A, B)
+{
+    if (is_1d(A) && is_1d(B))
+    {
+        return A.concat(B);
+    }
+    else if (is_2d(A) && is_2d(B) && (COLS(A) === COLS(B)))
+    {
+        return A.concat(B);
+    }
+}
+function cat(dim, A, B)
+{
+    var sizeA = size(A), sizeB = size(B);
+    if (dim > sizeA.length)
+    {
+        sizeA = sizeA.concat(array(dim-sizeA.length, 1));
+    }
+    if (dim > sizeB.length)
+    {
+        sizeB = sizeB.concat(array(dim-sizeB.length, 1));
+    }
+    return tensorview(A, {shape:sizeA}).concat(tensorview(B, {shape:sizeB}), dim-1).toNDArray();
+    /*if (2 === dim)
+    {
+        return cat_horz(A, B);
+    }
+    if (1 === dim)
+    {
+        return cat_vert(A, B);
+    }
+    not_supported("cat");*/
 }
 fn.cat = function(dim, A, B /*,..*/) {
     dim = _(dim);
     var ans = [], i;
-    if (1 === dim)
+    ans = arguments[1];
+    for (i=2; i<arguments.length; ++i)
+    {
+        ans = cat(dim, ans, arguments[i]);
+    }
+    /*if (1 === dim)
     {
         // vert
         ans = arguments[1];
@@ -3521,7 +4045,7 @@ fn.cat = function(dim, A, B /*,..*/) {
         {
             ans = cat("horz", ans, arguments[i]);
         }
-    }
+    }*/
     return ans;
 };
 fn.horzcat = function(A, B /*,..*/) {
@@ -3530,7 +4054,7 @@ fn.horzcat = function(A, B /*,..*/) {
     ans = arguments[0];
     for (i=1; i<arguments.length; ++i)
     {
-        ans = cat("horz", ans, arguments[i]);
+        ans = cat(2, ans, arguments[i]);
     }
     return ans;
 };
@@ -3540,7 +4064,7 @@ fn.vertcat = function(A, B /*,..*/) {
     ans = arguments[0];
     for (i=1; i<arguments.length; ++i)
     {
-        ans = cat("vert", ans, arguments[i]);
+        ans = cat(1, ans, arguments[i]);
     }
     return ans;
 };
@@ -3661,16 +4185,21 @@ function triu(x, k)
     not_supported("triu");
 }
 fn.triu = triu;
-function repmat(x, nr, nc)
+function repmat(x)
 {
-    if (is_vector(nr))
+    var n = [].slice.call(arguments, 1), sz = size(x);
+    if (is_array(n[0])) n = n[0];
+    n = n.map(_);
+    if (1 === n.length) n = array(sz.length, n[0]);
+    if (!is_array(x) || (sz.length === n.length))
     {
-        nc = nr[1];
-        nr = nr[0];
+        return ndarray(is_array(x) ? n.map(function(ni, i) {return sz[i]*ni;}) : n, function(indices) {
+            return indices.reduce(function(arr, index, dim) {
+                return is_array(arr) ? arr[index % n[dim]] : arr;
+            }, x);
+        });
     }
-    if (null == nc) nc = nr;
-    nr = _(nr); nc = _(nc);
-    if (is_0d(x)) x = [[x]];
+    /*if (is_0d(x)) x = [[x]];
     if (is_1d(x)) x = [x];
     if (is_2d(x))
     {
@@ -3678,41 +4207,72 @@ function repmat(x, nr, nc)
         return matrix(rows, cols, function(i, j) {
             return x[i % nr][j % nc];
         });
-   }
+   }*/
    return x;
 }
 fn.repmat = repmat;
 function repelem(x, n)
 {
-    if (is_vector(x))
+    if (is_array(x))
     {
-        if (is_vector(n))
+        if (is_array(x[0]))
         {
-            if (n.length === x.length)
+            // higher-dim array
+            var sz = size(x), rn = [].slice.call(arguments, 1).map(_);
+            if (sz.length === rn.length)
             {
-                var cnt = 0, i = -1;
-                return array(_(sum(n)), function(j) {
-                    if (j === cnt) {++i; cnt += _(n[i]);}
-                    return x[i];
+                return ndarray(sz.map(function(di, i) {return di*rn[i];}), function(indices) {
+                    return indices.reduce(function(arr, index, dim) {return arr[stdMath.floor(index / rn[dim])];}, x);
                 });
             }
         }
-        else if (is_int(n))
+        else
         {
-            n = _(n);
-            var i = -1;
-            return array(n*x.length, function(j) {
-                if (0 === (j % n)) ++i;
-                return x[i];
-            });
+            // 1-dim array
+            if (is_vector(n))
+            {
+                if (n.length === x.length)
+                {
+                    var cnt = 0, i = -1;
+                    return array(_(sum(n)), function(j) {
+                        if (j === cnt) {++i; cnt += _(n[i]);}
+                        return x[i];
+                    });
+                }
+            }
+            else if (is_int(n))
+            {
+                n = _(n);
+                var i = -1;
+                return array(n*x.length, function(j) {
+                    if (0 === (j % n)) ++i;
+                    return x[i];
+                });
+            }
         }
     }
     return x;
 }
 fn.repelem = repelem;
-function reshape(x, rows, cols)
+function reshape(x/*sz, rows, cols*/)
 {
-    if (is_vector(rows))
+    var sz = [].slice.call(arguments, 1), left,
+        sizex = size(x), total = prod(sizex);
+
+    if ((1 === sz.length) && is_array(sz[0]) && sz[0].length) sz = vec(sz[0]);
+
+    left = sz.reduce(function(total, s) {
+        return is_array(s) && !s.length ? total : stdMath.floor(total / _(s));
+    }, total);
+
+    sz = sz.map(function(s) {
+        return is_array(s) && !s.length ? left : _(s);
+    });
+
+    // use octave-compatible columnwise-ordering by permuting back and forth
+    return tensorview(tensorview(x, {shape:sizex,ndarray:sizex}).permute(array(sizex.length, function(i) {return sizex.length-1-i;})).toArray(), {shape:sz.reverse()}).permute(array(sz.length, function(i) {return sz.length-1-i;})).toNDArray();
+
+    /*if (is_vector(rows))
     {
         cols = rows[1];
         rows = rows[0];
@@ -3740,14 +4300,32 @@ function reshape(x, rows, cols)
     else
     {
         return x;
-    }
+    }*/
 }
 fn.reshape = reshape;
-function squeeze(x)
+function permute(x, dimorder)
+{
+    return tensorview(x).permute(vec(dimorder).map(function(di) {return _(di)-1;})).toNDArray();
+}
+fn.permute = function(x, dimorder) {
+    return permute(x, dimorder);
+};
+function squeeze(x, dim)
 {
     if (is_array(x))
     {
-        return 1 === x.length ? squeeze(x[0]) : array(x.length, function(i) {return squeeze(x[i]);});
+        if (null == dim) dim = 1;
+        if ((1 === x.length) && (2 < dim))
+        {
+            // squeeze only higher dimensions than 2
+            return squeeze(x[0], dim+1);
+        }
+        else
+        {
+            return x.map(function(xi) {
+                return squeeze(xi, dim+1);
+            });
+        }
     }
     else
     {
@@ -4593,31 +5171,31 @@ function bitxor(x, y)
     return 0;
 }
 fn.bitxor = bitxor;
+function nd_size(x)
+{
+    return is_array(x) ? ([x.length]).concat(nd_size(x[0])) : [];
+}
 function size(x)
 {
-    var dims = [].slice.call(arguments, 1), sizeofx;
+    var dims = [].slice.call(arguments, 1), sizex;
     if (is_array(dims[0])) dims = vec(dims[0]);
-    if (is_0d(x))
+    if (is_2d(x))
     {
-        sizeofx = [1, 1];
-        return dims.length ? dims.map(function(dim) {return sizeofx[_(dim)-1];}) : sizeofx;
+        // ndarray
+        sizex = nd_size(x);
     }
     else if (is_1d(x))
     {
-        sizeofx = [1, x.length];
-        return dims.length ? dims.map(function(dim) {return sizeofx[_(dim)-1];}) : sizeofx;
+        // vector
+        sizex = [1, x.length];
     }
-    else if (is_nd(x))
+    else
     {
-        sizeofx = [x.length].concat(size(x[0]));
-        return dims.length ? dims.map(function(dim) {return sizeofx[_(dim)-1];}) : sizeofx;
+        // scalar
+        sizex = [1, 1];
     }
-    else if (is_2d(x))
-    {
-        sizeofx = [ROWS(x), COLS(x)];
-        return dims.length ? dims.map(function(dim) {return sizeofx[_(dim)-1];}) : sizeofx;
-    }
-    return [];
+    return dims.length ? dims.map(function(dim) {return sizex[_(dim)-1];}) : sizex;
+    //return [];
 }
 fn.size = function(x) {
     return varargout(size.apply(null, [].slice.call(arguments)));
@@ -4630,7 +5208,7 @@ function length(x)
 fn.length = length;
 function ndims(x)
 {
-    return 2 + size(x).slice(2).filter(function(d) {return 1 < d;}).length;
+    return 2 + size(x).slice(2)/*.filter(function(d) {return 1 < d;})*/.length;
 }
 fn.ndims = ndims;
 function numel(x)
@@ -4644,41 +5222,99 @@ fn.rows = function(x) {
 fn.columns = function(x) {
     return size(x, 2);
 };
-function sub2ind(dims, i, j)
+function _sub2ind(dims, indices)
 {
-    if (is_vector(i))
+    var array_indices = indices.filter(function(ind) {return is_array(ind);});
+    if (array_indices.length)
+    {
+        return array_indices[0].map(function(_, j) {
+            return _sub2ind(dims, indices.map(function(i) {return is_array(i) ? i[j] : i;}));
+        });
+    }
+    else
+    {
+        // use octave-compatible columnwise-ordering by permuting back and forth
+        return tensorview(0, {shape:dims.slice().reverse()}).index(indices.map(function(i) {return _(i)-1;}).reverse())+1;
+    }
+}
+function _ind2sub(dims, ind)
+{
+    if (is_array(ind))
+    {
+        var indices = array(dims.length, function() {return array(ind.length, 0);});
+        ind.forEach(function(ind, i) {
+            _ind2sub(dims, ind).forEach(function(_indices, j) {
+                indices[j][i] = _indices;
+            });
+        });
+        return indices;
+    }
+    else
+    {
+        // use octave-compatible columnwise-ordering by permuting back and forth
+        return 1 === dims.length ? [_(ind), 1] : (tensorview(0, {shape:dims.slice().reverse()}).indices(_(ind)-1).map(function(i) {return i+1;}).reverse());
+    }
+}
+function sub2ind(dims/*, i, j*/)
+{
+    var indices = [].slice.call(arguments, 1);
+    if (1 === indices.length && is_array(indices[0])) indices = indices[0];
+    return _sub2ind(vec(dims), indices);
+
+    /*if (is_vector(i))
     {
         j = i[1];
         i = i[0];
     }
     i = _(i); j = _(j);
-    return 1 === dims.length ? i : ((i-1)+_(dims[0])*(j-1)+1);
+    return 1 === dims.length ? i : ((i-1)+_(dims[0])*(j-1)+1);*/
 }
 fn.sub2ind = sub2ind;
 function ind2sub(dims, ind)
 {
-    ind = _(ind);
-    return 1 === dims.length ? [ind, 1] : [((ind-1) % _(dims[0])) + 1, stdMath.floor((ind-1) / _(dims[0])) + 1];
+    dims = vec(dims);
+    return varargout(_ind2sub(dims, ind));
+
+    /*ind = _(ind);
+    return 1 === dims.length ? [ind, 1] : [((ind-1) % _(dims[0])) + 1, stdMath.floor((ind-1) / _(dims[0])) + 1];*/
 }
 fn.ind2sub = ind2sub;
 function find(x, check)
 {
-    if (is_vector(x))
+    if (is_array(x))
     {
-        return x.reduce(function(ind, xi, i) {
-            if (check(xi, i+1, 1)) ind.push(i+1);
-            return ind;
-        }, []);
-    }
-    else if (is_matrix(x))
-    {
-        var rows = ROWS(x);
-        return x.reduce(function(ind, xi, i) {
-            return xi.reduce(function(ind, xij, j) {
-                if (check(xij, i+1, j+1)) ind.push(i+rows*j+1);
+        if (is_array(x[0]))
+        {
+            if (is_array(x[0][0]))
+            {
+                // ndarray
+                // use octave-compatible columnwise-ordering by permuting back and forth
+                var sizex = size(x);
+                return tensorview(x, {shape: sizex, ndarray: sizex}).permute(array(sizex.length, function(i) {return sizex.length-1-i;})).toArray().reduce(function(ind, xi, i) {
+                    if (check(xi, i+1, 1)) ind.push(i+1);
+                    return ind;
+                }, []);
+            }
+            else
+            {
+                // matrix
+                var rows = ROWS(x);
+                return x.reduce(function(ind, xi, i) {
+                    return xi.reduce(function(ind, xij, j) {
+                        if (check(xij, i+1, j+1)) ind.push(i+rows*j+1);
+                        return ind;
+                    }, ind);
+                }, []);
+            }
+        }
+        else
+        {
+            // vector
+            return x.reduce(function(ind, xi, i) {
+                if (check(xi, i+1, 1)) ind.push(i+1);
                 return ind;
-            }, ind);
-        }, []);
+            }, []);
+        }
     }
     return [];
 }
@@ -4711,6 +5347,14 @@ function all(x, check)
         }
         return 1;
     }
+    else if (is_nd(x))
+    {
+        for (var i=0,n=x.length; i<n; ++i)
+        {
+            if (!all(x[i], function(xi) {return check.apply(null, [xi, i+1].concat([].slice.call(arguments, 1)));})) return 0;
+        }
+        return 1;
+    }
     return 0;
 }
 $_.all = all;
@@ -4738,6 +5382,13 @@ function any(x, check)
             {
                 if (check(x[i][j], i+1, j+1)) return 1;
             }
+        }
+    }
+    else if (is_nd(x))
+    {
+        for (var i=0,n=x.length; i<n; ++i)
+        {
+            if (any(x[i], function(xi) {return check.apply(null, [xi, i+1].concat([].slice.call(arguments, 1)));})) return 1;
         }
     }
     return 0;
@@ -7958,9 +8609,10 @@ function expm(A)
     */
     // exp(A) by scaling, Taylor approximation and squaring
     var n = ROWS(A),
+        eps = __(1e-12),
         i, N,
-        In = eye(n),
-        expA, An,
+        In = eye(n), An,
+        expA, expA_prev,
         k = max([O, n_add(I, realMath.floor(realMath.log2(norm(A, inf))))]);
     // down-scaling by a power of 2
     A = dotdiv(A, n_pow(two, k));
@@ -7971,8 +8623,10 @@ function expm(A)
     expA = add(In, An);
     for (i=2,N=25; i<=N; ++i)
     {
+        expA_prev = expA;
         An = dotdiv(mul(A, An), __(i));
         expA = add(expA, An);
+        if (n_le(max(max(abs(sub(expA, expA_prev)))), eps)) break; // converged
     }
     // fast squaring
     for (i=1,k=_(k); i<=k; ++i)
@@ -9217,6 +9871,17 @@ fn.kmeans = varargout(function(nargout, X, k) {
     // at the worst case the components cannot be grouped
     //max_classes=n;
 
+    // how to choose initial temperature? [corresponds to initial energy==>max eigenvalue]
+    Tstart = _(realMath.sqrt(n_mul(norm(D, I), norm(D, inf)))); // max eig estimate
+
+    if (!Tstart)
+    {
+        // trivial
+        return matrix(n, k, function(i, j) {
+            return 0 === j ? 1 : 0;
+        });
+    }
+
     // initialize in (0,1) uniformly
     M = matrix(n, k, function() {return stdMath.random();});
     // normalize each row to sum to unity
@@ -9228,14 +9893,12 @@ fn.kmeans = varargout(function(nargout, X, k) {
     E = matrix(n, k, function() {return stdMath.random();});
     prevE = matrix(n, k, 0);
 
-    // how to choose initial temperature? [corresponds to initial energy==>max eigenvalue]
-    Tstart = _(realMath.sqrt(n_mul(norm(D, I), norm(D, inf)))); // max eig estimate
-    Tfinal = Tstart/1000;
     D = tonumber(D);
     DM = matrix(n, k, 0);
     sum = array(k, 0);
+    Tfinal = Tstart/1000;
     T = Tstart;
-    while ((alpha < 1) && (T > Tfinal))
+    while ((alpha < 1) && (T > 0) && (T > Tfinal))
     {
         for (iter=1; iter<=max_iter; ++iter)
         {
@@ -11050,7 +11713,7 @@ var OP = {
                                 {
                                     if (is_array(row[0]))
                                     {
-                                        arr = arr.length ? cat("vert", arr, row) : row;
+                                        arr = arr.length ? cat_vert(arr, row) : row;
                                     }
                                     else
                                     {
@@ -11067,7 +11730,7 @@ var OP = {
                                 }
                                 else if (is_array(arg))
                                 {
-                                    row = row.length ? cat("horz", row, arg) : arg;
+                                    row = row.length ? cat_horz(row, arg) : arg;
                                 }
                                 else
                                 {
@@ -11079,7 +11742,7 @@ var OP = {
                         {
                             if (is_array(row[0]))
                             {
-                                arr = arr.length ? cat("vert", arr, row) : row;
+                                arr = arr.length ? cat_vert(arr, row) : row;
                             }
                             else if (arr.length)
                             {
@@ -11410,10 +12073,13 @@ var OP = {
                                     return set_var(vari, 0 === i ? val : null);
                                 }));
                             }
+                            vars.$scilitevarargout$ = true;
                             return vars;
                         }
                         else
                         {
+                            // set whole array as one variable, do not assume de-structuring
+                            if (is_vector(arg1) && arg1.$scilitevarargout$) arg1.$scilitevarargout$ = null;
                             return await set_var(arg0, arg1.$scilitevarargout$ ? arg1[0] : arg1);
                         }
                     }
@@ -11475,7 +12141,7 @@ async function for_end($arg, v, $)
         brk, is_break = false,
         cont, is_continue = false,
         values = await vale($arg.val, v, $),
-        values_is_2d = false,
+        values_is_2d = false, sz,
         statements = $arg.statements;
     ans.$scilitevarargout$ = true;
     if (is_array(values))
@@ -11487,11 +12153,17 @@ async function for_end($arg, v, $)
         $.cont = function() {is_continue = true;};
         values = vec(values);
         values_is_2d = is_2d(values);
+        if (values_is_2d)
+        {
+            sz = size(values);
+            // reshape nd-array to 2d-array by columns
+            if (2 < sz.length) values = reshape(values, [sz[0], prod(sz.slice(1))]);
+        }
         for (j=0,k=values_is_2d?COLS(values):(values.length); j<k; ++j)
         {
             is_break = false;
             is_continue = false;
-            await $arg.ind.set(values_is_2d ? COL(values, j) : values[j]);
+            await $arg.ind.set(values_is_2d ? vec2col(COL(values, j)) : values[j]);
             for (i=0,n=statements.length; i<n; ++i)
             {
                 res = await vale(statements[i], v, $);
@@ -11572,7 +12244,7 @@ variable.prototype = {
         {
             s = size(val);
             i = await Promise.all(self.i.map(function(ind, i) {
-                return vale(ind, {end:1 === self.i.length ? s[0]*s[1] : s[i]});
+                return vale(ind, {end:1 === self.i.length ? prod(s) : s[i]});
             }));
             return get.apply(null, [val].concat(i));
         }
@@ -11589,18 +12261,31 @@ variable.prototype = {
             if (is_instance(self.v, expr))
             {
                 val = await vale(self.v);
+                s = size(val);
             }
             else
             {
-                if (!HAS.call(self.ctx, self.v)) throw 'undefined variable "'+self.v+'"';
-                val = self.ctx[self.v];
+                if (!HAS.call(self.ctx, self.v))
+                {
+                    //throw 'undefined variable "'+self.v+'"';
+                    val = self.ctx[self.v] = []; // dummy empty array
+                    s = [0];
+                }
+                else
+                {
+                    val = self.ctx[self.v];
+                    s = size(val);
+                }
             }
-            s = size(val);
             i = await Promise.all(self.i.map(function(ind, i) {
-                return vale(ind, {end:1 === self.i.length ? s[0]*s[1] : s[i]});
+                return vale(ind, {end:1 === self.i.length ? prod(s) : s[i]});
             }));
-            if (1 === i.length) i = i.concat(null); // null crange
-            set.apply(null, [val].concat(i).concat([value]));
+            //if (1 === i.length) i = i.concat(null); // null crange
+            val = set.apply(null, [val].concat(i).concat([value]));
+            if (!is_instance(self.v, expr))
+            {
+                self.ctx[self.v] = val; // may change shape etc.., so store again
+            }
         }
         else
         {
@@ -12589,7 +13274,7 @@ async function evaluate(e, v, $)
             {
                 // A = B, A = B(:,:), ..
                 // make sure a copy is set and not by reference
-                return await e.op.apply(null, [argout, e.arg[1].arg.isByRef() ? copy(await evaluate(e.arg[1], v, $, true)) : await evaluate(e.arg[1], v, $, true)]);
+                return await e.op.apply(null, [argout, /*(e.arg[0].arg.v === e.arg[1].arg.v) ||*/ e.arg[1].arg.isByRef() ? copy(await evaluate(e.arg[1], v, $, true)) : await evaluate(e.arg[1], v, $, true)]);
             }
             else
             {

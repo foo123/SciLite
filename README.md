@@ -4,7 +4,7 @@ A **scientific computing environment** in pure JavaScript for browser and nodejs
 
 ![SciLite](./scilite.png)
 
-**v.0.9.13** (124 kB minified)
+**v.0.9.14** (130 kB minified)
 
 [![SciLite](./scilite-live.png)](https://foo123.github.io/examples/scilite/)
 
@@ -37,11 +37,11 @@ const fn = SciLite.fn;
 
 let A = add(mul(4, fn.ones(2, 2)), 1);
 let B = [[1, 2], [3, 4]];
-set(A, ':', [1, 2], get(B, fn.colon(fn.rows(B),-1,1), 1));
+set(A, ':', '0,1', get(B, '-1:-1:0', '0'));
 let C = fn.vertcat(A, B);
 let D = fn.ctranspose(C); // conjugate transpose
 let E = fn.colon(D); // colon function
-let F = dotmul(A, B);
+let F = dotmul(A, B); // dotmul operator
 let Ref = fn.rref(A); // default output
 let [Ref, Pivots] = fn.rref.nargout(2)(A); // variable output
 ```
@@ -56,8 +56,8 @@ let [Ref, Pivots] = fn.rref.nargout(2)(A); // variable output
 * implement more machine learning functions (eg `isodata`, ..) (IN PROGRESS)
 * implement some independent component/subspace analysis functions (eg `jade`, `picard`, ..) (IN PROGRESS)
 * support arbitrary precision computations **[DONE]**
+* support multi-dimensional nd-arrays **[DONE]**
 * support symbolic computations (TODO)
-* support higher-dimensional nd-arrays (TODO)
 * support GPU computations and mix of CPU/GPU computations (TODO)
 * support user-defined functions similar to Octave/Matlab (TODO)
 

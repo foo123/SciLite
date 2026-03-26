@@ -65,7 +65,7 @@ var OP = {
                                 {
                                     if (is_array(row[0]))
                                     {
-                                        arr = arr.length ? cat("vert", arr, row) : row;
+                                        arr = arr.length ? cat_vert(arr, row) : row;
                                     }
                                     else
                                     {
@@ -82,7 +82,7 @@ var OP = {
                                 }
                                 else if (is_array(arg))
                                 {
-                                    row = row.length ? cat("horz", row, arg) : arg;
+                                    row = row.length ? cat_horz(row, arg) : arg;
                                 }
                                 else
                                 {
@@ -94,7 +94,7 @@ var OP = {
                         {
                             if (is_array(row[0]))
                             {
-                                arr = arr.length ? cat("vert", arr, row) : row;
+                                arr = arr.length ? cat_vert(arr, row) : row;
                             }
                             else if (arr.length)
                             {
@@ -425,10 +425,13 @@ var OP = {
                                     return set_var(vari, 0 === i ? val : null);
                                 }));
                             }
+                            vars.$scilitevarargout$ = true;
                             return vars;
                         }
                         else
                         {
+                            // set whole array as one variable, do not assume de-structuring
+                            if (is_vector(arg1) && arg1.$scilitevarargout$) arg1.$scilitevarargout$ = null;
                             return await set_var(arg0, arg1.$scilitevarargout$ ? arg1[0] : arg1);
                         }
                     }
@@ -490,7 +493,7 @@ async function for_end($arg, v, $)
         brk, is_break = false,
         cont, is_continue = false,
         values = await vale($arg.val, v, $),
-        values_is_2d = false,
+        values_is_2d = false, sz,
         statements = $arg.statements;
     ans.$scilitevarargout$ = true;
     if (is_array(values))
@@ -502,11 +505,17 @@ async function for_end($arg, v, $)
         $.cont = function() {is_continue = true;};
         values = vec(values);
         values_is_2d = is_2d(values);
+        if (values_is_2d)
+        {
+            sz = size(values);
+            // reshape nd-array to 2d-array by columns
+            if (2 < sz.length) values = reshape(values, [sz[0], prod(sz.slice(1))]);
+        }
         for (j=0,k=values_is_2d?COLS(values):(values.length); j<k; ++j)
         {
             is_break = false;
             is_continue = false;
-            await $arg.ind.set(values_is_2d ? COL(values, j) : values[j]);
+            await $arg.ind.set(values_is_2d ? vec2col(COL(values, j)) : values[j]);
             for (i=0,n=statements.length; i<n; ++i)
             {
                 res = await vale(statements[i], v, $);
@@ -587,7 +596,7 @@ variable.prototype = {
         {
             s = size(val);
             i = await Promise.all(self.i.map(function(ind, i) {
-                return vale(ind, {end:1 === self.i.length ? s[0]*s[1] : s[i]});
+                return vale(ind, {end:1 === self.i.length ? prod(s) : s[i]});
             }));
             return get.apply(null, [val].concat(i));
         }
@@ -604,18 +613,31 @@ variable.prototype = {
             if (is_instance(self.v, expr))
             {
                 val = await vale(self.v);
+                s = size(val);
             }
             else
             {
-                if (!HAS.call(self.ctx, self.v)) throw 'undefined variable "'+self.v+'"';
-                val = self.ctx[self.v];
+                if (!HAS.call(self.ctx, self.v))
+                {
+                    //throw 'undefined variable "'+self.v+'"';
+                    val = self.ctx[self.v] = []; // dummy empty array
+                    s = [0];
+                }
+                else
+                {
+                    val = self.ctx[self.v];
+                    s = size(val);
+                }
             }
-            s = size(val);
             i = await Promise.all(self.i.map(function(ind, i) {
-                return vale(ind, {end:1 === self.i.length ? s[0]*s[1] : s[i]});
+                return vale(ind, {end:1 === self.i.length ? prod(s) : s[i]});
             }));
-            if (1 === i.length) i = i.concat(null); // null crange
-            set.apply(null, [val].concat(i).concat([value]));
+            //if (1 === i.length) i = i.concat(null); // null crange
+            val = set.apply(null, [val].concat(i).concat([value]));
+            if (!is_instance(self.v, expr))
+            {
+                self.ctx[self.v] = val; // may change shape etc.., so store again
+            }
         }
         else
         {
@@ -1604,7 +1626,7 @@ async function evaluate(e, v, $)
             {
                 // A = B, A = B(:,:), ..
                 // make sure a copy is set and not by reference
-                return await e.op.apply(null, [argout, e.arg[1].arg.isByRef() ? copy(await evaluate(e.arg[1], v, $, true)) : await evaluate(e.arg[1], v, $, true)]);
+                return await e.op.apply(null, [argout, /*(e.arg[0].arg.v === e.arg[1].arg.v) ||*/ e.arg[1].arg.isByRef() ? copy(await evaluate(e.arg[1], v, $, true)) : await evaluate(e.arg[1], v, $, true)]);
             }
             else
             {

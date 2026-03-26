@@ -1,0 +1,3 @@
+## Combinatorics
+
+eg `randperm`, `perms`

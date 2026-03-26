@@ -173,7 +173,11 @@ async function repl(code, output, $, CodeMirror, MathJax, Plotly)
     printCompleted = printCompleted.then(() => output.scrollTop = output.scrollHeight);
 }
 
-window.BrowserREPL = function($, Decimal, MathJax, Plotly, CodeMirror, CodeMirrorGrammar, codemirror_define_grammar_mode) {
+window.BrowserREPL = function($, TensorView, Decimal, MathJax, Plotly, CodeMirror, CodeMirrorGrammar, codemirror_define_grammar_mode) {
+
+// nd-array tensor view support
+$._.tensorview(TensorView);
+
 // extend with plugins
 /*$.fn.clc = function() {
     printCompleted = printCompleted.then(() => window.clear());
