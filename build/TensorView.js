@@ -337,7 +337,7 @@ function TensorView(data, o, _)
     self.indices = function(index) {
         index = index || 0;
         if (0 > index) index += total;
-        if (0 > index || index >= total) throw "TensorView::_indices index ("+index+") is out of bounds (0,"+(total-1)+")!";
+        if (0 > index || index >= total) throw "TensorView::indices index ("+index+") is out of bounds (0,"+(total-1)+")!";
         return compute_indices(index, ndim, is_transposed, shape);
     };
     self.get = function(/*indices*/) {

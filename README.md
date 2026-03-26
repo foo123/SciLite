@@ -55,8 +55,8 @@ let [Ref, Pivots] = fn.rref.nargout(2)(A); // variable output
 * implement generalized/polynomial `eig` decomposition (TODO)
 * implement more machine learning functions (eg `isodata`, ..) (IN PROGRESS)
 * implement some independent component/subspace analysis functions (eg `jade`, `picard`, ..) (IN PROGRESS)
-* support arbitrary precision computations **[DONE]**
-* support multi-dimensional nd-arrays **[DONE]**
+* support arbitrary precision computations (w/ `Decimal`) **[DONE]**
+* support multi-dimensional nd-arrays (w/ `TensorView`) **[DONE]**
 * support symbolic computations (TODO)
 * support GPU computations and mix of CPU/GPU computations (TODO)
 * support user-defined functions similar to Octave/Matlab (TODO)
