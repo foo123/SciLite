@@ -958,6 +958,37 @@ codemirror_define_grammar_mode("scilite", {
 "supportAutoCompletion"     : true
 }, CodeMirror, CodeMirrorGrammar);
 
+function serialize(x)
+{
+    if (Array.isArray(x))
+    {
+        return x.map(serialize);
+    }
+    else if (x instanceof $.fn.complex)
+    {
+        return {re:$._.tonumber(x.re),im:$._.tonumber(x.im)};
+    }
+    else
+    {
+        return $._.tonumber(x);
+    }
+}
+function unserialize(x)
+{
+    if (Array.isArray(x))
+    {
+        return x.map(unserialize);
+    }
+    else if (x && (null != x.re) && (null != x.im))
+    {
+        return $.fn.complex(x.re, x.im);
+    }
+    else
+    {
+        return x;
+    }
+}
+
 return {
     repl: async function(code, output) {
         await repl(code, output, $, CodeMirror, MathJax, Plotly);
@@ -965,6 +996,22 @@ return {
     clear: function(output) {
         if (!output) return;
         clear(output, CodeMirror, MathJax, Plotly);
+    },
+    ctx: function(vars) {
+        if ("object" === typeof vars)
+        {
+            if (null == ctx) ctx = $._.createContext();
+            Object.keys(vars).forEach(function(varname) {
+                if ('ans' !== varname) ctx[varname] = unserialize(vars[varname]);
+            });
+        }
+        else
+        {
+            return Object.keys(ctx || {}).reduce(function(vars, varname) {
+                if ('ans' !== varname) vars[varname] = serialize(ctx[varname]);
+                return vars;
+            }, {});
+        }
     },
     arbitraryPrecision: function(enable) {
         return use_arbitrary_precision(enable, $, Decimal);

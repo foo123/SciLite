@@ -307,6 +307,13 @@ mjx-container[jax="CHTML"][display="true"] {
 .button:active {
     top: 1px;
 }
+.lb {
+    display: block;
+    box-sizing: border-box;
+    overflow: hidden;
+    height: 0;
+    margin: -3px 0;
+}
 .checkbox {
     position: relative;
     box-sizing: border-box;
@@ -466,6 +473,8 @@ window.MathJax = {
 <button id="run" aria-label="run code" class="button" style="padding:8px"><i class="icon run" style="width:14px"></i></button>
 <button id="clear" aria-label="clear contents" class="button" style="padding:8px"><i class="icon clear" style="width:14px;top:2px"></i></button>
 <br><button id="share" aria-label="get link to share current session" class="button" style="font-size:16px;margin-top:11px;padding:10px 11px">Share</button>
+<br class="lb"><button id="save" aria-label="save data of current session" class="button" style="font-size:16px;margin-top:11px;padding:10px 15px">Save</button>
+<br class="lb"><button id="load" aria-label="load data to current session" class="button" style="font-size:16px;margin-top:11px;padding:10px 15px">Load</button>
 </div>
 
 <div id="overlay"></div>
@@ -829,7 +838,7 @@ function init($)
         gutters: [],
         extraKeys: {"Ctrl-Space": "scilite-mode-autocomplete"}
     });
-    input.setSize(null, 90);
+    input.setSize(null, 182);
     document.getElementById('arbitrary_precision').checked = false;
     document.getElementById('ver').textContent = 'v.'+SciLite.VERSION;
     document.getElementById('overlay').style.display = 'none';
@@ -837,6 +846,85 @@ function init($)
     document.getElementById('arbitrary_precision').addEventListener('change', (evt) => {
         if ($.arbitraryPrecision(evt.target.checked)) runExample('numbers');
     }, false);
+
+    InfoPopup({
+        item: '[aria-label]',
+        content: (item) => '<div class="info-icon"><i class="icon info"></i></div><div class="info-msg">'+item.getAttribute('aria-label')+'</div>',
+        atItemX: 'center',
+        atItemY: 'top',
+        hideDelay: 400,
+        showDelay: 400,
+        preventDefault: false
+    });
+
+    let session = [];
+
+    window.runExample = function(example) {
+        session = [];
+        $.clear(output);
+        run_example(example).then(() => 0);
+        return false;
+    };
+
+    const save = (function() {
+        // Prepare the anchor element once in a closure scope
+        const anchorElement = document.createElement("a");
+        document.body.appendChild(anchorElement);
+        anchorElement.style.display = "none";
+
+        return function(data, fileName) {
+            let jsonData = JSON.stringify(data, null, 2); // Pretty print JSON for readability
+
+            // Create a Blob from the JSON string, specifying the MIME type
+            let dataBlob = new Blob([jsonData], {type: "application/octet-stream"});
+
+            // Create a temporary object URL for the Blob
+            let objectUrl = window.URL.createObjectURL(dataBlob);
+
+            anchorElement.href = objectUrl;
+            anchorElement.download = fileName;
+
+            // Simulate the click to trigger the download prompt
+            anchorElement.click();
+
+            // Essential cleanup: release the temporary URL resource
+            window.URL.revokeObjectURL(objectUrl);
+        };
+    }());
+    function load(accept, callback)
+    {
+        let inputElement = document.createElement("input");
+        inputElement.type = "file";
+        inputElement.accept = accept;
+        inputElement.addEventListener("change", function(evt) {
+            if (inputElement.files.length)
+            {
+                const reader = new FileReader();
+                reader.onload = function(evt) {
+                    let data = null;
+                    try {
+                        data = JSON.parse(evt.target.result);
+                    } catch (e) {
+                        data = null;
+                        notify('Invalid JSON file!', 'error');
+                    }
+                    inputElement.remove();
+                    callback(data);
+                };
+                reader.onerror = function(evt) {
+                    notify('Unable to read data file!', 'error');
+                };
+                reader.readAsText(inputElement.files[0]);
+            }
+            else
+            {
+                inputElement.remove();
+                callback(null);
+            }
+        }, false);
+        // dispatch a click event to open the file dialog
+        inputElement.dispatchEvent(new MouseEvent("click"));
+    }
     document.getElementById('run').addEventListener('click', (evt) => {
         let code = input.getValue().trim();
         input.setValue('');
@@ -858,25 +946,12 @@ function init($)
             notify('Clipboard access error!', 'error');
         }
     }, false);
-
-    InfoPopup({
-        item: '[aria-label]',
-        content: (item) => '<div class="info-icon"><i class="icon info"></i></div><div class="info-msg">'+item.getAttribute('aria-label')+'</div>',
-        atItemX: 'center',
-        atItemY: 'top',
-        hideDelay: 400,
-        showDelay: 400,
-        preventDefault: false
-    });
-
-    let session = [];
-
-    window.runExample = function(example) {
-        session = [];
-        $.clear(output);
-        run_example(example).then(() => 0);
-        return false;
-    };
+    document.getElementById('save').addEventListener('click', (evt) => {
+        save($.ctx(), 'data.json');
+    }, false);
+    document.getElementById('load').addEventListener('click', (evt) => {
+        load(".json", (data) => {if (data) $.ctx(data);});
+    }, false);
 
     const params = session_link(location.href);
     if (params.session.length)
