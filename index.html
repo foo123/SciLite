@@ -4,7 +4,7 @@
 <title>SciLite: a scientific computing environment in pure JavaScript</title>
 <meta http-equiv="content-type" content="text/html; charset=UTF-8">
 <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
-<meta name="description" content="A scientific computing environment similar to Octave/Matlab in pure JavaScript." />
+<meta name="description" content="A scientific computing environment similar to Octave/Matlab/SciPy in pure JavaScript." />
 <meta property="og:image" content="https://foo123.github.io/thumbs/scilite-live.png">
 <meta property="og:url" content="https://foo123.github.io/examples/scilite/">
 <meta name="twitter:card" content="summary">
@@ -307,13 +307,6 @@ mjx-container[jax="CHTML"][display="true"] {
 .button:active {
     top: 1px;
 }
-.lb {
-    display: block;
-    box-sizing: border-box;
-    overflow: hidden;
-    height: 0;
-    margin: -3px 0;
-}
 .checkbox {
     position: relative;
     box-sizing: border-box;
@@ -434,7 +427,7 @@ window.MathJax = {
 </head>
 <body>
 <header id="header" style="text-align:center;line-height:1.4;padding-top:10px;">
-<h1 style="font-size:1em;font-weight:normal"><b>SciLite <span id="ver"></span></b>: a scientific computing environment similar to <b>Octave/Matlab</b> in pure JavaScript.</h1>
+<h1 style="font-size:1em;font-weight:normal"><b>SciLite <span id="ver"></span></b>: a scientific computing environment similar to <b>Octave/Matlab/SciPy</b> in pure JavaScript.</h1>
 </header>
 
 <br><br>
@@ -473,12 +466,14 @@ window.MathJax = {
 <button id="run" aria-label="run code" class="button" style="padding:8px"><i class="icon run" style="width:14px"></i></button>
 <button id="clear" aria-label="clear contents" class="button" style="padding:8px"><i class="icon clear" style="width:14px;top:2px"></i></button>
 <br><button id="share" aria-label="get link to share current session" class="button" style="font-size:16px;margin-top:11px;padding:10px 11px">Share</button>
-<br class="lb"><button id="save" aria-label="save data of current session" class="button" style="font-size:16px;margin-top:11px;padding:10px 15px">Save</button>
-<br class="lb"><button id="load" aria-label="load data to current session" class="button" style="font-size:16px;margin-top:11px;padding:10px 15px">Load</button>
+<br><button id="save" aria-label="save data of current session" class="button" style="font-size:16px;margin-top:5px;padding:10px 15px">Save</button>
+<br><button id="load" aria-label="load data in current session" class="button" style="font-size:16px;margin-top:5px;padding:10px 15px">Load</button>
 </div>
 
 <div id="overlay"></div>
 </div>
+
+<a id="download" href="#" style="display:none"></a>
 
 <br><br><br>
 
@@ -627,6 +622,8 @@ function init($)
                 'A(:,:,2) = [10 11 12; 13 14 15; 16 17 18]',
                 'B = cat(3,A,[3 2 1; 0 9 8; 5 3 7])',
                 'B(:,:,4) = 0',
+                'C = B(:,:,2)',
+                'C = B(2,:,:)',
                 'elA = A(1,2,2)',
                 'C = A(:,[1 3],:)',
                 'D = A(2:3,:,:)',
@@ -838,7 +835,7 @@ function init($)
         gutters: [],
         extraKeys: {"Ctrl-Space": "scilite-mode-autocomplete"}
     });
-    input.setSize(null, 182);
+    input.setSize(null, 180);
     document.getElementById('arbitrary_precision').checked = false;
     document.getElementById('ver').textContent = 'v.'+SciLite.VERSION;
     document.getElementById('overlay').style.display = 'none';
@@ -866,37 +863,33 @@ function init($)
         return false;
     };
 
-    const save = (function() {
-        // Prepare the anchor element once in a closure scope
-        const anchorElement = document.createElement("a");
-        document.body.appendChild(anchorElement);
-        anchorElement.style.display = "none";
+    function save(data, fileName)
+    {
+        const anchorElement = document.getElementById('download');
 
-        return function(data, fileName) {
-            let jsonData = JSON.stringify(data, null, 2); // Pretty print JSON for readability
+        let jsonData = JSON.stringify(data, null, 2); // Pretty print JSON for readability
 
-            // Create a Blob from the JSON string, specifying the MIME type
-            let dataBlob = new Blob([jsonData], {type: "application/octet-stream"});
+        // Create a Blob from the JSON string, specifying the MIME type
+        let dataBlob = new Blob([jsonData], {type: 'application/octet-stream'});
 
-            // Create a temporary object URL for the Blob
-            let objectUrl = window.URL.createObjectURL(dataBlob);
+        // Create a temporary object URL for the Blob
+        let objectUrl = window.URL.createObjectURL(dataBlob);
 
-            anchorElement.href = objectUrl;
-            anchorElement.download = fileName;
+        anchorElement.href = objectUrl;
+        anchorElement.download = fileName;
 
-            // Simulate the click to trigger the download prompt
-            anchorElement.click();
+        // Simulate the click to trigger the download prompt
+        anchorElement.click();
 
-            // Essential cleanup: release the temporary URL resource
-            window.URL.revokeObjectURL(objectUrl);
-        };
-    }());
+        // Essential cleanup: release the temporary URL resource
+        window.URL.revokeObjectURL(objectUrl);
+    }
     function load(accept, callback)
     {
-        let inputElement = document.createElement("input");
-        inputElement.type = "file";
+        let inputElement = document.createElement('input');
+        inputElement.type = 'file';
         inputElement.accept = accept;
-        inputElement.addEventListener("change", function(evt) {
+        inputElement.addEventListener('change', function(evt) {
             if (inputElement.files.length)
             {
                 const reader = new FileReader();
@@ -923,7 +916,7 @@ function init($)
             }
         }, false);
         // dispatch a click event to open the file dialog
-        inputElement.dispatchEvent(new MouseEvent("click"));
+        inputElement.dispatchEvent(new MouseEvent('click'));
     }
     document.getElementById('run').addEventListener('click', (evt) => {
         let code = input.getValue().trim();
@@ -950,7 +943,13 @@ function init($)
         save($.ctx(), 'data.json');
     }, false);
     document.getElementById('load').addEventListener('click', (evt) => {
-        load(".json", (data) => {if (data) $.ctx(data);});
+        load('.json', (data) => {
+            if (data)
+            {
+                $.ctx(data);
+                notify('Data loaded in session.', 'success');
+            }
+        });
     }, false);
 
     const params = session_link(location.href);

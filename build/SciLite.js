@@ -2,16 +2,16 @@
 *
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
-* @version: 0.9.14
-* 2026-03-26 14:16:12
+* @version: 0.9.15
+* 2026-03-27 13:22:08
 * https://github.com/foo123/SciLite
 *
 **//**
 *
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
-* @version: 0.9.14
-* 2026-03-26 14:16:12
+* @version: 0.9.15
+* 2026-03-27 13:22:08
 * https://github.com/foo123/SciLite
 *
 **/
@@ -59,7 +59,7 @@ var tensorview = null,
 
     // lib
     $ = {
-        VERSION: "0.9.14",
+        VERSION: "0.9.15",
         // common functions
         _: {},
         // builtin functions
@@ -345,7 +345,7 @@ function vec(x)
     {
         return x;
     }
-    else if (is_2d(x))
+    else if (is_2d(x) && !is_array(x[0][0]))
     {
         if (1 === ROWS(x)) return x[0];
         else if (1 === COLS(x)) return x.map(function(xi) {return xi[0];});
@@ -357,15 +357,6 @@ function vec(x)
     return x;
 }
 $_.vec = vec;
-function val(x)
-{
-    if (is_array(x) /*&& (1 === x.length)*/)
-    {
-        return val(x[0]);
-    }
-    return x;
-}
-$_.val = val;
 
 function ROWS(mat)
 {
@@ -567,11 +558,11 @@ function texify(x)
     {
         x = String(x).split('e').join('\\text{e}').split('nan').join('\\text{nan}').split('inf').join('\\text{inf}');
     }
-    else if (is_nd(x))
+    else if (is_2d(x))
     {
         x = tensorview(x).toTex($_.MAXPRINTSIZE, texify, 1);
     }
-    else if (is_matrix(x))
+    /*else if (is_matrix(x))
     {
         var use_ddots = false;
         if (COLS(x) > $_.MAXPRINTSIZE)
@@ -586,7 +577,7 @@ function texify(x)
             x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat([array(x[0].length, function(i) {return stdMath.round($_.MAXPRINTSIZE/2) === i ? (use_ddots ? '\\ddots' : '\\vdots') : '\\vdots';})]).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
         }
         x = '\\begin{bmatrix}'+ x.map(function(xi) {return xi.map(texify).join(' & \\hskip 1em ');}).join(' \\\\ ') + '\\end{bmatrix}';
-    }
+    }*/
     else if (is_array(x))
     {
         if (x.length > $_.MAXPRINTSIZE)
@@ -617,14 +608,14 @@ $_.tex = function(x) {
             }
             else if (is_array(x[0]))
             {
-                if (/*is_array(x[0][0]) ||*/ !is_array(x[1]) || (x[0].length !== x[1].length))
+                /*if (is_array(x[0][0]) || !is_array(x[1]) || (x[0].length !== x[1].length))
                 {
                     x = "\\[" + x.map(texify).join("\\]\n\\[") + "\\]";
                 }
                 else
-                {
+                {*/
                     x = "\\[" + texify(x) + "\\]";
-                }
+                /*}*/
             }
             else
             {
@@ -671,11 +662,11 @@ function stringify(x)
     {
         x = String(x);
     }
-    else if (is_nd(x))
+    else if (is_2d(x))
     {
         x = tensorview(x).toString($_.MAXPRINTSIZE, stringify, 1);
     }
-    else if (is_matrix(x))
+    /*else if (is_matrix(x))
     {
         var use_ddots = false;
         if (COLS(x) > $_.MAXPRINTSIZE)
@@ -701,7 +692,7 @@ function stringify(x)
                 return str;
             }).join('  ') + ']';
         }).join('\n');
-    }
+    }*/
     else if (is_array(x))
     {
         if (x.length > $_.MAXPRINTSIZE)
@@ -732,14 +723,14 @@ $_.str = function(x) {
             }
             else if (is_array(x[0]))
             {
-                if (/*is_array(x[0][0]) ||*/ !is_array(x[1]) || (x[0].length !== x[1].length))
+                /*if (is_array(x[0][0]) || !is_array(x[1]) || (x[0].length !== x[1].length))
                 {
                     x = x.map(stringify).join("\n\n");
                 }
                 else
-                {
+                {*/
                     x = stringify(x);
-                }
+                /*}*/
             }
             else
             {
@@ -2249,7 +2240,7 @@ function get(mat /*, ..slices*/)
             {
                 throw "get: invalid range";
             }
-        }));
+        })).squeeze(2); // remove trivial dimensions after 2d
         if (1 === ret.length)
         {
             ret = ret.get(array(ret.dimension, 0));
@@ -2260,7 +2251,7 @@ function get(mat /*, ..slices*/)
         }
         else
         {
-            ret = squeeze(ret.toNDArray()); // remove trivial dimensions
+            ret = ret.toNDArray();
         }
     }
     return ret;
@@ -12246,7 +12237,7 @@ variable.prototype = {
             i = await Promise.all(self.i.map(function(ind, i) {
                 return vale(ind, {end:1 === self.i.length ? prod(s) : s[i]});
             }));
-            return get.apply(null, [val].concat(i));
+            val = get.apply(null, [val].concat(i));
         }
         return val;
     },

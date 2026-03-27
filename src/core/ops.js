@@ -1473,7 +1473,7 @@ function get(mat /*, ..slices*/)
             {
                 throw "get: invalid range";
             }
-        }));
+        })).squeeze(2); // remove trivial dimensions after 2d
         if (1 === ret.length)
         {
             ret = ret.get(array(ret.dimension, 0));
@@ -1484,7 +1484,7 @@ function get(mat /*, ..slices*/)
         }
         else
         {
-            ret = squeeze(ret.toNDArray()); // remove trivial dimensions
+            ret = ret.toNDArray();
         }
     }
     return ret;

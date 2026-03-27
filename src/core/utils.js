@@ -257,7 +257,7 @@ function vec(x)
     {
         return x;
     }
-    else if (is_2d(x))
+    else if (is_2d(x) && !is_array(x[0][0]))
     {
         if (1 === ROWS(x)) return x[0];
         else if (1 === COLS(x)) return x.map(function(xi) {return xi[0];});
@@ -269,15 +269,6 @@ function vec(x)
     return x;
 }
 $_.vec = vec;
-function val(x)
-{
-    if (is_array(x) /*&& (1 === x.length)*/)
-    {
-        return val(x[0]);
-    }
-    return x;
-}
-$_.val = val;
 
 function ROWS(mat)
 {
@@ -479,11 +470,11 @@ function texify(x)
     {
         x = String(x).split('e').join('\\text{e}').split('nan').join('\\text{nan}').split('inf').join('\\text{inf}');
     }
-    else if (is_nd(x))
+    else if (is_2d(x))
     {
         x = tensorview(x).toTex($_.MAXPRINTSIZE, texify, 1);
     }
-    else if (is_matrix(x))
+    /*else if (is_matrix(x))
     {
         var use_ddots = false;
         if (COLS(x) > $_.MAXPRINTSIZE)
@@ -498,7 +489,7 @@ function texify(x)
             x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat([array(x[0].length, function(i) {return stdMath.round($_.MAXPRINTSIZE/2) === i ? (use_ddots ? '\\ddots' : '\\vdots') : '\\vdots';})]).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
         }
         x = '\\begin{bmatrix}'+ x.map(function(xi) {return xi.map(texify).join(' & \\hskip 1em ');}).join(' \\\\ ') + '\\end{bmatrix}';
-    }
+    }*/
     else if (is_array(x))
     {
         if (x.length > $_.MAXPRINTSIZE)
@@ -529,14 +520,14 @@ $_.tex = function(x) {
             }
             else if (is_array(x[0]))
             {
-                if (/*is_array(x[0][0]) ||*/ !is_array(x[1]) || (x[0].length !== x[1].length))
+                /*if (is_array(x[0][0]) || !is_array(x[1]) || (x[0].length !== x[1].length))
                 {
                     x = "\\[" + x.map(texify).join("\\]\n\\[") + "\\]";
                 }
                 else
-                {
+                {*/
                     x = "\\[" + texify(x) + "\\]";
-                }
+                /*}*/
             }
             else
             {
@@ -583,11 +574,11 @@ function stringify(x)
     {
         x = String(x);
     }
-    else if (is_nd(x))
+    else if (is_2d(x))
     {
         x = tensorview(x).toString($_.MAXPRINTSIZE, stringify, 1);
     }
-    else if (is_matrix(x))
+    /*else if (is_matrix(x))
     {
         var use_ddots = false;
         if (COLS(x) > $_.MAXPRINTSIZE)
@@ -613,7 +604,7 @@ function stringify(x)
                 return str;
             }).join('  ') + ']';
         }).join('\n');
-    }
+    }*/
     else if (is_array(x))
     {
         if (x.length > $_.MAXPRINTSIZE)
@@ -644,14 +635,14 @@ $_.str = function(x) {
             }
             else if (is_array(x[0]))
             {
-                if (/*is_array(x[0][0]) ||*/ !is_array(x[1]) || (x[0].length !== x[1].length))
+                /*if (is_array(x[0][0]) || !is_array(x[1]) || (x[0].length !== x[1].length))
                 {
                     x = x.map(stringify).join("\n\n");
                 }
                 else
-                {
+                {*/
                     x = stringify(x);
-                }
+                /*}*/
             }
             else
             {

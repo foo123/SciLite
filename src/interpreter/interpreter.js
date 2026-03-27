@@ -598,7 +598,7 @@ variable.prototype = {
             i = await Promise.all(self.i.map(function(ind, i) {
                 return vale(ind, {end:1 === self.i.length ? prod(s) : s[i]});
             }));
-            return get.apply(null, [val].concat(i));
+            val = get.apply(null, [val].concat(i));
         }
         return val;
     },
