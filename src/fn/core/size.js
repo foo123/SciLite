@@ -8,13 +8,13 @@ function size(x)
     if (is_array(dims[0])) dims = vec(dims[0]);
     if (is_2d(x))
     {
-        // ndarray
+        // 2d or ndarray
         sizex = nd_size(x);
     }
     else if (is_1d(x))
     {
         // vector
-        sizex = [1, x.length];
+        sizex = x.length ? [1, x.length] : [0, 0];
     }
     else
     {

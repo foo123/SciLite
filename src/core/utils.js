@@ -358,6 +358,71 @@ function apply2(f, x, y, iscomplex)
     return nan;
 }
 $_.apply2 = apply2;
+function group_apply(f, f0, ferr, x, dim)
+{
+    var fv, sizex, view, compl;
+    if (is_scalar(x))
+    {
+        return x;
+    }
+    else if (is_vector(x))
+    {
+        return x.reduce(function(fv, xi) {
+            return f(fv, xi);
+        }, f0);
+    }
+    else if (is_2d(x))
+    {
+        sizex = size(x);
+        view = tensorview(x, {shape:sizex, ndarray:sizex});
+        if (is_vector(dim))
+        {
+            dim = dim.map(_);
+            compl = array(sizex.length, function(i) {return i+1;}).filter(function(di) {return -1 === dim.indexOf(di);});
+            if (compl.length)
+            {
+                if (sizex.length > 2)
+                {
+                    return ndarray(array(sizex.length, function(di) {return -1 < dim.indexOf(di+1) ? 1 : sizex[di];}), function(i) {
+                        var fv = f0;
+                        view.slice(sizex.map(function(_, d) {
+                            return -1 < dim.indexOf(d+1) ? ':' : (i[d]);
+                        })).forEach(function(xi) {
+                            fv = f(fv, xi);
+                        });
+                        return fv;
+                    });
+                }
+                else
+                {
+                    return ndarray(compl.map(function(di) {return sizex[di-1];}), function(i) {
+                        var fv = f0, j = 0;
+                        view.slice(sizex.map(function(_, d) {
+                            return -1 < dim.indexOf(d+1) ? ':' : (i[j++]);
+                        })).forEach(function(xi) {
+                            fv = f(fv, xi);
+                        });
+                        return fv;
+                    });
+                }
+            }
+            else
+            {
+                dim = "all";
+            }
+        }
+        if ("all" === dim)
+        {
+            fv = f0;
+            view.forEach(function(xi) {
+                fv = f(fv, xi);
+            });
+            return fv;
+        }
+    }
+    return ferr;
+}
+$_.group_apply = group_apply;
 
 function roundoff(x, eps)
 {
@@ -472,24 +537,9 @@ function texify(x)
     }
     else if (is_2d(x))
     {
-        x = tensorview(x).toTex($_.MAXPRINTSIZE, texify, 1);
+        // 2d or nd array
+        x = tensorview.stringify('tex', x, size(x), texify, $_.MAXPRINTSIZE, 1);
     }
-    /*else if (is_matrix(x))
-    {
-        var use_ddots = false;
-        if (COLS(x) > $_.MAXPRINTSIZE)
-        {
-            x = x.map(function(row) {
-                return row.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat('\\cdots').concat(row.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
-            });
-            use_ddots = true;
-        }
-        if (ROWS(x) > $_.MAXPRINTSIZE)
-        {
-            x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat([array(x[0].length, function(i) {return stdMath.round($_.MAXPRINTSIZE/2) === i ? (use_ddots ? '\\ddots' : '\\vdots') : '\\vdots';})]).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
-        }
-        x = '\\begin{bmatrix}'+ x.map(function(xi) {return xi.map(texify).join(' & \\hskip 1em ');}).join(' \\\\ ') + '\\end{bmatrix}';
-    }*/
     else if (is_array(x))
     {
         if (x.length > $_.MAXPRINTSIZE)
@@ -520,14 +570,7 @@ $_.tex = function(x) {
             }
             else if (is_array(x[0]))
             {
-                /*if (is_array(x[0][0]) || !is_array(x[1]) || (x[0].length !== x[1].length))
-                {
-                    x = "\\[" + x.map(texify).join("\\]\n\\[") + "\\]";
-                }
-                else
-                {*/
-                    x = "\\[" + texify(x) + "\\]";
-                /*}*/
+                x = "\\[" + texify(x) + "\\]";
             }
             else
             {
@@ -576,35 +619,9 @@ function stringify(x)
     }
     else if (is_2d(x))
     {
-        x = tensorview(x).toString($_.MAXPRINTSIZE, stringify, 1);
+        // 2d or nd array
+        x = tensorview.stringify('str', x, size(x), stringify, $_.MAXPRINTSIZE, 1);
     }
-    /*else if (is_matrix(x))
-    {
-        var use_ddots = false;
-        if (COLS(x) > $_.MAXPRINTSIZE)
-        {
-            x = x.map(function(row) {
-                return row.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat('..').concat(row.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
-            });
-            use_ddots = true;
-        }
-        if (ROWS(x) > $_.MAXPRINTSIZE)
-        {
-            x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat([array(x[0].length, function(i) {return stdMath.round($_.MAXPRINTSIZE/2) === i ? (use_ddots ? ':.' : ':') : ':';})]).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
-        }
-        var ln = array(COLS(x), function(col) {
-            return COL(x, col).reduce(function(l, xi) {
-                return stdMath.max(l, stringify(xi).length);
-            }, 0);
-        });
-        x = x.map(function(row, i) {
-            return '[' + row.map(function(xij, j) {
-                var str = stringify(xij);
-                if (str.length < ln[j]) str = (new Array(ln[j]-str.length+1)).join(' ') + str;
-                return str;
-            }).join('  ') + ']';
-        }).join('\n');
-    }*/
     else if (is_array(x))
     {
         if (x.length > $_.MAXPRINTSIZE)
@@ -635,14 +652,7 @@ $_.str = function(x) {
             }
             else if (is_array(x[0]))
             {
-                /*if (is_array(x[0][0]) || !is_array(x[1]) || (x[0].length !== x[1].length))
-                {
-                    x = x.map(stringify).join("\n\n");
-                }
-                else
-                {*/
-                    x = stringify(x);
-                /*}*/
+                x = stringify(x);
             }
             else
             {

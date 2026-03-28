@@ -1,17 +1,10 @@
-function zeros(rows, cols)
+function zeros()
 {
-    if (null == rows) rows = 1;
-    if (is_vector(rows))
-    {
-        cols = rows[1];
-        rows = rows[0];
-    }
-    if (null == cols)
-    {
-        cols = rows;
-    }
-    return matrix(_(rows), _(cols), O);
+    var dims = [].slice.call(arguments);
+    if (!dims.length) return O;
+    if ((1 === dims.length) && is_vector(dims[0])) dims = dims[0];
+    dims = fn.fix(dims).map(_);
+    if (1 === dims.length) dims = [dims[0], dims[0]];
+    return ndarray(dims, O);
 }
-fn.zeros = function(rows, cols) {
-    return zeros(fn.fix(rows), is_scalar(cols) ? fn.fix(cols) : cols);
-};
+fn.zeros = zeros;

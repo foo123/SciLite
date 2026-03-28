@@ -3,7 +3,7 @@
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
 * @version: 0.9.15
-* 2026-03-27 13:22:08
+* 2026-03-28 09:13:00
 * https://github.com/foo123/SciLite
 *
 **//**
@@ -11,7 +11,7 @@
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
 * @version: 0.9.15
-* 2026-03-27 13:22:08
+* 2026-03-28 09:13:00
 * https://github.com/foo123/SciLite
 *
 **/
@@ -446,6 +446,71 @@ function apply2(f, x, y, iscomplex)
     return nan;
 }
 $_.apply2 = apply2;
+function group_apply(f, f0, ferr, x, dim)
+{
+    var fv, sizex, view, compl;
+    if (is_scalar(x))
+    {
+        return x;
+    }
+    else if (is_vector(x))
+    {
+        return x.reduce(function(fv, xi) {
+            return f(fv, xi);
+        }, f0);
+    }
+    else if (is_2d(x))
+    {
+        sizex = size(x);
+        view = tensorview(x, {shape:sizex, ndarray:sizex});
+        if (is_vector(dim))
+        {
+            dim = dim.map(_);
+            compl = array(sizex.length, function(i) {return i+1;}).filter(function(di) {return -1 === dim.indexOf(di);});
+            if (compl.length)
+            {
+                if (sizex.length > 2)
+                {
+                    return ndarray(array(sizex.length, function(di) {return -1 < dim.indexOf(di+1) ? 1 : sizex[di];}), function(i) {
+                        var fv = f0;
+                        view.slice(sizex.map(function(_, d) {
+                            return -1 < dim.indexOf(d+1) ? ':' : (i[d]);
+                        })).forEach(function(xi) {
+                            fv = f(fv, xi);
+                        });
+                        return fv;
+                    });
+                }
+                else
+                {
+                    return ndarray(compl.map(function(di) {return sizex[di-1];}), function(i) {
+                        var fv = f0, j = 0;
+                        view.slice(sizex.map(function(_, d) {
+                            return -1 < dim.indexOf(d+1) ? ':' : (i[j++]);
+                        })).forEach(function(xi) {
+                            fv = f(fv, xi);
+                        });
+                        return fv;
+                    });
+                }
+            }
+            else
+            {
+                dim = "all";
+            }
+        }
+        if ("all" === dim)
+        {
+            fv = f0;
+            view.forEach(function(xi) {
+                fv = f(fv, xi);
+            });
+            return fv;
+        }
+    }
+    return ferr;
+}
+$_.group_apply = group_apply;
 
 function roundoff(x, eps)
 {
@@ -560,24 +625,9 @@ function texify(x)
     }
     else if (is_2d(x))
     {
-        x = tensorview(x).toTex($_.MAXPRINTSIZE, texify, 1);
+        // 2d or nd array
+        x = tensorview.stringify('tex', x, size(x), texify, $_.MAXPRINTSIZE, 1);
     }
-    /*else if (is_matrix(x))
-    {
-        var use_ddots = false;
-        if (COLS(x) > $_.MAXPRINTSIZE)
-        {
-            x = x.map(function(row) {
-                return row.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat('\\cdots').concat(row.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
-            });
-            use_ddots = true;
-        }
-        if (ROWS(x) > $_.MAXPRINTSIZE)
-        {
-            x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat([array(x[0].length, function(i) {return stdMath.round($_.MAXPRINTSIZE/2) === i ? (use_ddots ? '\\ddots' : '\\vdots') : '\\vdots';})]).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
-        }
-        x = '\\begin{bmatrix}'+ x.map(function(xi) {return xi.map(texify).join(' & \\hskip 1em ');}).join(' \\\\ ') + '\\end{bmatrix}';
-    }*/
     else if (is_array(x))
     {
         if (x.length > $_.MAXPRINTSIZE)
@@ -608,14 +658,7 @@ $_.tex = function(x) {
             }
             else if (is_array(x[0]))
             {
-                /*if (is_array(x[0][0]) || !is_array(x[1]) || (x[0].length !== x[1].length))
-                {
-                    x = "\\[" + x.map(texify).join("\\]\n\\[") + "\\]";
-                }
-                else
-                {*/
-                    x = "\\[" + texify(x) + "\\]";
-                /*}*/
+                x = "\\[" + texify(x) + "\\]";
             }
             else
             {
@@ -664,35 +707,9 @@ function stringify(x)
     }
     else if (is_2d(x))
     {
-        x = tensorview(x).toString($_.MAXPRINTSIZE, stringify, 1);
+        // 2d or nd array
+        x = tensorview.stringify('str', x, size(x), stringify, $_.MAXPRINTSIZE, 1);
     }
-    /*else if (is_matrix(x))
-    {
-        var use_ddots = false;
-        if (COLS(x) > $_.MAXPRINTSIZE)
-        {
-            x = x.map(function(row) {
-                return row.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat('..').concat(row.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
-            });
-            use_ddots = true;
-        }
-        if (ROWS(x) > $_.MAXPRINTSIZE)
-        {
-            x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat([array(x[0].length, function(i) {return stdMath.round($_.MAXPRINTSIZE/2) === i ? (use_ddots ? ':.' : ':') : ':';})]).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
-        }
-        var ln = array(COLS(x), function(col) {
-            return COL(x, col).reduce(function(l, xi) {
-                return stdMath.max(l, stringify(xi).length);
-            }, 0);
-        });
-        x = x.map(function(row, i) {
-            return '[' + row.map(function(xij, j) {
-                var str = stringify(xij);
-                if (str.length < ln[j]) str = (new Array(ln[j]-str.length+1)).join(' ') + str;
-                return str;
-            }).join('  ') + ']';
-        }).join('\n');
-    }*/
     else if (is_array(x))
     {
         if (x.length > $_.MAXPRINTSIZE)
@@ -723,14 +740,7 @@ $_.str = function(x) {
             }
             else if (is_array(x[0]))
             {
-                /*if (is_array(x[0][0]) || !is_array(x[1]) || (x[0].length !== x[1].length))
-                {
-                    x = x.map(stringify).join("\n\n");
-                }
-                else
-                {*/
-                    x = stringify(x);
-                /*}*/
+                x = stringify(x);
             }
             else
             {
@@ -2081,98 +2091,6 @@ function neg(a)
 }
 $_.neg = neg;
 
-/*function get(mat, rrange = ':', crange = null)
-{
-    // indices start from 1 to end
-    // B=A(:,[5 6]); B=get(A,':',[5,6]);
-    var ret;
-    if (is_1d(mat))
-    {
-        if (is_vector(rrange) && (rrange.length === mat.length) && all(rrange, function(v) {return 0 === _(v) || 1 === _(v);}))
-        {
-            ret = rrange.reduce(function(ret, v, i) {
-                if (1 === _(v)) ret.push(mat[i]);
-                return ret;
-            }, []);
-            if (1 === ret.length) ret = ret[0];
-            return ret;
-        }
-        if (is_scalar(rrange)) rrange = sca(rrange, true);
-        if ((':' === rrange) || is_int(rrange) || is_vector(rrange))
-        {
-            var n = mat.length;
-            if (':' === rrange) rrange = colon(1, n);
-            if (is_int(rrange)) rrange = [rrange];
-            ret = rrange.map(function(r) {
-                r = _(r);
-                if (1 > r) r += n;
-                if (1 > r || r > n) throw "get: index out of bounds";
-                return mat[r-1];
-            });
-            if (1 === ret.length) ret = ret[0];
-            return ret;
-        }
-        throw "get: invalid range";
-    }
-    if (is_2d(mat))
-    {
-        var rows = ROWS(mat), cols = COLS(mat), n = rows*cols;
-        if (null == crange && is_matrix(rrange) && (ROWS(rrange) === rows) && (COLS(rrange) === cols) && all(rrange, function(v) {return 0 === _(v) || 1 === _(v);}))
-        {
-            ret = [];
-            for (var j=0; j<cols; ++j)
-            {
-                for (var i=0; i<rows; ++i)
-                {
-                    if (1 === _(rrange[i][j]))
-                    {
-                        ret.push(mat[i][j]);
-                    }
-                }
-            }
-            if (1 === ret.length) ret = ret[0];
-            return ret;
-        }
-        if (is_scalar(rrange)) rrange = sca(rrange, true);
-        if (is_scalar(crange)) crange = sca(crange, true);
-        if ((':' === rrange) || is_int(rrange) || is_vector(rrange))
-        {
-            if (':' === rrange) rrange = colon(1, rows);
-            if (is_int(rrange)) rrange = [rrange];
-            if (null == crange)
-            {
-                ret = rrange.map(function(r) {
-                    r = _(r);
-                    if (1 > r) r += n;
-                    if (1 > r || r > n) throw "get: index out of bounds";
-                    return mat[(r-1) % rows][stdMath.floor((r-1) / rows)];
-                });
-                if (1 === ret.length) ret = ret[0];
-                return ret;
-            }
-            else if ((':' === crange) || is_int(crange) || is_vector(crange))
-            {
-                if (':' === crange) crange = colon(1, cols);
-                if (is_int(crange)) crange = [crange];
-                ret = rrange.map(function(r) {
-                    r = _(r);
-                    if (1 > r) r += rows;
-                    if (1 > r || r > rows) throw "get: index out of bounds";
-                    return crange.map(function(c) {
-                        c = _(c);
-                        if (1 > c) c += cols;
-                        if (1 > c || c > cols) throw "get: index out of bounds";
-                        return mat[r-1][c-1];
-                    });
-                });
-                if ((1 === ret.length) && (1 === ret[0].length)) ret = ret[0][0];
-                return ret;
-            }
-        }
-        throw "get: invalid range";
-    }
-    return mat;
-}*/
 function get(mat /*, ..slices*/)
 {
     // indices start from 1 to end
@@ -2257,228 +2175,6 @@ function get(mat /*, ..slices*/)
     return ret;
 }
 $_.get = get;
-/*function set(mat, rrange = ':', crange = null, val = null)
-{
-    // indices start from 1 to end
-    // A(:,[5 6]) = B; set(A,':',[5,6], B);
-    if (is_1d(mat))
-    {
-        //val = crange;
-        if (is_2d(val)) val = COL(val, 0);
-        if (is_vector(rrange) && (rrange.length === mat.length) && all(rrange, function(v) {return 0 === _(v) || 1 === _(v);}))
-        {
-            if (is_0d(val))
-            {
-                rrange.forEach(function(v, i) {
-                    if (1 === _(v)) mat[i] = val;
-                });
-                return mat;
-            }
-            else if (is_array(val))
-            {
-                var k = 0, nv = val.length;
-                rrange.forEach(function(v, i) {
-                    if (1 === _(v))
-                    {
-                        if (k >= nv) throw "set: index out of bounds";
-                        mat[i] = val[k++];
-                    }
-                });
-                return mat;
-            }
-            //throw "set: invalid value or range does not match dimensions";
-        }
-        if (is_scalar(rrange)) rrange = sca(rrange, true);
-        if ((':' === rrange) || is_int(rrange) || is_vector(rrange))
-        {
-            var n = mat.length, index;
-            if (':' === rrange) rrange = colon(1, n);
-            if (is_int(rrange)) rrange = [rrange];
-            if (is_0d(val))
-            {
-                rrange.forEach(function(r) {
-                    r = _(r);
-                    if (1 > r) r += n;
-                    if (1 > r || r > n) throw "set: index out of bounds";
-                    mat[r-1] = val;
-                });
-                return mat;
-            }
-            else if (is_array(val) && (val.length >= rrange.length))
-            {
-                rrange.forEach(function(r, i) {
-                    r = _(r);
-                    if (1 > r) r += n;
-                    if (1 > r || r > n) throw "set: index out of bounds";
-                    mat[r-1] = val[i];
-                });
-                return mat;
-            }
-            throw "set: invalid value or range does not match dimensions";
-        }
-        throw "set: invalid range";
-    }
-    if (is_2d(mat))
-    {
-        var rows = ROWS(mat), cols = COLS(mat), n = rows*cols, rowsv, colsv, nv, i, j, iv, jv, k;
-        if (is_matrix(rrange) && (ROWS(rrange) === rows) && (COLS(rrange) === cols) && all(rrange, function(v) {return 0 === _(v) || 1 === _(v);}))
-        {
-            if (is_0d(val))
-            {
-                rrange.forEach(function(row, i) {
-                    row.forEach(function(v, j) {
-                        if (1 === _(v)) mat[i][j] = val;
-                    });
-                });
-                return mat;
-            }
-            else if (is_2d(val))
-            {
-                rowsv = ROWS(val);
-                colsv = COLS(val);
-                for (j=0,jv=0; j<cols; ++j,++jv)
-                {
-                    if (1 === colsv) jv = 0;
-                    else if (jv >= colsv) throw "set: index out of bounds";
-                    for (i=0,iv=0; i<rows; ++i,++iv)
-                    {
-                        if (1 === _(rrange[i][j]))
-                        {
-                            if (1 === rowsv) iv = 0;
-                            else if (iv >= rowsv) throw "set: index out of bounds";
-                            mat[i][j] = val[iv][jv];
-                        }
-                    }
-                }
-                return mat;
-            }
-            else if (is_array(val))
-            {
-                nv = val.length;
-                for (k=0,j=0; j<cols; ++j)
-                {
-                    for (i=0; i<rows; ++i)
-                    {
-                        if (1 === _(rrange[i][j]))
-                        {
-                            if (k >= nv) throw "set: index out of bounds";
-                            mat[i][j] = val[k++];
-                        }
-                    }
-                }
-                return mat;
-            }
-            //throw "set: invalid value or range does not match dimensions";
-        }
-        if (is_scalar(rrange)) rrange = sca(rrange, true);
-        if (is_scalar(crange)) crange = sca(crange, true);
-        if ((':' === rrange) || is_int(rrange) || is_vector(rrange))
-        {
-            if (null == crange)
-            {
-                if (':' === rrange) rrange = colon(1, n);
-                if (is_int(rrange)) rrange = [rrange];
-                if (is_0d(val))
-                {
-                    rrange.forEach(function(r) {
-                        r = _(r);
-                        if (1 > r) r += n;
-                        if (1 > r || r > n) throw "set: index out of bounds";
-                        mat[(r-1) % rows][stdMath.floor((r-1) / rows)] = val;
-                    });
-                    return mat;
-                }
-                else if (is_2d(val))
-                {
-                    rowsv = ROWS(val);
-                    colsv = COLS(val);
-                    rrange.forEach(function(r, i) {
-                        r = _(r);
-                        if (1 > r) r += n;
-                        if (1 > r || r > n) throw "set: index out of bounds";
-                        var iv = 1 === rowsv ? 0 : (i % rows),
-                            jv = 1 === colsv ? 0 : stdMath.floor(i / rows);
-                        if (iv >= rowsv || jv >= colsv) throw "set: index out of bounds";
-                        mat[(r-1) % rows][stdMath.floor((r-1) / rows)] = val[iv][jv];
-                    });
-                    return mat;
-                }
-                else if (is_array(val) && (val.length >= rrange.length))
-                {
-                    rrange.forEach(function(r, i) {
-                        r = _(r);
-                        if (1 > r) r += n;
-                        if (1 > r || r > n) throw "set: index out of bounds";
-                        mat[(r-1) % rows][stdMath.floor((r-1) / rows)] = val[i];
-                    });
-                    return mat;
-                }
-            }
-            else if ((':' === crange) || is_int(crange) || is_vector(crange))
-            {
-                if (':' === rrange) rrange = colon(1, rows);
-                if (is_int(rrange)) rrange = [rrange];
-                if (':' === crange) crange = colon(1, cols);
-                if (is_int(crange)) crange = [crange];
-                if (is_0d(val))
-                {
-                    rrange.forEach(function(r) {
-                        r = _(r);
-                        if (1 > r) r += rows;
-                        if (1 > r || r > rows) throw "set: index out of bounds";
-                        crange.forEach(function(c) {
-                            c = _(c);
-                            if (1 > c) c += cols;
-                            if (1 > c || c > cols) throw "set: index out of bounds";
-                            mat[r-1][c-1] = val;
-                        });
-                    });
-                    return mat;
-                }
-                else if (is_2d(val))
-                {
-                    rowsv = ROWS(val);
-                    colsv = COLS(val);
-                    rrange.forEach(function(r, iv) {
-                        r = _(r);
-                        if (1 > r) r += rows;
-                        if (1 > r || r > rows) throw "set: index out of bounds";
-                        if (1 === rowsv) iv = 0;
-                        else if (iv >= rowsv) throw "set: index out of bounds";
-                        crange.forEach(function(c, jv) {
-                            c = _(c);
-                            if (1 > c) c += cols;
-                            if (1 > c || c > cols) throw "set: index out of bounds";
-                            if (1 === colsv) jv = 0;
-                            else if (jv >= colsv) throw "set: index out of bounds";
-                            mat[r-1][c-1] = val[iv][jv];
-                        });
-                    });
-                    return mat;
-                }
-                else if (is_array(val) && (val.length >= rrange.length*crange.length))
-                {
-                    k = 0;
-                    crange.forEach(function(c, j) {
-                        c = _(c);
-                        if (1 > c) c += cols;
-                        if (1 > c || c > cols) throw "set: index out of bounds";
-                        rrange.forEach(function(r, i) {
-                            r = _(r);
-                            if (1 > r) r += rows;
-                            if (1 > r || r > rows) throw "set: index out of bounds";
-                            mat[r-1][c-1] = val[k++];
-                        });
-                    });
-                    return mat;
-                }
-            }
-            throw "set: invalid value or range does not match dimensions";
-        }
-        throw "set: invalid range";
-    }
-    return mat;
-}*/
 function set(mat /*, ..slices, val*/)
 {
     // indices start from 1 to end
@@ -2495,13 +2191,13 @@ function set(mat /*, ..slices, val*/)
                 throw "set: invalid range";
             }
         });
-        mat = tensorview(copy(val), {shape:szv.concat(array(slices.length-szv.length, 1))}).toNDArray();
+        mat = tensorview(val, {shape:szv.concat(array(slices.length-szv.length, 1))}).toNDArray();
     }
     else if (sz.length < slices.length)
     {
         szv = size(val);
         slices.forEach(function(slice, dim) {
-            if (!(((dim < szv.length) && (':' === slice)) || ((dim === slices.length-1) && (2 === _(slice))) || ((dim >= szv.length) && (1 === _(slice)))))
+            if (!(((dim < szv.length) && (':' === slice)) || ((dim === slices.length-1) && (2 === _(slice))) || ((dim >= szv.length) && (dim < slices.length-1) && (1 === _(slice)))))
             {
                 throw "set: invalid range";
             }
@@ -2511,7 +2207,7 @@ function set(mat /*, ..slices, val*/)
     else if (is_int(slices[slices.length-1]) && (sz[sz.length-1]+1 === _(slices[slices.length-1])))
     {
         szv = size(val);
-        mat = tensorview(mat, {shape: sz}).concat(tensorview(val, {shape: is_scalar(val) ? (sz.slice(0, -1).concat(1)) : (szv.concat(array(slices.length-szv.length, 1)))}), slices.length-1).toNDArray();
+        mat = tensorview(mat, {shape: sz}).concat(tensorview(val, {shape: !is_array(val) ? (sz.slice(0, -1).concat(1)) : (szv.concat(array(slices.length-szv.length, 1)))}), slices.length-1).toNDArray();
     }
     else if (1 === slices.length)
     {
@@ -3523,40 +3219,26 @@ function norm(x, p)
     not_supported("norm");
 }
 fn.norm = norm;
-function zeros(rows, cols)
+function zeros()
 {
-    if (null == rows) rows = 1;
-    if (is_vector(rows))
-    {
-        cols = rows[1];
-        rows = rows[0];
-    }
-    if (null == cols)
-    {
-        cols = rows;
-    }
-    return matrix(_(rows), _(cols), O);
+    var dims = [].slice.call(arguments);
+    if (!dims.length) return O;
+    if ((1 === dims.length) && is_vector(dims[0])) dims = dims[0];
+    dims = fn.fix(dims).map(_);
+    if (1 === dims.length) dims = [dims[0], dims[0]];
+    return ndarray(dims, O);
 }
-fn.zeros = function(rows, cols) {
-    return zeros(fn.fix(rows), is_scalar(cols) ? fn.fix(cols) : cols);
-};
-function ones(rows, cols)
+fn.zeros = zeros;
+function ones()
 {
-    if (null == rows) rows = 1;
-    if (is_vector(rows))
-    {
-        cols = rows[1];
-        rows = rows[0];
-    }
-    if (null == cols)
-    {
-        cols = rows;
-    }
-    return matrix(_(rows), _(cols), I);
+    var dims = [].slice.call(arguments);
+    if (!dims.length) return I;
+    if ((1 === dims.length) && is_vector(dims[0])) dims = dims[0];
+    dims = fn.fix(dims).map(_);
+    if (1 === dims.length) dims = [dims[0], dims[0]];
+    return ndarray(dims, I);
 }
-fn.ones = function(rows, cols) {
-    return ones(fn.fix(rows), is_scalar(cols) ? fn.fix(cols) : cols);
-};
+fn.ones = ones;
 function eye(n, d)
 {
     if (null == d) d = I;
@@ -4330,21 +4012,49 @@ function rot90(x, k)
 {
     if (is_2d(x))
     {
-        var rows = ROWS(x), cols = COLS(x);
+        var sizex, order, rows, cols, view;
         if (null == k) k = 1;
         k = stdMath.round(_(k)) % 4;
         if (0 > k) k += 4;
-        if (1 === k)
+        if (is_array(x[0][0]))
         {
-            return matrix(cols, rows, function(j, i) {return x[i][cols-1-j];});
+            // nd array
+            sizex = size(x);
+            rows = sizex[0];
+            cols = sizex[1];
+            view = tensorview(x, {shape:sizex, ndarray:sizex});
+            if (1 === k)
+            {
+                order = [1, 0].concat(array(sizex.length-2, function(i) {return 2+i;}));
+                return view.permute(order).slice(order.map(function(oi) {return 1 === oi ? '-1:-1:0' : ':';})).toNDArray();
+            }
+            else if (3 === k)
+            {
+                order = [1, 0].concat(array(sizex.length-2, function(i) {return 2+i;}));
+                return view.permute(order).slice(order.map(function(oi) {return 0 === oi ? '-1:-1:0' : ':';})).toNDArray();
+            }
+            else if (2 === k)
+            {
+                order = array(sizex.length, function(i) {return i;});
+                return view.slice(order.map(function(oi) {return 0 === oi || 1 === oi ? '-1:-1:0' : ':';})).toNDArray();
+            }
         }
-        else if (3 === k)
+        else
         {
-            return matrix(cols, rows, function(j, i) {return x[rows-1-i][j];});
-        }
-        else if (2 === k)
-        {
-            return matrix(rows, cols, function(i, j) {return x[rows-1-i][cols-1-j];});
+            rows = ROWS(x);
+            cols = COLS(x);
+            if (1 === k)
+            {
+                return matrix(cols, rows, function(j, i) {return x[i][cols-1-j];});
+            }
+            else if (3 === k)
+            {
+                return matrix(cols, rows, function(j, i) {return x[rows-1-i][j];});
+            }
+            else if (2 === k)
+            {
+                return matrix(rows, cols, function(i, j) {return x[rows-1-i][cols-1-j];});
+            }
         }
     }
     return x;
@@ -4365,9 +4075,22 @@ function flip(x, dim)
     }
     else if (is_2d(x))
     {
-        var rows = ROWS(x), cols = COLS(x);
-        if (null == dim) dim = 1;
         dim = _(dim);
+        var sizex = size(x),
+            view = tensorview(x, {shape:sizex, ndarray:sizex});
+        return view.slice(sizex.map(function(sz, di) {
+            if (null == dim)
+            {
+                if (1 !== sz)
+                {
+                    dim = di+1;
+                    return '-1:-1:0';
+                }
+                return ':';
+            }
+            return di+1 === dim ? '-1:-1:0' : ':';
+        })).toNDArray();
+        /*var rows = ROWS(x), cols = COLS(x);
         if (1 === dim)
         {
             return matrix(rows, cols, function(row, col) {
@@ -4380,7 +4103,7 @@ function flip(x, dim)
                 return x[row][cols-1-col];
             });
         }
-        return x;
+        return x;*/
     }
     not_supported("flip");
 }
@@ -4508,116 +4231,52 @@ fn.sort = varargout(function(nargout, x, dim, dir/*, .. args*/) {
     dim = _(dim);
     return sort(x, dim, dir, cmp, 1 < nargout);
 });
-function min(x)
+function min(x, y, dim, ComparisonMethod, method)
 {
-    x = vec(x);
-    if (is_scalar(x))
+    if ("ComparisonMethod" === ComparisonMethod)
     {
-        return x;
+        if (("real" !== method) && ("abs" !== method)) method = "auto";
     }
-    else if (is_vector(x))
+    else
     {
-        return x.reduce(function(min, xi) {
-            if (n_lt(xi, min)) min = xi;
-            return min;
-        }, inf);
+        method = "auto";
     }
-    else if (is_matrix(x))
-    {
-        return array(COLS(x), function(column) {
-            return min(COL(x, column));
-        });
-    }
-    return nan;
+    //y = vec(y); // not supported yet
+    var cmp = "auto" === method ? (is_real(x) ? cmp_real : cmp_abs) : ("abs" === method ? cmp_abs : cmp_real);
+    return group_apply(function(min, xi) {
+        return -1 === cmp(xi, min) ? xi : min;
+    }, inf, nan, vec(x), "all" === dim ? "all" : (null == dim ? [1] : vec(dim)));
 }
 fn.min = min;
-function max(x)
+function max(x, y, dim, ComparisonMethod, method)
 {
-    x = vec(x);
-    if (is_scalar(x))
+    if ("ComparisonMethod" === ComparisonMethod)
     {
-        return x;
+        if (("real" !== method) && ("abs" !== method)) method = "auto";
     }
-    else if (is_vector(x))
+    else
     {
-        return x.reduce(function(max, xi) {
-            if (n_gt(xi, max)) max = xi;
-            return max;
-        }, -inf);
+        method = "auto";
     }
-    else if (is_matrix(x))
-    {
-        return array(COLS(x), function(column) {
-            return max(COL(x, column));
-        });
-    }
-    return nan;
+    //y = vec(y); // not supported yet
+    var cmp = "auto" === method ? (is_real(x) ? cmp_real : cmp_abs) : ("abs" === method ? cmp_abs : cmp_real);
+    return group_apply(function(max, xi) {
+        return -1 === cmp(max, xi) ? xi : max;
+    }, -inf, nan, vec(x), "all" === dim ? "all" : (null == dim ? [1] : vec(dim)));
 }
 fn.max = max;
 function sum(x, dim)
 {
-    x = vec(x);
-    if (is_scalar(x))
-    {
-        return x;
-    }
-    else if (is_vector(x))
-    {
-        return x.reduce(function(sum, xi) {
-            return scalar_add(sum, xi);
-        }, O);
-    }
-    else if (is_matrix(x))
-    {
-        if (null == dim) dim = 1;
-        dim = _(dim);
-        if (1 === dim)
-        {
-            return array(COLS(x), function(column) {
-                return sum(COL(x, column));
-            });
-        }
-        else if (2 === dim)
-        {
-            return array(ROWS(x), function(row) {
-                return sum(ROW(x, row));
-            });
-        }
-    }
-    return nan;
+    return group_apply(function(sum, xi) {
+        return scalar_add(sum, xi);
+    }, O, nan, vec(x), "all" === dim ? "all" : (null == dim ? [1] : vec(dim)));
 }
 fn.sum = sum;
 function prod(x, dim)
 {
-    x = vec(x);
-    if (is_scalar(x))
-    {
-        return x;
-    }
-    else if (is_vector(x))
-    {
-        return x.reduce(function(prod, xi) {
-            return scalar_mul(prod, xi);
-        }, I);
-    }
-    else if (is_matrix(x))
-    {
-        if (null == dim) dim = 1;
-        dim = _(dim);
-        if (1 === dim)
-        {
-            return array(COLS(x), function(column) {
-                return prod(COL(x, column));
-            });
-        }
-        else if (2 === dim)
-        {
-            return array(ROWS(x), function(row) {
-                return prod(ROW(x, row));
-            });
-        }
-    }
-    return nan;
+    return group_apply(function(prod, xi) {
+        return scalar_mul(prod, xi);
+    }, I, nan, vec(x), "all" === dim ? "all" : (null == dim ? [1] : vec(dim)));
 }
 fn.prod = prod;
 function dot(a, b, asreal)
@@ -5172,13 +4831,13 @@ function size(x)
     if (is_array(dims[0])) dims = vec(dims[0]);
     if (is_2d(x))
     {
-        // ndarray
+        // 2d or ndarray
         sizex = nd_size(x);
     }
     else if (is_1d(x))
     {
         // vector
-        sizex = [1, x.length];
+        sizex = x.length ? [1, x.length] : [0, 0];
     }
     else
     {
@@ -12260,7 +11919,7 @@ variable.prototype = {
                 {
                     //throw 'undefined variable "'+self.v+'"';
                     val = self.ctx[self.v] = []; // dummy empty array
-                    s = [0];
+                    s = [0, 0];
                 }
                 else
                 {
@@ -12271,7 +11930,6 @@ variable.prototype = {
             i = await Promise.all(self.i.map(function(ind, i) {
                 return vale(ind, {end:1 === self.i.length ? prod(s) : s[i]});
             }));
-            //if (1 === i.length) i = i.concat(null); // null crange
             val = set.apply(null, [val].concat(i).concat([value]));
             if (!is_instance(self.v, expr))
             {

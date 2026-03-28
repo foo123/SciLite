@@ -621,7 +621,7 @@ variable.prototype = {
                 {
                     //throw 'undefined variable "'+self.v+'"';
                     val = self.ctx[self.v] = []; // dummy empty array
-                    s = [0];
+                    s = [0, 0];
                 }
                 else
                 {
@@ -632,7 +632,6 @@ variable.prototype = {
             i = await Promise.all(self.i.map(function(ind, i) {
                 return vale(ind, {end:1 === self.i.length ? prod(s) : s[i]});
             }));
-            //if (1 === i.length) i = i.concat(null); // null crange
             val = set.apply(null, [val].concat(i).concat([value]));
             if (!is_instance(self.v, expr))
             {

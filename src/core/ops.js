@@ -1314,98 +1314,6 @@ function neg(a)
 }
 $_.neg = neg;
 
-/*function get(mat, rrange = ':', crange = null)
-{
-    // indices start from 1 to end
-    // B=A(:,[5 6]); B=get(A,':',[5,6]);
-    var ret;
-    if (is_1d(mat))
-    {
-        if (is_vector(rrange) && (rrange.length === mat.length) && all(rrange, function(v) {return 0 === _(v) || 1 === _(v);}))
-        {
-            ret = rrange.reduce(function(ret, v, i) {
-                if (1 === _(v)) ret.push(mat[i]);
-                return ret;
-            }, []);
-            if (1 === ret.length) ret = ret[0];
-            return ret;
-        }
-        if (is_scalar(rrange)) rrange = sca(rrange, true);
-        if ((':' === rrange) || is_int(rrange) || is_vector(rrange))
-        {
-            var n = mat.length;
-            if (':' === rrange) rrange = colon(1, n);
-            if (is_int(rrange)) rrange = [rrange];
-            ret = rrange.map(function(r) {
-                r = _(r);
-                if (1 > r) r += n;
-                if (1 > r || r > n) throw "get: index out of bounds";
-                return mat[r-1];
-            });
-            if (1 === ret.length) ret = ret[0];
-            return ret;
-        }
-        throw "get: invalid range";
-    }
-    if (is_2d(mat))
-    {
-        var rows = ROWS(mat), cols = COLS(mat), n = rows*cols;
-        if (null == crange && is_matrix(rrange) && (ROWS(rrange) === rows) && (COLS(rrange) === cols) && all(rrange, function(v) {return 0 === _(v) || 1 === _(v);}))
-        {
-            ret = [];
-            for (var j=0; j<cols; ++j)
-            {
-                for (var i=0; i<rows; ++i)
-                {
-                    if (1 === _(rrange[i][j]))
-                    {
-                        ret.push(mat[i][j]);
-                    }
-                }
-            }
-            if (1 === ret.length) ret = ret[0];
-            return ret;
-        }
-        if (is_scalar(rrange)) rrange = sca(rrange, true);
-        if (is_scalar(crange)) crange = sca(crange, true);
-        if ((':' === rrange) || is_int(rrange) || is_vector(rrange))
-        {
-            if (':' === rrange) rrange = colon(1, rows);
-            if (is_int(rrange)) rrange = [rrange];
-            if (null == crange)
-            {
-                ret = rrange.map(function(r) {
-                    r = _(r);
-                    if (1 > r) r += n;
-                    if (1 > r || r > n) throw "get: index out of bounds";
-                    return mat[(r-1) % rows][stdMath.floor((r-1) / rows)];
-                });
-                if (1 === ret.length) ret = ret[0];
-                return ret;
-            }
-            else if ((':' === crange) || is_int(crange) || is_vector(crange))
-            {
-                if (':' === crange) crange = colon(1, cols);
-                if (is_int(crange)) crange = [crange];
-                ret = rrange.map(function(r) {
-                    r = _(r);
-                    if (1 > r) r += rows;
-                    if (1 > r || r > rows) throw "get: index out of bounds";
-                    return crange.map(function(c) {
-                        c = _(c);
-                        if (1 > c) c += cols;
-                        if (1 > c || c > cols) throw "get: index out of bounds";
-                        return mat[r-1][c-1];
-                    });
-                });
-                if ((1 === ret.length) && (1 === ret[0].length)) ret = ret[0][0];
-                return ret;
-            }
-        }
-        throw "get: invalid range";
-    }
-    return mat;
-}*/
 function get(mat /*, ..slices*/)
 {
     // indices start from 1 to end
@@ -1490,228 +1398,6 @@ function get(mat /*, ..slices*/)
     return ret;
 }
 $_.get = get;
-/*function set(mat, rrange = ':', crange = null, val = null)
-{
-    // indices start from 1 to end
-    // A(:,[5 6]) = B; set(A,':',[5,6], B);
-    if (is_1d(mat))
-    {
-        //val = crange;
-        if (is_2d(val)) val = COL(val, 0);
-        if (is_vector(rrange) && (rrange.length === mat.length) && all(rrange, function(v) {return 0 === _(v) || 1 === _(v);}))
-        {
-            if (is_0d(val))
-            {
-                rrange.forEach(function(v, i) {
-                    if (1 === _(v)) mat[i] = val;
-                });
-                return mat;
-            }
-            else if (is_array(val))
-            {
-                var k = 0, nv = val.length;
-                rrange.forEach(function(v, i) {
-                    if (1 === _(v))
-                    {
-                        if (k >= nv) throw "set: index out of bounds";
-                        mat[i] = val[k++];
-                    }
-                });
-                return mat;
-            }
-            //throw "set: invalid value or range does not match dimensions";
-        }
-        if (is_scalar(rrange)) rrange = sca(rrange, true);
-        if ((':' === rrange) || is_int(rrange) || is_vector(rrange))
-        {
-            var n = mat.length, index;
-            if (':' === rrange) rrange = colon(1, n);
-            if (is_int(rrange)) rrange = [rrange];
-            if (is_0d(val))
-            {
-                rrange.forEach(function(r) {
-                    r = _(r);
-                    if (1 > r) r += n;
-                    if (1 > r || r > n) throw "set: index out of bounds";
-                    mat[r-1] = val;
-                });
-                return mat;
-            }
-            else if (is_array(val) && (val.length >= rrange.length))
-            {
-                rrange.forEach(function(r, i) {
-                    r = _(r);
-                    if (1 > r) r += n;
-                    if (1 > r || r > n) throw "set: index out of bounds";
-                    mat[r-1] = val[i];
-                });
-                return mat;
-            }
-            throw "set: invalid value or range does not match dimensions";
-        }
-        throw "set: invalid range";
-    }
-    if (is_2d(mat))
-    {
-        var rows = ROWS(mat), cols = COLS(mat), n = rows*cols, rowsv, colsv, nv, i, j, iv, jv, k;
-        if (is_matrix(rrange) && (ROWS(rrange) === rows) && (COLS(rrange) === cols) && all(rrange, function(v) {return 0 === _(v) || 1 === _(v);}))
-        {
-            if (is_0d(val))
-            {
-                rrange.forEach(function(row, i) {
-                    row.forEach(function(v, j) {
-                        if (1 === _(v)) mat[i][j] = val;
-                    });
-                });
-                return mat;
-            }
-            else if (is_2d(val))
-            {
-                rowsv = ROWS(val);
-                colsv = COLS(val);
-                for (j=0,jv=0; j<cols; ++j,++jv)
-                {
-                    if (1 === colsv) jv = 0;
-                    else if (jv >= colsv) throw "set: index out of bounds";
-                    for (i=0,iv=0; i<rows; ++i,++iv)
-                    {
-                        if (1 === _(rrange[i][j]))
-                        {
-                            if (1 === rowsv) iv = 0;
-                            else if (iv >= rowsv) throw "set: index out of bounds";
-                            mat[i][j] = val[iv][jv];
-                        }
-                    }
-                }
-                return mat;
-            }
-            else if (is_array(val))
-            {
-                nv = val.length;
-                for (k=0,j=0; j<cols; ++j)
-                {
-                    for (i=0; i<rows; ++i)
-                    {
-                        if (1 === _(rrange[i][j]))
-                        {
-                            if (k >= nv) throw "set: index out of bounds";
-                            mat[i][j] = val[k++];
-                        }
-                    }
-                }
-                return mat;
-            }
-            //throw "set: invalid value or range does not match dimensions";
-        }
-        if (is_scalar(rrange)) rrange = sca(rrange, true);
-        if (is_scalar(crange)) crange = sca(crange, true);
-        if ((':' === rrange) || is_int(rrange) || is_vector(rrange))
-        {
-            if (null == crange)
-            {
-                if (':' === rrange) rrange = colon(1, n);
-                if (is_int(rrange)) rrange = [rrange];
-                if (is_0d(val))
-                {
-                    rrange.forEach(function(r) {
-                        r = _(r);
-                        if (1 > r) r += n;
-                        if (1 > r || r > n) throw "set: index out of bounds";
-                        mat[(r-1) % rows][stdMath.floor((r-1) / rows)] = val;
-                    });
-                    return mat;
-                }
-                else if (is_2d(val))
-                {
-                    rowsv = ROWS(val);
-                    colsv = COLS(val);
-                    rrange.forEach(function(r, i) {
-                        r = _(r);
-                        if (1 > r) r += n;
-                        if (1 > r || r > n) throw "set: index out of bounds";
-                        var iv = 1 === rowsv ? 0 : (i % rows),
-                            jv = 1 === colsv ? 0 : stdMath.floor(i / rows);
-                        if (iv >= rowsv || jv >= colsv) throw "set: index out of bounds";
-                        mat[(r-1) % rows][stdMath.floor((r-1) / rows)] = val[iv][jv];
-                    });
-                    return mat;
-                }
-                else if (is_array(val) && (val.length >= rrange.length))
-                {
-                    rrange.forEach(function(r, i) {
-                        r = _(r);
-                        if (1 > r) r += n;
-                        if (1 > r || r > n) throw "set: index out of bounds";
-                        mat[(r-1) % rows][stdMath.floor((r-1) / rows)] = val[i];
-                    });
-                    return mat;
-                }
-            }
-            else if ((':' === crange) || is_int(crange) || is_vector(crange))
-            {
-                if (':' === rrange) rrange = colon(1, rows);
-                if (is_int(rrange)) rrange = [rrange];
-                if (':' === crange) crange = colon(1, cols);
-                if (is_int(crange)) crange = [crange];
-                if (is_0d(val))
-                {
-                    rrange.forEach(function(r) {
-                        r = _(r);
-                        if (1 > r) r += rows;
-                        if (1 > r || r > rows) throw "set: index out of bounds";
-                        crange.forEach(function(c) {
-                            c = _(c);
-                            if (1 > c) c += cols;
-                            if (1 > c || c > cols) throw "set: index out of bounds";
-                            mat[r-1][c-1] = val;
-                        });
-                    });
-                    return mat;
-                }
-                else if (is_2d(val))
-                {
-                    rowsv = ROWS(val);
-                    colsv = COLS(val);
-                    rrange.forEach(function(r, iv) {
-                        r = _(r);
-                        if (1 > r) r += rows;
-                        if (1 > r || r > rows) throw "set: index out of bounds";
-                        if (1 === rowsv) iv = 0;
-                        else if (iv >= rowsv) throw "set: index out of bounds";
-                        crange.forEach(function(c, jv) {
-                            c = _(c);
-                            if (1 > c) c += cols;
-                            if (1 > c || c > cols) throw "set: index out of bounds";
-                            if (1 === colsv) jv = 0;
-                            else if (jv >= colsv) throw "set: index out of bounds";
-                            mat[r-1][c-1] = val[iv][jv];
-                        });
-                    });
-                    return mat;
-                }
-                else if (is_array(val) && (val.length >= rrange.length*crange.length))
-                {
-                    k = 0;
-                    crange.forEach(function(c, j) {
-                        c = _(c);
-                        if (1 > c) c += cols;
-                        if (1 > c || c > cols) throw "set: index out of bounds";
-                        rrange.forEach(function(r, i) {
-                            r = _(r);
-                            if (1 > r) r += rows;
-                            if (1 > r || r > rows) throw "set: index out of bounds";
-                            mat[r-1][c-1] = val[k++];
-                        });
-                    });
-                    return mat;
-                }
-            }
-            throw "set: invalid value or range does not match dimensions";
-        }
-        throw "set: invalid range";
-    }
-    return mat;
-}*/
 function set(mat /*, ..slices, val*/)
 {
     // indices start from 1 to end
@@ -1728,13 +1414,13 @@ function set(mat /*, ..slices, val*/)
                 throw "set: invalid range";
             }
         });
-        mat = tensorview(copy(val), {shape:szv.concat(array(slices.length-szv.length, 1))}).toNDArray();
+        mat = tensorview(val, {shape:szv.concat(array(slices.length-szv.length, 1))}).toNDArray();
     }
     else if (sz.length < slices.length)
     {
         szv = size(val);
         slices.forEach(function(slice, dim) {
-            if (!(((dim < szv.length) && (':' === slice)) || ((dim === slices.length-1) && (2 === _(slice))) || ((dim >= szv.length) && (1 === _(slice)))))
+            if (!(((dim < szv.length) && (':' === slice)) || ((dim === slices.length-1) && (2 === _(slice))) || ((dim >= szv.length) && (dim < slices.length-1) && (1 === _(slice)))))
             {
                 throw "set: invalid range";
             }
@@ -1744,7 +1430,7 @@ function set(mat /*, ..slices, val*/)
     else if (is_int(slices[slices.length-1]) && (sz[sz.length-1]+1 === _(slices[slices.length-1])))
     {
         szv = size(val);
-        mat = tensorview(mat, {shape: sz}).concat(tensorview(val, {shape: is_scalar(val) ? (sz.slice(0, -1).concat(1)) : (szv.concat(array(slices.length-szv.length, 1)))}), slices.length-1).toNDArray();
+        mat = tensorview(mat, {shape: sz}).concat(tensorview(val, {shape: !is_array(val) ? (sz.slice(0, -1).concat(1)) : (szv.concat(array(slices.length-szv.length, 1)))}), slices.length-1).toNDArray();
     }
     else if (1 === slices.length)
     {

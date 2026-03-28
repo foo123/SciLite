@@ -1,23 +1,17 @@
-function max(x)
+function max(x, y, dim, ComparisonMethod, method)
 {
-    x = vec(x);
-    if (is_scalar(x))
+    if ("ComparisonMethod" === ComparisonMethod)
     {
-        return x;
+        if (("real" !== method) && ("abs" !== method)) method = "auto";
     }
-    else if (is_vector(x))
+    else
     {
-        return x.reduce(function(max, xi) {
-            if (n_gt(xi, max)) max = xi;
-            return max;
-        }, -inf);
+        method = "auto";
     }
-    else if (is_matrix(x))
-    {
-        return array(COLS(x), function(column) {
-            return max(COL(x, column));
-        });
-    }
-    return nan;
+    //y = vec(y); // not supported yet
+    var cmp = "auto" === method ? (is_real(x) ? cmp_real : cmp_abs) : ("abs" === method ? cmp_abs : cmp_real);
+    return group_apply(function(max, xi) {
+        return -1 === cmp(max, xi) ? xi : max;
+    }, -inf, nan, vec(x), "all" === dim ? "all" : (null == dim ? [1] : vec(dim)));
 }
 fn.max = max;

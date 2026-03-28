@@ -10,9 +10,22 @@ function flip(x, dim)
     }
     else if (is_2d(x))
     {
-        var rows = ROWS(x), cols = COLS(x);
-        if (null == dim) dim = 1;
         dim = _(dim);
+        var sizex = size(x),
+            view = tensorview(x, {shape:sizex, ndarray:sizex});
+        return view.slice(sizex.map(function(sz, di) {
+            if (null == dim)
+            {
+                if (1 !== sz)
+                {
+                    dim = di+1;
+                    return '-1:-1:0';
+                }
+                return ':';
+            }
+            return di+1 === dim ? '-1:-1:0' : ':';
+        })).toNDArray();
+        /*var rows = ROWS(x), cols = COLS(x);
         if (1 === dim)
         {
             return matrix(rows, cols, function(row, col) {
@@ -25,7 +38,7 @@ function flip(x, dim)
                 return x[row][cols-1-col];
             });
         }
-        return x;
+        return x;*/
     }
     not_supported("flip");
 }
