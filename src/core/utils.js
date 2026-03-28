@@ -201,14 +201,14 @@ function matrix(rows, cols, v)
 $_.matrix = matrix;
 function ndarray(dims, v)
 {
-    return dims.length ? array(dims[0], function(i) {
+    return dims.length ? array(dims[0], function(i, ndarr) {
         if (dims.length > 1)
         {
             return ndarray(dims.slice(1), function(j) {
-                return is_callable(v) ? v([i].concat(j)) : v;
+                return is_callable(v) ? v([i].concat(j), ndarr) : v;
             }, true);
         }
-        return is_callable(v) ? v([i]) : v;
+        return is_callable(v) ? v([i], ndarr) : v;
     }) : [];
 }
 $_.ndarray = ndarray;
@@ -248,6 +248,14 @@ function sca(x, real)
     {
         return sca(x[0][0], real);
     }
+    else if (is_nd(x))
+    {
+        var sizex = size(x);
+        if (arr_eq(sizex, array(sizex.length, 1)))
+        {
+            return sca(project(x, array(sizex.length, 0)), real);
+        }
+    }
     return x;
 }
 $_.sca = sca;
@@ -286,6 +294,16 @@ function COL(mat, j)
 {
     return array(mat.length, function(i) {return mat[i][j];});
 }
+function project(x, i, j)
+{
+    j = j || 0;
+    if (is_array(x))
+    {
+        return ':' === i[j] ? x.map(function(xj) {return project(xj, i, j+1);}) : project(x[i[j]], i, j+1);
+    }
+    return x;
+}
+$_.project = project;
 
 function _(x)
 {
@@ -358,52 +376,135 @@ function apply2(f, x, y, iscomplex)
     return nan;
 }
 $_.apply2 = apply2;
-function group_apply(f, f0, ferr, x, dim)
+function group_apply(f, f0, ferr, x, dim, type, dir)
 {
+    dir = "reverse" === dir ? "reverse" : "forward";
+    type = "block" === type ? "block" : ("series" === type ? "series" : "single");
     var fv, sizex, view, compl;
     if (is_scalar(x))
     {
-        return x;
+        return "block" === type ? f([x]) : x;
     }
     else if (is_vector(x))
     {
-        return x.reduce(function(fv, xi) {
-            return f(fv, xi);
-        }, f0);
+        if ("block" === type)
+        {
+            return f(x);
+        }
+        else if ("series" === type)
+        {
+            if ("reverse" === dir)
+            {
+                fv = f0;
+                return x.slice().reverse().map(function(xi) {
+                    fv = f(fv, xi);
+                    return fv;
+                });
+            }
+            else
+            {
+                fv = f0;
+                return x.map(function(xi) {
+                    fv = f(fv, xi);
+                    return fv;
+                });
+            }
+        }
+        else
+        {
+            return x.reduce(function(fv, xi) {
+                return f(fv, xi);
+            }, f0);
+        }
     }
     else if (is_2d(x))
     {
         sizex = size(x);
         view = tensorview(x, {shape:sizex, ndarray:sizex});
+        if (null == dim)
+        {
+            dim = 2 === sizex.length ? [1] : [(sizex.reduce(function(dim, sz, di) {
+                if ((null == dim) && (1 < sz)) dim = di;
+                return dim;
+            }, null) || 0) + 1];
+        }
         if (is_vector(dim))
         {
             dim = dim.map(_);
             compl = array(sizex.length, function(i) {return i+1;}).filter(function(di) {return -1 === dim.indexOf(di);});
             if (compl.length)
             {
-                if (sizex.length > 2)
+                if ("series" === type)
                 {
-                    return ndarray(array(sizex.length, function(di) {return -1 < dim.indexOf(di+1) ? 1 : sizex[di];}), function(i) {
-                        var fv = f0;
-                        view.slice(sizex.map(function(_, d) {
-                            return -1 < dim.indexOf(d+1) ? ':' : (i[d]);
-                        })).forEach(function(xi) {
-                            fv = f(fv, xi);
-                        });
-                        return fv;
+                    return ndarray(compl.map(function(di) {return sizex[di-1];}), function(i) {
+                        var k = 0;
+                        if ("reverse" === dir)
+                        {
+                            fv = f0;
+                            return view.slice(array(sizex.length, function(d) {
+                                return -1 < compl.indexOf(d+1) ? '-1:-1:0' : (i[k++]);
+                            })).squeeze().map(function(xi) {
+                                fv = f(fv, xi);
+                                return fv;
+                            }).toNDArray();
+                        }
+                        else
+                        {
+                            fv = f0;
+                            return view.slice(array(sizex.length, function(d) {
+                                return -1 < compl.indexOf(d+1) ? ':' : (i[k++]);
+                            })).squeeze().map(function(xi) {
+                                fv = f(fv, xi);
+                                return fv;
+                            }).toNDArray();
+                        }
                     });
                 }
                 else
                 {
-                    return ndarray(compl.map(function(di) {return sizex[di-1];}), function(i) {
-                        var fv = f0, j = 0;
-                        view.slice(sizex.map(function(_, d) {
-                            return -1 < dim.indexOf(d+1) ? ':' : (i[j++]);
-                        })).forEach(function(xi) {
-                            fv = f(fv, xi);
+                    if (sizex.length > 2)
+                    {
+                        return ndarray(array(sizex.length, function(di) {return -1 < dim.indexOf(di+1) ? 1 : sizex[di];}), function(i) {
+                            if ("block" === type)
+                            {
+                                return f(view.slice(sizex.map(function(_, d) {
+                                    return -1 < dim.indexOf(d+1) ? ':' : (i[d]);
+                                })).toArray());
+                            }
+                            else
+                            {
+                                fv = f0;
+                                view.slice(sizex.map(function(_, d) {
+                                    return -1 < dim.indexOf(d+1) ? ':' : (i[d]);
+                                })).forEach(function(xi) {
+                                    fv = f(fv, xi);
+                                });
+                                return fv;
+                            }
                         });
-                        return fv;
-                    });
+                    }
+                    else
+                    {
+                        return ndarray(compl.map(function(di) {return sizex[di-1];}), function(i) {
+                            var j = 0;
+                            if ("block" === type)
+                            {
+                                return f(view.slice(sizex.map(function(_, d) {
+                                    return -1 < dim.indexOf(d+1) ? ':' : (i[j++]);
+                                })).toArray());
+                            }
+                            else
+                            {
+                                fv = f0;
+                                view.slice(sizex.map(function(_, d) {
+                                    return -1 < dim.indexOf(d+1) ? ':' : (i[j++]);
+                                })).forEach(function(xi) {
+                                    fv = f(fv, xi);
+                                });
+                                return fv;
+                            }
+                        });
+                    }
                 }
             }
             else
@@ -413,11 +514,37 @@ function group_apply(f, f0, ferr, x, dim)
         }
         if ("all" === dim)
         {
-            fv = f0;
-            view.forEach(function(xi) {
-                fv = f(fv, xi);
-            });
-            return fv;
+            if ("block" === type)
+            {
+                return f(view.toArray());
+            }
+            else if ("series" === type)
+            {
+                if ("reverse" === dir)
+                {
+                    fv = f0;
+                    return view.slice(array(sizex.length, '-1:-1:0')).map(function(xi) {
+                        fv = f(fv, xi);
+                        return fv;
+                    }).toNDArray();
+                }
+                else
+                {
+                    fv = f0;
+                    return view.map(function(xi) {
+                        fv = f(fv, xi);
+                        return fv;
+                    }).toNDArray();
+                }
+            }
+            else
+            {
+                fv = f0;
+                view.forEach(function(xi) {
+                    fv = f(fv, xi);
+                });
+                return fv;
+            }
         }
     }
     return ferr;

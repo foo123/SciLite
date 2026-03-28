@@ -1,22 +1,12 @@
-function randn(rows, cols)
+function randn()
 {
-    if (null == rows)
-    {
-        return __(normal());
-    }
-    if (is_vector(rows))
-    {
-        cols = rows[1];
-        rows = rows[0];
-    }
-    if (null == cols)
-    {
-        cols = rows;
-    }
-    return matrix(_(rows), _(cols), function() {
+    var dims = [].slice.call(arguments);
+    if (!dims.length) return __(normal());
+    if ((1 === dims.length) && is_vector(dims[0])) dims = dims[0];
+    dims = fn.fix(dims).map(_);
+    if (1 === dims.length) dims = [dims[0], dims[0]];
+    return ndarray(dims, function() {
         return __(normal());
     });
 }
-fn.randn = function(rows, cols) {
-    return randn(fn.fix(rows), is_scalar(cols) ? fn.fix(cols) : cols);
-};
+fn.randn = randn;

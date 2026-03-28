@@ -1,11 +1,6 @@
 function mode(x, dim)
 {
-    if (is_scalar(x))
-    {
-        return x;
-    }
-    else if (is_vector(x))
-    {
+    return group_apply(function(x) {
         if (!x.length) return nan;
         var count = {}, maxcnt = 0;
         return x.reduce(function(mode, xi) {
@@ -31,24 +26,6 @@ function mode(x, dim)
             }
             return mode;
         }, {});
-    }
-    else if (is_matrix(x))
-    {
-        if (null == dim) dim = 1;
-        dim = _(dim);
-        if (1 === dim)
-        {
-            return array(COLS(x), function(column) {
-                return mode(COL(x, column));
-            });
-        }
-        else if (2 === dim)
-        {
-            return array(ROWS(x), function(row) {
-                return mode(ROW(x, row));
-            });
-        }
-    }
-    not_supported("mode");
+    }, O, nan, vec(x), vec(dim), "block");
 }
 fn.mode = mode;

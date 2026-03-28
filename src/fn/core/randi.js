@@ -1,23 +1,22 @@
-function randi(n, rows, cols)
+function randi(n/*, dims*/)
 {
-    n = _(n);
-    if (null == rows && null == cols)
+    var imax, imin = 1, dims = [].slice.call(arguments, 1);
+    n = fn.fix(n);
+    if (is_vector(n) && (2 <= n.length))
     {
-        return __(stdMath.ceil(stdMath.random()*n));
+        imin = _(n[0]);
+        imax = _(n[1]);
     }
-    if (is_vector(rows))
+    else
     {
-        cols = rows[1];
-        rows = rows[0];
+        imax = _(sca(n, true));
     }
-    if (null == cols)
-    {
-        cols = rows;
-    }
-    return matrix(_(rows), _(cols), function() {
-        return __(stdMath.ceil(stdMath.random()*n));
+    if (!dims.length) return __(imin + stdMath.round(stdMath.random()*(imax - imin)));
+    if ((1 === dims.length) && is_vector(dims[0])) dims = dims[0];
+    dims = fn.fix(dims).map(_);
+    if (1 === dims.length) dims = [dims[0], dims[0]];
+    return ndarray(dims, function() {
+        return __(imin + stdMath.round(stdMath.random()*(imax - imin)));
     });
 }
-fn.randi = function(n, rows, cols) {
-    return randi(fn.fix(n), fn.fix(rows), is_scalar(cols) ? fn.fix(cols) : cols);
-};
+fn.randi = randi;
