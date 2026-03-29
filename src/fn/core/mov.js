@@ -1,11 +1,11 @@
 function mov(x, f, kb, kf, dim)
 {
-    return group_apply(function(x) {
+    return group_apply("block-series", function(x) {
         var n = x.length;
         return array(n, function(i) {
             return f(x.slice(stdMath.max(0, i-kb), stdMath.min(n-1, i+kf)+1));
         });
-    }, null, false, vec(x), vec(dim), "block");
+    }, null, false, vec(x), vec(dim));
 }
 fn.movsum = function(x, k, dim) {
     var kb, kf, ans;

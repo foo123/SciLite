@@ -10,7 +10,7 @@ function max(x, y, dim, ComparisonMethod, method)
     }
     //y = vec(y); // not supported yet
     var cmp = "auto" === method ? (is_real(x) ? cmp_real : cmp_abs) : ("abs" === method ? cmp_abs : cmp_real);
-    return group_apply(function(max, xi) {
+    return group_apply("value", function(max, xi) {
         return -1 === cmp(max, xi) ? xi : max;
     }, -inf, nan, vec(x), vec(dim));
 }

@@ -211,6 +211,21 @@ function ndarray(dims, v)
         return is_callable(v) ? v([i], ndarr) : v;
     }) : [];
 }
+ndarray.indices = function(dims, f) {
+    var n = dims.length;
+    if (0 < n)
+    {
+        var i = array(n, 0), d = n-1;
+        for (;;)
+        {
+            f(i);
+            while ((0 <= d) && (i[d]+1 >= dims[d])) --d;
+            if (0 > d) return;
+            ++i[d];
+            while (d+1 < n) i[++d] = 0;
+        }
+    }
+};
 $_.ndarray = ndarray;
 function rowvec(n, v)
 {
@@ -376,11 +391,10 @@ function apply2(f, x, y, iscomplex)
     return nan;
 }
 $_.apply2 = apply2;
-function group_apply(f, f0, ferr, x, dim, type, dir)
+function group_apply(type, f, f0, ferr, x, dim, dir)
 {
     dir = "reverse" === dir ? "reverse" : "forward";
-    type = "block" === type ? "block" : ("series" === type ? "series" : "single");
-    var fv, sizex, view, compl;
+    var fv, sizex, view, aux, d;
     if (is_scalar(x))
     {
         return "block" === type ? f([x]) : x;
@@ -391,24 +405,17 @@ function group_apply(f, f0, ferr, x, dim, type, dir)
         {
             return f(x);
         }
+        else if ("block-series" === type)
+        {
+            return f(x);
+        }
         else if ("series" === type)
         {
-            if ("reverse" === dir)
-            {
-                fv = f0;
-                return x.slice().reverse().map(function(xi) {
-                    fv = f(fv, xi);
-                    return fv;
-                });
-            }
-            else
-            {
-                fv = f0;
-                return x.map(function(xi) {
-                    fv = f(fv, xi);
-                    return fv;
-                });
-            }
+            fv = f0;
+            return ("reverse" === dir ? x.slice().reverse() : x).map(function(xi) {
+                fv = f(fv, xi);
+                return fv;
+            });
         }
         else
         {
@@ -428,83 +435,94 @@ function group_apply(f, f0, ferr, x, dim, type, dir)
                 return dim;
             }, null) || 0) + 1];
         }
+        if (is_array(dim) && ("all" === dim[0]))
+        {
+            dim = "all";
+        }
+        if (is_int(dim))
+        {
+            dim = [dim];
+        }
         if (is_vector(dim))
         {
             dim = dim.map(_);
-            compl = array(sizex.length, function(i) {return i+1;}).filter(function(di) {return -1 === dim.indexOf(di);});
-            if (compl.length)
+            if ("block-series" === type)
             {
-                if ("series" === type)
+                d = dim[0]-1;
+                aux = {};
+                ndarray.indices(sizex.filter(function(_, di) {return d !== di;}), function(i) {
+                    var dj = 0;
+                    aux[i.join(',')] = f(view.slice(array(sizex.length, function(di) {
+                        return d === di ? ':' : (i[dj++]);
+                    })).toArray());
+                });
+                return squeeze(ndarray(sizex, function(i) {
+                    return aux[i.slice(0, d).concat(i.slice(d+1)).join(',')][i[d]];
+                }));
+            }
+            if ("series" === type)
+            {
+                d = dim[0]-1;
+                aux = {};
+                ndarray.indices(sizex.filter(function(_, di) {return d !== di;}), function(i) {
+                    var dj = 0;
+                    fv = f0;
+                    aux[i.join(',')] = view.slice(array(sizex.length, function(di) {
+                        return d === di ? ("reverse" === dir ? '-1:-1:0' : ':') : (i[dj++]);
+                    })).map(function(xi) {
+                        fv = f(fv, xi);
+                        return fv;
+                    }).toArray();
+                });
+                return squeeze(ndarray(sizex, function(i) {
+                    return aux[i.slice(0, d).concat(i.slice(d+1)).join(',')][i[d]];
+                }));
+            }
+            aux = array(sizex.length, function(i) {return i+1;}).filter(function(di) {return -1 === dim.indexOf(di);});
+            if (aux.length)
+            {
+                if (sizex.length > 2)
                 {
-                    return ndarray(compl.map(function(di) {return sizex[di-1];}), function(i) {
-                        var k = 0;
-                        if ("reverse" === dir)
+                    return squeeze(ndarray(array(sizex.length, function(di) {return -1 < dim.indexOf(di+1) ? 1 : sizex[di];}), function(i) {
+                        if ("block" === type)
                         {
-                            fv = f0;
-                            return view.slice(array(sizex.length, function(d) {
-                                return -1 < compl.indexOf(d+1) ? '-1:-1:0' : (i[k++]);
-                            })).squeeze().map(function(xi) {
-                                fv = f(fv, xi);
-                                return fv;
-                            }).toNDArray();
+                            return f(view.slice(sizex.map(function(_, di) {
+                                return -1 < dim.indexOf(di+1) ? ':' : (i[di]);
+                            })).toArray());
                         }
                         else
                         {
                             fv = f0;
-                            return view.slice(array(sizex.length, function(d) {
-                                return -1 < compl.indexOf(d+1) ? ':' : (i[k++]);
-                            })).squeeze().map(function(xi) {
+                            view.slice(sizex.map(function(_, di) {
+                                return -1 < dim.indexOf(di+1) ? ':' : (i[di]);
+                            })).forEach(function(xi) {
                                 fv = f(fv, xi);
-                                return fv;
-                            }).toNDArray();
+                            });
+                            return fv;
                         }
-                    });
+                    }));
                 }
                 else
                 {
-                    if (sizex.length > 2)
-                    {
-                        return ndarray(array(sizex.length, function(di) {return -1 < dim.indexOf(di+1) ? 1 : sizex[di];}), function(i) {
-                            if ("block" === type)
-                            {
-                                return f(view.slice(sizex.map(function(_, d) {
-                                    return -1 < dim.indexOf(d+1) ? ':' : (i[d]);
-                                })).toArray());
-                            }
-                            else
-                            {
-                                fv = f0;
-                                view.slice(sizex.map(function(_, d) {
-                                    return -1 < dim.indexOf(d+1) ? ':' : (i[d]);
-                                })).forEach(function(xi) {
-                                    fv = f(fv, xi);
-                                });
-                                return fv;
-                            }
-                        });
-                    }
-                    else
-                    {
-                        return ndarray(compl.map(function(di) {return sizex[di-1];}), function(i) {
-                            var j = 0;
-                            if ("block" === type)
-                            {
-                                return f(view.slice(sizex.map(function(_, d) {
-                                    return -1 < dim.indexOf(d+1) ? ':' : (i[j++]);
-                                })).toArray());
-                            }
-                            else
-                            {
-                                fv = f0;
-                                view.slice(sizex.map(function(_, d) {
-                                    return -1 < dim.indexOf(d+1) ? ':' : (i[j++]);
-                                })).forEach(function(xi) {
-                                    fv = f(fv, xi);
-                                });
-                                return fv;
-                            }
-                        });
-                    }
+                    return squeeze(ndarray(aux.map(function(di) {return sizex[di-1];}), function(i) {
+                        var dj = 0;
+                        if ("block" === type)
+                        {
+                            return f(view.slice(sizex.map(function(_, di) {
+                                return -1 < dim.indexOf(di+1) ? ':' : (i[dj++]);
+                            })).toArray());
+                        }
+                        else
+                        {
+                            fv = f0;
+                            view.slice(sizex.map(function(_, di) {
+                                return -1 < dim.indexOf(di+1) ? ':' : (i[dj++]);
+                            })).forEach(function(xi) {
+                                fv = f(fv, xi);
+                            });
+                            return fv;
+                        }
+                    }));
                 }
             }
             else
@@ -517,25 +535,6 @@ function group_apply(f, f0, ferr, x, dim, type, dir)
             if ("block" === type)
             {
                 return f(view.toArray());
-            }
-            else if ("series" === type)
-            {
-                if ("reverse" === dir)
-                {
-                    fv = f0;
-                    return view.slice(array(sizex.length, '-1:-1:0')).map(function(xi) {
-                        fv = f(fv, xi);
-                        return fv;
-                    }).toNDArray();
-                }
-                else
-                {
-                    fv = f0;
-                    return view.map(function(xi) {
-                        fv = f(fv, xi);
-                        return fv;
-                    }).toNDArray();
-                }
             }
             else
             {

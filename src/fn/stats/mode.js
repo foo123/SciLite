@@ -1,6 +1,6 @@
 function mode(x, dim)
 {
-    return group_apply(function(x) {
+    return group_apply("block", function(x) {
         if (!x.length) return nan;
         var count = {}, maxcnt = 0;
         return x.reduce(function(mode, xi) {
@@ -26,6 +26,6 @@ function mode(x, dim)
             }
             return mode;
         }, {});
-    }, O, nan, vec(x), vec(dim), "block");
+    }, O, nan, vec(x), vec(dim));
 }
 fn.mode = mode;

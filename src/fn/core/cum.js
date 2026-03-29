@@ -1,9 +1,9 @@
 function cum(x, f, dir, dim)
 {
     if (null == dir) dir = "forward";
-    return group_apply(function(accum, xi) {
+    return group_apply("series", function(accum, xi) {
         return null == accum ? xi : f(accum, xi);
-    }, null, false, vec(x), vec(dim), "series", dir);
+    }, null, false, vec(x), vec(dim), dir);
 }
 fn.cumsum = function(x, dim, dir) {
     var ans = cum(x, scalar_add, dir, dim);

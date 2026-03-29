@@ -24,12 +24,13 @@ function corrcoef(a, b)
             if (a.length !== b.length) throw "corrcoef: inputs not of same dimension";
             return pearson(a, b);
         }
-        else if (is_matrix(a) && is_matrix(b))
+        else if (is_2d(a) && is_2d(b))
         {
-            if ((ROWS(a) !== ROWS(b)) || (COLS(a) !== COLS(b))) throw "corrcoef: inputs not of same dimension";
-            return array(COLS(a), function(column) {
+            if (!arr_eq(size(a), size(b))) throw "corrcoef: inputs not of same dimension";
+            /*return array(COLS(a), function(column) {
                 return corrcoef(COL(a, column), COL(b, column));
-            });
+            });*/
+            return corrcoef([colon(a), colon(b)]);
         }
     }
     not_supported("corrcoef");

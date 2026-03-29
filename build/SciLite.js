@@ -2,16 +2,16 @@
 *
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
-* @version: 0.9.15
-* 2026-03-28 09:13:00
+* @version: 0.9.16
+* 2026-03-29 17:25:00
 * https://github.com/foo123/SciLite
 *
 **//**
 *
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
-* @version: 0.9.15
-* 2026-03-28 09:13:00
+* @version: 0.9.16
+* 2026-03-29 17:25:00
 * https://github.com/foo123/SciLite
 *
 **/
@@ -59,7 +59,7 @@ var tensorview = null,
 
     // lib
     $ = {
-        VERSION: "0.9.15",
+        VERSION: "0.9.16",
         // common functions
         _: {},
         // builtin functions
@@ -289,16 +289,31 @@ function matrix(rows, cols, v)
 $_.matrix = matrix;
 function ndarray(dims, v)
 {
-    return dims.length ? array(dims[0], function(i) {
+    return dims.length ? array(dims[0], function(i, ndarr) {
         if (dims.length > 1)
         {
             return ndarray(dims.slice(1), function(j) {
-                return is_callable(v) ? v([i].concat(j)) : v;
+                return is_callable(v) ? v([i].concat(j), ndarr) : v;
             }, true);
         }
-        return is_callable(v) ? v([i]) : v;
+        return is_callable(v) ? v([i], ndarr) : v;
     }) : [];
 }
+ndarray.indices = function(dims, f) {
+    var n = dims.length;
+    if (0 < n)
+    {
+        var i = array(n, 0), d = n-1;
+        for (;;)
+        {
+            f(i);
+            while ((0 <= d) && (i[d]+1 >= dims[d])) --d;
+            if (0 > d) return;
+            ++i[d];
+            while (d+1 < n) i[++d] = 0;
+        }
+    }
+};
 $_.ndarray = ndarray;
 function rowvec(n, v)
 {
@@ -335,6 +350,14 @@ function sca(x, real)
     else if (is_matrix(x) && (1 === x.length) && (1 === x[0].length))
     {
         return sca(x[0][0], real);
+    }
+    else if (is_nd(x))
+    {
+        var sizex = size(x);
+        if (arr_eq(sizex, array(sizex.length, 1)))
+        {
+            return sca(project(x, array(sizex.length, 0)), real);
+        }
     }
     return x;
 }
@@ -374,6 +397,16 @@ function COL(mat, j)
 {
     return array(mat.length, function(i) {return mat[i][j];});
 }
+function project(x, i, j)
+{
+    j = j || 0;
+    if (is_array(x))
+    {
+        return ':' === i[j] ? x.map(function(xj) {return project(xj, i, j+1);}) : project(x[i[j]], i, j+1);
+    }
+    return x;
+}
+$_.project = project;
 
 function _(x)
 {
@@ -446,52 +479,138 @@ function apply2(f, x, y, iscomplex)
     return nan;
 }
 $_.apply2 = apply2;
-function group_apply(f, f0, ferr, x, dim)
+function group_apply(type, f, f0, ferr, x, dim, dir)
 {
-    var fv, sizex, view, compl;
+    dir = "reverse" === dir ? "reverse" : "forward";
+    var fv, sizex, view, aux, d;
     if (is_scalar(x))
     {
-        return x;
+        return "block" === type ? f([x]) : x;
     }
     else if (is_vector(x))
     {
-        return x.reduce(function(fv, xi) {
-            return f(fv, xi);
-        }, f0);
+        if ("block" === type)
+        {
+            return f(x);
+        }
+        else if ("block-series" === type)
+        {
+            return f(x);
+        }
+        else if ("series" === type)
+        {
+            fv = f0;
+            return ("reverse" === dir ? x.slice().reverse() : x).map(function(xi) {
+                fv = f(fv, xi);
+                return fv;
+            });
+        }
+        else
+        {
+            return x.reduce(function(fv, xi) {
+                return f(fv, xi);
+            }, f0);
+        }
     }
     else if (is_2d(x))
     {
         sizex = size(x);
         view = tensorview(x, {shape:sizex, ndarray:sizex});
+        if (null == dim)
+        {
+            dim = 2 === sizex.length ? [1] : [(sizex.reduce(function(dim, sz, di) {
+                if ((null == dim) && (1 < sz)) dim = di;
+                return dim;
+            }, null) || 0) + 1];
+        }
+        if (is_array(dim) && ("all" === dim[0]))
+        {
+            dim = "all";
+        }
+        if (is_int(dim))
+        {
+            dim = [dim];
+        }
         if (is_vector(dim))
         {
             dim = dim.map(_);
-            compl = array(sizex.length, function(i) {return i+1;}).filter(function(di) {return -1 === dim.indexOf(di);});
-            if (compl.length)
+            if ("block-series" === type)
+            {
+                d = dim[0]-1;
+                aux = {};
+                ndarray.indices(sizex.filter(function(_, di) {return d !== di;}), function(i) {
+                    var dj = 0;
+                    aux[i.join(',')] = f(view.slice(array(sizex.length, function(di) {
+                        return d === di ? ':' : (i[dj++]);
+                    })).toArray());
+                });
+                return squeeze(ndarray(sizex, function(i) {
+                    return aux[i.slice(0, d).concat(i.slice(d+1)).join(',')][i[d]];
+                }));
+            }
+            if ("series" === type)
+            {
+                d = dim[0]-1;
+                aux = {};
+                ndarray.indices(sizex.filter(function(_, di) {return d !== di;}), function(i) {
+                    var dj = 0;
+                    fv = f0;
+                    aux[i.join(',')] = view.slice(array(sizex.length, function(di) {
+                        return d === di ? ("reverse" === dir ? '-1:-1:0' : ':') : (i[dj++]);
+                    })).map(function(xi) {
+                        fv = f(fv, xi);
+                        return fv;
+                    }).toArray();
+                });
+                return squeeze(ndarray(sizex, function(i) {
+                    return aux[i.slice(0, d).concat(i.slice(d+1)).join(',')][i[d]];
+                }));
+            }
+            aux = array(sizex.length, function(i) {return i+1;}).filter(function(di) {return -1 === dim.indexOf(di);});
+            if (aux.length)
             {
                 if (sizex.length > 2)
                 {
-                    return ndarray(array(sizex.length, function(di) {return -1 < dim.indexOf(di+1) ? 1 : sizex[di];}), function(i) {
-                        var fv = f0;
-                        view.slice(sizex.map(function(_, d) {
-                            return -1 < dim.indexOf(d+1) ? ':' : (i[d]);
-                        })).forEach(function(xi) {
-                            fv = f(fv, xi);
-                        });
-                        return fv;
-                    });
+                    return squeeze(ndarray(array(sizex.length, function(di) {return -1 < dim.indexOf(di+1) ? 1 : sizex[di];}), function(i) {
+                        if ("block" === type)
+                        {
+                            return f(view.slice(sizex.map(function(_, di) {
+                                return -1 < dim.indexOf(di+1) ? ':' : (i[di]);
+                            })).toArray());
+                        }
+                        else
+                        {
+                            fv = f0;
+                            view.slice(sizex.map(function(_, di) {
+                                return -1 < dim.indexOf(di+1) ? ':' : (i[di]);
+                            })).forEach(function(xi) {
+                                fv = f(fv, xi);
+                            });
+                            return fv;
+                        }
+                    }));
                 }
                 else
                 {
-                    return ndarray(compl.map(function(di) {return sizex[di-1];}), function(i) {
-                        var fv = f0, j = 0;
-                        view.slice(sizex.map(function(_, d) {
-                            return -1 < dim.indexOf(d+1) ? ':' : (i[j++]);
-                        })).forEach(function(xi) {
-                            fv = f(fv, xi);
-                        });
-                        return fv;
-                    });
+                    return squeeze(ndarray(aux.map(function(di) {return sizex[di-1];}), function(i) {
+                        var dj = 0;
+                        if ("block" === type)
+                        {
+                            return f(view.slice(sizex.map(function(_, di) {
+                                return -1 < dim.indexOf(di+1) ? ':' : (i[dj++]);
+                            })).toArray());
+                        }
+                        else
+                        {
+                            fv = f0;
+                            view.slice(sizex.map(function(_, di) {
+                                return -1 < dim.indexOf(di+1) ? ':' : (i[dj++]);
+                            })).forEach(function(xi) {
+                                fv = f(fv, xi);
+                            });
+                            return fv;
+                        }
+                    }));
                 }
             }
             else
@@ -501,11 +620,18 @@ function group_apply(f, f0, ferr, x, dim)
         }
         if ("all" === dim)
         {
-            fv = f0;
-            view.forEach(function(xi) {
-                fv = f(fv, xi);
-            });
-            return fv;
+            if ("block" === type)
+            {
+                return f(view.toArray());
+            }
+            else
+            {
+                fv = f0;
+                view.forEach(function(xi) {
+                    fv = f(fv, xi);
+                });
+                return fv;
+            }
         }
     }
     return ferr;
@@ -3252,73 +3378,52 @@ function eye(n, d)
 fn.eye = function(n) {
     return eye(fn.fix(n), I);
 };
-function rand(rows, cols)
+function rand()
 {
-    if (null == rows)
-    {
-        return __(stdMath.random());
-    }
-    if (is_vector(rows))
-    {
-        cols = rows[1];
-        rows = rows[0];
-    }
-    if (null == cols)
-    {
-        cols = rows;
-    }
-    return matrix(_(rows), _(cols), function() {
+    var dims = [].slice.call(arguments);
+    if (!dims.length) return __(stdMath.random());
+    if ((1 === dims.length) && is_vector(dims[0])) dims = dims[0];
+    dims = fn.fix(dims).map(_);
+    if (1 === dims.length) dims = [dims[0], dims[0]];
+    return ndarray(dims, function() {
         return __(stdMath.random());
     });
 }
-fn.rand = function(rows, cols) {
-    return rand(fn.fix(rows), is_scalar(cols) ? fn.fix(cols) : cols);
-};
-function randi(n, rows, cols)
+fn.rand = rand;
+function randi(n/*, dims*/)
 {
-    n = _(n);
-    if (null == rows && null == cols)
+    var imax, imin = 1, dims = [].slice.call(arguments, 1);
+    n = fn.fix(n);
+    if (is_vector(n) && (2 <= n.length))
     {
-        return __(stdMath.ceil(stdMath.random()*n));
+        imin = _(n[0]);
+        imax = _(n[1]);
     }
-    if (is_vector(rows))
+    else
     {
-        cols = rows[1];
-        rows = rows[0];
+        imax = _(sca(n, true));
     }
-    if (null == cols)
-    {
-        cols = rows;
-    }
-    return matrix(_(rows), _(cols), function() {
-        return __(stdMath.ceil(stdMath.random()*n));
+    if (!dims.length) return __(imin + stdMath.round(stdMath.random()*(imax - imin)));
+    if ((1 === dims.length) && is_vector(dims[0])) dims = dims[0];
+    dims = fn.fix(dims).map(_);
+    if (1 === dims.length) dims = [dims[0], dims[0]];
+    return ndarray(dims, function() {
+        return __(imin + stdMath.round(stdMath.random()*(imax - imin)));
     });
 }
-fn.randi = function(n, rows, cols) {
-    return randi(fn.fix(n), fn.fix(rows), is_scalar(cols) ? fn.fix(cols) : cols);
-};
-function randn(rows, cols)
+fn.randi = randi;
+function randn()
 {
-    if (null == rows)
-    {
-        return __(normal());
-    }
-    if (is_vector(rows))
-    {
-        cols = rows[1];
-        rows = rows[0];
-    }
-    if (null == cols)
-    {
-        cols = rows;
-    }
-    return matrix(_(rows), _(cols), function() {
+    var dims = [].slice.call(arguments);
+    if (!dims.length) return __(normal());
+    if ((1 === dims.length) && is_vector(dims[0])) dims = dims[0];
+    dims = fn.fix(dims).map(_);
+    if (1 === dims.length) dims = [dims[0], dims[0]];
+    return ndarray(dims, function() {
         return __(normal());
     });
 }
-fn.randn = function(rows, cols) {
-    return randn(fn.fix(rows), is_scalar(cols) ? fn.fix(cols) : cols);
-};
+fn.randn = randn;
 function magic(n)
 {
     // adapted from Octave
@@ -4243,9 +4348,9 @@ function min(x, y, dim, ComparisonMethod, method)
     }
     //y = vec(y); // not supported yet
     var cmp = "auto" === method ? (is_real(x) ? cmp_real : cmp_abs) : ("abs" === method ? cmp_abs : cmp_real);
-    return group_apply(function(min, xi) {
+    return group_apply("value", function(min, xi) {
         return -1 === cmp(xi, min) ? xi : min;
-    }, inf, nan, vec(x), "all" === dim ? "all" : (null == dim ? [1] : vec(dim)));
+    }, inf, nan, vec(x), vec(dim));
 }
 fn.min = min;
 function max(x, y, dim, ComparisonMethod, method)
@@ -4260,23 +4365,23 @@ function max(x, y, dim, ComparisonMethod, method)
     }
     //y = vec(y); // not supported yet
     var cmp = "auto" === method ? (is_real(x) ? cmp_real : cmp_abs) : ("abs" === method ? cmp_abs : cmp_real);
-    return group_apply(function(max, xi) {
+    return group_apply("value", function(max, xi) {
         return -1 === cmp(max, xi) ? xi : max;
-    }, -inf, nan, vec(x), "all" === dim ? "all" : (null == dim ? [1] : vec(dim)));
+    }, -inf, nan, vec(x), vec(dim));
 }
 fn.max = max;
 function sum(x, dim)
 {
-    return group_apply(function(sum, xi) {
+    return group_apply("value", function(sum, xi) {
         return scalar_add(sum, xi);
-    }, O, nan, vec(x), "all" === dim ? "all" : (null == dim ? [1] : vec(dim)));
+    }, O, nan, vec(x), vec(dim));
 }
 fn.sum = sum;
 function prod(x, dim)
 {
-    return group_apply(function(prod, xi) {
+    return group_apply("value", function(prod, xi) {
         return scalar_mul(prod, xi);
-    }, I, nan, vec(x), "all" === dim ? "all" : (null == dim ? [1] : vec(dim)));
+    }, I, nan, vec(x), vec(dim));
 }
 fn.prod = prod;
 function dot(a, b, asreal)
@@ -4376,30 +4481,34 @@ function diff(x, dim)
             return scalar_sub(x[i+1], x[i]);
         }) : [];
     }
-    else if (is_matrix(x))
+    else if (is_2d(x))
     {
-        if (null == dim) dim = 1;
-        dim = _(dim);
-        if (1 === dim)
-        {
-            return array(COLS(x), function(column) {
-                return diff(COL(x, column));
-            });
-        }
-        else if (2 === dim)
-        {
-            return array(ROWS(x), function(row) {
-                return diff(ROW(x, row));
-            });
-        }
+        var sizex = size(x), view = tensorview(x, {shape:sizex, ndarray:sizex}), aux = {};
+        ndarray.indices(sizex.filter(function(_, di) {return dim !== di+1;}), function(i) {
+            var dj = 0;
+            aux[i.join(',')] = diff(view.slice(array(sizex.length, function(di) {
+                return dim === di+1 ? ':' : (i[dj++]);
+            })).toArray());
+        });
+        return squeeze(ndarray(sizex.map(function(sz, di) {return dim === di+1 ? sz-1 : sz;}), function(i) {
+            return aux[i.slice(0, dim-1).concat(i.slice(dim)).join(',')][i[dim-1]];
+        }));
     }
     not_supported("diff");
 }
 fn.diff = function(x, n, dim) {
-    if (null == dim) dim = 1;
     if (null == n) n = 1;
     if (!is_int(n)) not_supported("diff");
     n = _(n);
+    var sizex = size(x);
+    if (null == dim)
+    {
+        dim = 2 === sizex.length ? 1 : (sizex.reduce(function(dim, sz, di) {
+            if ((null == dim) && (1 < sz)) dim = di;
+            return dim;
+        }, null) || 0) + 1;
+    }
+    dim = _(dim);
     while (0 < n--) x = diff(x, dim);
     return x;
 };
@@ -4417,49 +4526,39 @@ function trapz(x, y, dim)
             }
             return ans;
         }
-        else if (is_vector(x) && (x.length === y.length))
+        else if (is_vector(x))
         {
-            for (i=0,n=x.length-1,ans=O; i<n; ++i)
+            if (x.length === y.length)
             {
-                ans = scalar_add(ans, scalar_mul(scalar_abs(scalar_sub(x[i+1], x[i])), scalar_div(scalar_add(y[i+1], y[i]), two)));
+                for (i=0,n=x.length-1,ans=O; i<n; ++i)
+                {
+                    ans = scalar_add(ans, scalar_mul(scalar_abs(scalar_sub(x[i+1], x[i])), scalar_div(scalar_add(y[i+1], y[i]), two)));
+                }
+                return ans;
             }
-            return ans;
+            throw "trapz: x,y dimensions do not match";
         }
     }
-    else if (is_matrix(y))
+    else if (is_2d(y))
     {
-        if (null == dim) dim = 1;
+        var sizey = size(y), view = tensorview(y, {shape:sizey, ndarray:sizey}), aux = {};
+        if (null == dim)
+        {
+            dim = 2 === sizey.length ? 1 : (sizey.reduce(function(dim, sz, di) {
+                if ((null == dim) && (1 < sz)) dim = di;
+                return dim;
+            }, null) || 0) + 1;
+        }
         dim = _(dim);
-        if (1 === dim)
-        {
-            if ((null == x) || is_scalar(x) || (is_vector(x) && (x.length === ROWS(y))))
-            {
-                return array(COLS(y), function(column) {
-                    return trapz(x, COL(y, column));
-                });
-            }
-            else if (is_matrix(x) && (ROWS(x) === ROWS(y)) && (COLS(x) === COLS(y)))
-            {
-                return array(COLS(y), function(column) {
-                    return trapz(null == x ? null : COL(x, column), COL(y, column));
-                });
-            }
-        }
-        else if (2 === dim)
-        {
-            if ((null == x) || is_scalar(x) || (is_vector(x) && (x.length === COLS(y))))
-            {
-                return array(ROWS(x), function(row) {
-                    return trapz(x, ROW(y, row));
-                });
-            }
-            else if (is_matrix(x) && (ROWS(x) === ROWS(y)) && (COLS(x) === COLS(y)))
-            {
-                return array(ROWS(x), function(row) {
-                    return trapz(ROW(x, row), ROW(y, row));
-                });
-            }
-        }
+        ndarray.indices(sizey.filter(function(_, di) {return dim !== di+1;}), function(i) {
+            var dj = 0;
+            aux[i.join(',')] = trapz(x, view.slice(array(sizey.length, function(di) {
+                return dim === di+1 ? ':' : (i[dj++]);
+            })).toArray());
+        });
+        return squeeze(ndarray(sizey.map(function(sz, di) {return dim === di+1 ? 1 : sz;}), function(i) {
+            return aux[i.slice(0, dim-1).concat(i.slice(dim)).join(',')];
+        }));
     }
     not_supported("trapz");
 }
@@ -4468,11 +4567,11 @@ fn.trapz = function(x, y, dim) {
     {
         if (is_array(y))
         {
-            dim = 1;
+            dim = null;
         }
-        else if (is_array(x) && !is_array(y))
+        else if (is_array(x))
         {
-            dim = y;
+            dim = is_int(y) ? y : null;
             y = x;
             x = null;
         }
@@ -4481,73 +4580,35 @@ fn.trapz = function(x, y, dim) {
 };
 function cumtrapz(x, y, dim)
 {
-    if (is_scalar(y))
-    {
-        return y;
-    }
-    else if (is_vector(y))
-    {
+    return group_apply("block-series", function(y) {
         if ((null == x) || is_scalar(x))
         {
             return y.map(function(yi, i) {
                 return trapz(x, y.slice(0, i+1));
             });
         }
-        else if (is_vector(x) && (x.length === y.length))
+        else if (is_vector(x))
         {
-            return y.map(function(yi, i) {
-                return trapz(x.slice(0, i+1), y.slice(0, i+1));
-            });
+            if (x.length === y.length)
+            {
+                return y.map(function(yi, i) {
+                    return trapz(x.slice(0, i+1), y.slice(0, i+1));
+                });
+            }
+            throw "cumtrapz: x,y dimensions do not match";
         }
-    }
-    else if (is_matrix(y))
-    {
-        if (null == dim) dim = 1;
-        dim = _(dim);
-        if (1 === dim)
-        {
-            if ((null == x) || is_scalar(x) || (is_vector(x) && (x.length === ROWS(y))))
-            {
-                return array(COLS(y), function(column) {
-                    return cumtrapz(x, COL(y, column), dim);
-                });
-            }
-            else if (is_matrix(x) && (ROWS(x) === ROWS(y)) && (COLS(x) === COLS(y)))
-            {
-                return array(COLS(y), function(column) {
-                    return cumtrapz(COL(x, column), COL(y, column), dim);
-                });
-            }
-
-        }
-        else if (2 === dim)
-        {
-            if ((null == x) || is_scalar(x) || (is_vector(x) && (x.length === COLS(y))))
-            {
-                return array(ROWS(y), function(row) {
-                    return cumtrapz(x, ROW(y, row), dim);
-                });
-            }
-            else if (is_matrix(x) && (ROWS(x) === ROWS(y)) && (COLS(x) === COLS(y)))
-            {
-                return array(ROWS(y), function(row) {
-                    return cumtrapz(ROW(x, row), ROW(y, row), dim);
-                });
-            }
-        }
-    }
-    not_supported("cumtrapz");
+    }, null, false, vec(y), dim);
 }
 fn.cumtrapz = function(x, y, dim) {
     if (3 > arguments.length)
     {
         if (is_array(y))
         {
-            dim = 1;
+            dim = null;
         }
-        else if (is_array(x) && !is_array(y))
+        else if (is_array(x))
         {
-            dim = y;
+            dim = is_int(y) ? y : null;
             y = x;
             x = null;
         }
@@ -4556,95 +4617,41 @@ fn.cumtrapz = function(x, y, dim) {
 };
 function cum(x, f, dir, dim)
 {
-    var accum;
-    if (is_scalar(x))
-    {
-        return x;
-    }
-    else if (is_vector(x))
-    {
-        if (null == dir) dir = 'forward';
-        if ('reverse' === dir)
-        {
-            return x.slice().reverse().map(function(xi, i) {
-                accum = 0 === i ? xi : f(accum, xi);
-                return accum;
-            }).reverse();
-        }
-        else if ('forward' === dir)
-        {
-            return x.map(function(xi, i) {
-                accum = 0 === i ? xi : f(accum, xi);
-                return accum;
-            });
-        }
-    }
-    else if (is_matrix(x))
-    {
-        if (null == dim) dim = 1;
-        dim = _(dim);
-        if (1 === dim)
-        {
-            return array(COLS(x), function(column) {
-                return cum(COL(x, column), f, dir, dim);
-            });
-        }
-        else if (2 === dim)
-        {
-            return array(ROWS(x), function(row) {
-                return cum(ROW(x, row), f, dir, dim);
-            });
-        }
-    }
-    return false;
+    if (null == dir) dir = "forward";
+    return group_apply("series", function(accum, xi) {
+        return null == accum ? xi : f(accum, xi);
+    }, null, false, vec(x), vec(dim), dir);
 }
 fn.cumsum = function(x, dim, dir) {
-    var ans = cum(vec(x), scalar_add, dir, dim);
+    var ans = cum(x, scalar_add, dir, dim);
     if (false === ans) not_supported("cumsum");
     return ans;
 };
 fn.cumprod = function(x, dim, dir) {
-    var ans = cum(vec(x), scalar_mul, dir, dim);
+    var ans = cum(x, scalar_mul, dir, dim);
     if (false === ans) not_supported("cumprod");
     return ans;
 };
 fn.cummin = function(x, dim, dir) {
-    var ans = cum(vec(x), function(a, b) {return lt(a, b) ? a : b;}, dir, dim);
+    var cmp = is_real(x) ? cmp_real : cmp_abs,
+        ans = cum(x, function(a, b) {return -1 === cmp(a, b) ? a : b;}, dir, dim);
     if (false === ans) not_supported("cummin");
     return ans;
 };
 fn.cummax = function(x, dim, dir) {
-    var ans = cum(vec(x), function(a, b) {return gt(a, b) ? a : b;}, dir, dim);
+    var cmp = is_real(x) ? cmp_real : cmp_abs,
+        ans = cum(x, function(a, b) {return 1 === cmp(a, b) ? a : b;}, dir, dim);
     if (false === ans) not_supported("cummax");
     return ans;
 };
 function mov(x, f, kb, kf, dim)
 {
-    if (is_vector(x))
-    {
+    return group_apply("block-series", function(x) {
         var n = x.length;
         return array(n, function(i) {
             return f(x.slice(stdMath.max(0, i-kb), stdMath.min(n-1, i+kf)+1));
         });
-    }
-    else if (is_matrix(x))
-    {
-        if (null == dim) dim = 1;
-        dim = _(dim);
-        if (1 === dim)
-        {
-            return array(COLS(x), function(column) {
-                return mov(COL(x, column), f, kb, kf, dim);
-            });
-        }
-        else if (2 === dim)
-        {
-            return array(ROWS(x), function(row) {
-                return mov(ROW(x, row), f, kb, kf, dim);
-            });
-        }
-    }
-    return false;
+    }, null, false, vec(x), vec(dim));
 }
 fn.movsum = function(x, k, dim) {
     var kb, kf, ans;
@@ -4667,7 +4674,7 @@ fn.movsum = function(x, k, dim) {
             kf = ((k-1) >> 1);
         }
     }
-    ans = mov(vec(x), sum, kb, kf, dim);
+    ans = mov(x, sum, kb, kf, dim);
     if (false === ans) not_supported("movsum");
     return ans;
 };
@@ -4692,7 +4699,7 @@ fn.movprod = function(x, k, dim) {
             kf = ((k-1) >> 1);
         }
     }
-    ans = mov(vec(x), prod, kb, kf, dim);
+    ans = mov(x, prod, kb, kf, dim);
     if (false === ans) not_supported("movprod");
     return ans;
 };
@@ -4717,7 +4724,7 @@ fn.movmean = function(x, k, dim) {
             kf = ((k-1) >> 1);
         }
     }
-    ans = mov(vec(x), mean, kb, kf, dim);
+    ans = mov(x, mean, kb, kf, dim);
     if (false === ans) not_supported("movmean");
     return ans;
 };
@@ -4742,7 +4749,7 @@ fn.movmin = function(x, k, dim) {
             kf = ((k-1) >> 1);
         }
     }
-    ans = mov(vec(x), min, kb, kf, dim);
+    ans = mov(x, min, kb, kf, dim);
     if (false === ans) not_supported("movmin");
     return ans;
 };
@@ -4767,7 +4774,7 @@ fn.movmax = function(x, k, dim) {
             kf = ((k-1) >> 1);
         }
     }
-    ans = mov(vec(x), max, kb, kf, dim);
+    ans = mov(x, max, kb, kf, dim);
     if (false === ans) not_supported("movmax");
     return ans;
 };
@@ -8779,74 +8786,23 @@ fn.erf = function(x) {
 };
 function mean(x, dim)
 {
-    if (is_scalar(x))
-    {
-        return x;
-    }
-    else if (is_vector(x))
-    {
+    return group_apply("block", function(x) {
         return x.length ? scalar_div(sum(x), __(x.length)) : nan;
-    }
-    else if (is_matrix(x))
-    {
-        if (null == dim) dim = 1;
-        dim = _(dim);
-        if (1 === dim)
-        {
-            return array(COLS(x), function(column) {
-                return mean(COL(x, column));
-            });
-        }
-        else if (2 === dim)
-        {
-            return array(ROWS(x), function(row) {
-                return mean(ROW(x, row));
-            });
-        }
-    }
-    not_supported("mean");
+    }, O, nan, vec(x), vec(dim));
 }
 fn.mean = mean;
 function median(x, dim)
 {
-    if (is_scalar(x))
-    {
-        return x;
-    }
-    else if (is_vector(x))
-    {
+    return group_apply("block", function(x) {
         if (!x.length) return nan;
         x = sort(x);
         return x.length & 1 ? x[(x.length >> 1)] : scalar_div(scalar_add(x[(x.length >> 1)], x[(x.length >> 1) - 1]), two);
-    }
-    else if (is_matrix(x))
-    {
-        if (null == dim) dim = 1;
-        dim = _(dim);
-        if (1 === dim)
-        {
-            return array(COLS(x), function(column) {
-                return median(COL(x, column));
-            });
-        }
-        else if (2 === dim)
-        {
-            return array(ROWS(x), function(row) {
-                return median(ROW(x, row));
-            });
-        }
-    }
-    not_supported("median");
+    }, O, nan, vec(x), vec(dim));
 }
 fn.median = median;
 function mode(x, dim)
 {
-    if (is_scalar(x))
-    {
-        return x;
-    }
-    else if (is_vector(x))
-    {
+    return group_apply("block", function(x) {
         if (!x.length) return nan;
         var count = {}, maxcnt = 0;
         return x.reduce(function(mode, xi) {
@@ -8872,25 +8828,7 @@ function mode(x, dim)
             }
             return mode;
         }, {});
-    }
-    else if (is_matrix(x))
-    {
-        if (null == dim) dim = 1;
-        dim = _(dim);
-        if (1 === dim)
-        {
-            return array(COLS(x), function(column) {
-                return mode(COL(x, column));
-            });
-        }
-        else if (2 === dim)
-        {
-            return array(ROWS(x), function(row) {
-                return mode(ROW(x, row));
-            });
-        }
-    }
-    not_supported("mode");
+    }, O, nan, vec(x), vec(dim));
 }
 fn.mode = mode;
 function moment(x, order, dim)
@@ -8930,67 +8868,21 @@ fn.moment = moment;
 function std(x, w, dim)
 {
     w = _(w || 0);
-    if (is_scalar(x))
-    {
-        return O;
-    }
-    else if (is_vector(x))
-    {
+    return group_apply("block", function(x) {
         return 0 === x.length ? nan : (1 === x.length ? O : realMath.sqrt(scalar_div(sum(dotpow(abs(sub(x, mean(x))), __(2))), __(1 === w ? x.length : (x.length-1)))));
-    }
-    else if (is_matrix(x))
-    {
-        if (null == dim) dim = 1;
-        dim = _(dim);
-        if (1 === dim)
-        {
-            return array(COLS(x), function(column) {
-                return std(COL(x, column, w));
-            });
-        }
-        else if (2 === dim)
-        {
-            return array(ROWS(x), function(row) {
-                return std(ROW(x, row, w));
-            });
-        }
-    }
-    not_supported("std");
+    }, O, nan, vec(x), vec(dim));
 }
 fn.std = std;
 function variance(x, w, dim)
 {
     w = _(w || 0);
-    if (is_scalar(x))
-    {
-        return O;
-    }
-    else if (is_vector(x))
-    {
+    return group_apply("block", function(x) {
         if (1 >= x.length) return x.length ? O : nan;
         var N = x.length,
             mu_x = mean(x),
             bar_x = sub(x, mu_x);
         return scalar_div(sum(dotmul(conj(bar_x), bar_x)), __(1 === w ? N : (N-1)));
-    }
-    else if (is_matrix(x))
-    {
-        if (null == dim) dim = 1;
-        dim = _(dim);
-        if (1 === dim)
-        {
-            return array(COLS(x), function(column) {
-                return variance(COL(x, column), w);
-            });
-        }
-        else if (2 === dim)
-        {
-            return array(ROWS(x), function(row) {
-                return variance(ROW(x, row), w);
-            });
-        }
-    }
-    not_supported("var");
+    }, O, nan, vec(x), vec(dim));
 }
 fn['var'] = variance;
 function cov(a, b, w)
@@ -9070,12 +8962,13 @@ function corrcoef(a, b)
             if (a.length !== b.length) throw "corrcoef: inputs not of same dimension";
             return pearson(a, b);
         }
-        else if (is_matrix(a) && is_matrix(b))
+        else if (is_2d(a) && is_2d(b))
         {
-            if ((ROWS(a) !== ROWS(b)) || (COLS(a) !== COLS(b))) throw "corrcoef: inputs not of same dimension";
-            return array(COLS(a), function(column) {
+            if (!arr_eq(size(a), size(b))) throw "corrcoef: inputs not of same dimension";
+            /*return array(COLS(a), function(column) {
                 return corrcoef(COL(a, column), COL(b, column));
-            });
+            });*/
+            return corrcoef([colon(a), colon(b)]);
         }
     }
     not_supported("corrcoef");
