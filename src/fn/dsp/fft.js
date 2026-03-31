@@ -73,7 +73,7 @@ function fft1_r(x, inv, output)
     // Use the lowest odd factor, so we are able to use _fft_i in the
     // recursive transforms optimally.
     var p = first_odd_fac(n), m = n / p,
-        normalisation = __(1 / stdMath.sqrt(p)),
+        normalisation = inv ? __(1 / /*stdMath.sqrt(*/p/*)*/) : 1,
         recursive_result = new Array(m),
         recursive_result2 = new Array(m),
         del_f_r, del_f_i, f_r, f_i, _real, _imag;
@@ -96,7 +96,7 @@ function fft1_r(x, inv, output)
         }
 
         del_f_r = __(stdMath.cos(2*pi*j/n));
-        del_f_i = __((inv ? -1 : 1) * stdMath.sin(2*pi*j/n));
+        del_f_i = __((inv ? 1 : -1) * stdMath.sin(2*pi*j/n));
         f_r = I;
         f_i = O;
 
@@ -129,7 +129,7 @@ function fft1_i(x, inv, output)
     while (w < n)
     {
         del_f_r = __(cosine(w));
-        del_f_i = __((inv ? -1 : 1) * sine(w));
+        del_f_i = __((inv ? 1 : -1) * sine(w));
         k = n/(2*w);
         for (i=0; i<k; ++i)
         {
