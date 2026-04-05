@@ -1362,7 +1362,18 @@ function parse(s, ctx, lineStart, posStart)
                 }
                 else
                 {
-                    term = expr('v', variable(ctx, m));
+                    if ("true" === m)
+                    {
+                        term = expr(I);
+                    }
+                    else if ("false" === m)
+                    {
+                        term = expr(O);
+                    }
+                    else
+                    {
+                        term = expr('v', variable(ctx, m));
+                    }
                 }
                 terms.unshift(term);
                 eat(/^[ \t\v\f]+/);

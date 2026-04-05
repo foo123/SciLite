@@ -67,6 +67,8 @@ $_.decimal = function(Decimal) {
         constant.intmin = intmin;
         constant.bitmax = bitmax;
     }
+    constant["true"] = I;
+    constant["false"] = O;
     if (complex)
     {
         i = new complex(O, I);

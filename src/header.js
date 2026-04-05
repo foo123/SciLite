@@ -71,7 +71,8 @@ var tensorview = null,
             intmax: intmax,
             intmin: intmin,
             inf: inf, Inf: inf,
-            nan: nan, NaN: nan
+            nan: nan, NaN: nan,
+            "true": I, "false": O
         }
     },
     $_ = $._,
