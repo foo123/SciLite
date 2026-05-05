@@ -1135,12 +1135,12 @@ function dotpow(a, b)
 }
 $_.dotpow = dotpow;
 fn.power = dotpow;
-function mul_tri(A, B, lower)
+function mul_tri(A, B, type)
 {
     // faster matrix-matrix mul for A,B nxn triangular
     if (COLS(A) === ROWS(B))
     {
-        if ("lower" === lower)
+        if ("lower" === type)
         {
             // lower triangular
             return matrix(ROWS(A), COLS(B), function(i, j) {

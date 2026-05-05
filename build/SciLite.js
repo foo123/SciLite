@@ -2,16 +2,16 @@
 *
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
-* @version: 0.9.16
-* 2026-03-29 17:25:00
+* @version: 0.9.17
+* 2026-05-05 22:35:19
 * https://github.com/foo123/SciLite
 *
 **//**
 *
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab in pure JavaScript
-* @version: 0.9.16
-* 2026-03-29 17:25:00
+* @version: 0.9.17
+* 2026-05-05 22:35:19
 * https://github.com/foo123/SciLite
 *
 **/
@@ -59,7 +59,7 @@ var tensorview = null,
 
     // lib
     $ = {
-        VERSION: "0.9.16",
+        VERSION: "0.9.17",
         // common functions
         _: {},
         // builtin functions
@@ -79,7 +79,8 @@ var tensorview = null,
             intmax: intmax,
             intmin: intmin,
             inf: inf, Inf: inf,
-            nan: nan, NaN: nan
+            nan: nan, NaN: nan,
+            "true": I, "false": O
         }
     },
     $_ = $._,
@@ -155,6 +156,8 @@ $_.decimal = function(Decimal) {
         constant.intmin = intmin;
         constant.bitmax = bitmax;
     }
+    constant["true"] = I;
+    constant["false"] = O;
     if (complex)
     {
         i = new complex(O, I);
@@ -2038,12 +2041,12 @@ function dotpow(a, b)
 }
 $_.dotpow = dotpow;
 fn.power = dotpow;
-function mul_tri(A, B, lower)
+function mul_tri(A, B, type)
 {
     // faster matrix-matrix mul for A,B nxn triangular
     if (COLS(A) === ROWS(B))
     {
-        if ("lower" === lower)
+        if ("lower" === type)
         {
             // lower triangular
             return matrix(ROWS(A), COLS(B), function(i, j) {
@@ -3969,11 +3972,17 @@ function repmat(x)
     if (is_array(n[0])) n = n[0];
     n = n.map(_);
     if (1 === n.length) n = array(sz.length, n[0]);
+    if (is_array(x))
+    {
+        if (sz.length < n.length) sz = sz.concat(array(n.length-sz.length, 1));
+        else if (n.length < sz.length) n = n.concat(array(sz.length-n.length, 1));
+    }
     if (!is_array(x) || (sz.length === n.length))
     {
+        if (is_vector(x)) x = [x];
         return ndarray(is_array(x) ? n.map(function(ni, i) {return sz[i]*ni;}) : n, function(indices) {
             return indices.reduce(function(arr, index, dim) {
-                return is_array(arr) ? arr[index % n[dim]] : arr;
+                return is_array(arr) ? arr[index % sz[dim]] : arr;
             }, x);
         });
     }
@@ -9891,7 +9900,7 @@ function fft1_r(x, inv, output)
     // Use the lowest odd factor, so we are able to use _fft_i in the
     // recursive transforms optimally.
     var p = first_odd_fac(n), m = n / p,
-        normalisation = __(1 / stdMath.sqrt(p)),
+        normalisation = inv ? __(1 / /*stdMath.sqrt(*/p/*)*/) : 1,
         recursive_result = new Array(m),
         recursive_result2 = new Array(m),
         del_f_r, del_f_i, f_r, f_i, _real, _imag;
@@ -9914,7 +9923,7 @@ function fft1_r(x, inv, output)
         }
 
         del_f_r = __(stdMath.cos(2*pi*j/n));
-        del_f_i = __((inv ? -1 : 1) * stdMath.sin(2*pi*j/n));
+        del_f_i = __((inv ? 1 : -1) * stdMath.sin(2*pi*j/n));
         f_r = I;
         f_i = O;
 
@@ -9947,7 +9956,7 @@ function fft1_i(x, inv, output)
     while (w < n)
     {
         del_f_r = __(cosine(w));
-        del_f_i = __((inv ? -1 : 1) * sine(w));
+        del_f_i = __((inv ? 1 : -1) * sine(w));
         k = n/(2*w);
         for (i=0; i<k; ++i)
         {
@@ -10128,27 +10137,27 @@ function stft(inp, win, FFTLEN, OVERLAP, inv)
         wx = new Array(FFTLEN),
         fx = new Array(FFTLEN);
 
-    // normalize win.*win to unit energy
-    //nw = win.^2
-    nw = dotpow(abs(win), two);
-    for (i=HOP; i<WLEN; i+=HOP)
-    {
-        //nw[1:end-i+1] += win[i:end].^2
-        for (j=i; j<WLEN; ++j)
-        {
-            nw[j-i] = scalar_add(nw[j], scalar_pow(scalar_abs(win[j]), two));
-        }
-        //nw[i:end] += win[1:end-i+1].^2
-        for (j=i; j<WLEN; ++j)
-        {
-            nw[j] = scalar_add(nw[j], scalar_pow(scalar_abs(win[j-i]), two));
-        }
-    }
-    //win = win ./ sqrt(real(norm))
-    win = win.map(function(wi, i) {return scalar_div(wi, realMath.sqrt(real(nw[i])));});
-
     if (inv)
     {
+        // normalize win.*win to unit energy
+        //nw = win.^2
+        nw = dotpow(abs(win), two);
+        for (i=HOP; i<WLEN; i+=HOP)
+        {
+            //nw[1:end-i+1] += win[i:end].^2
+            for (j=i; j<WLEN; ++j)
+            {
+                nw[j-i] = scalar_add(nw[j], scalar_pow(scalar_abs(win[j]), two));
+            }
+            //nw[i:end] += win[1:end-i+1].^2
+            for (j=i; j<WLEN; ++j)
+            {
+                nw[j] = scalar_add(nw[j], scalar_pow(scalar_abs(win[j-i]), two));
+            }
+        }
+        //win = win ./ sqrt(real(norm))
+        win = win.map(function(wi, i) {return scalar_div(wi, realMath.sqrt(real(nw[i])));});
+
         // inverse short-time fourier transform using ifft
         SEGMENTS = COLS(inp);
         N = stdMath.max(0, SEGMENTS * HOP + OVERLAP);
@@ -10175,6 +10184,12 @@ function stft(inp, win, FFTLEN, OVERLAP, inv)
     }
     else
     {
+        // normalize win.*win to unit energy
+        //nw = win.^2
+        nw = dotpow(abs(win), two);
+        //win = win ./ sqrt(real(norm))
+        win = win.map(function(wi, i) {return scalar_div(wi, realMath.sqrt(real(nw[i])));});
+        
         // short-time fourier transform using fft
         N = inp.length;
         // if (N - OVERLAP) / HOP is integer istft produces output of same length as original input
@@ -12553,7 +12568,18 @@ function parse(s, ctx, lineStart, posStart)
                 }
                 else
                 {
-                    term = expr('v', variable(ctx, m));
+                    if ("true" === m)
+                    {
+                        term = expr(I);
+                    }
+                    else if ("false" === m)
+                    {
+                        term = expr(O);
+                    }
+                    else
+                    {
+                        term = expr('v', variable(ctx, m));
+                    }
                 }
                 terms.unshift(term);
                 eat(/^[ \t\v\f]+/);
