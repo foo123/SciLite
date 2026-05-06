@@ -1,7 +1,7 @@
 /**
 *  TensorView
 *  View array data as multidimensional tensors of various shapes efficiently
-*  @VERSION 2.1.1
+*  @VERSION 2.1.2
 *  https://github.com/foo123/TensorView
 *
 **/
@@ -596,7 +596,7 @@ function TensorView(data, o, _)
         });
     };
 }
-TensorView.VERSION = '2.1.1';
+TensorView.VERSION = '2.1.2';
 TensorView.stringify = function(type, ndarray, shape, stringify, maxsize, i0) {
     i0 = i0 || 0;
     if (!is_num(maxsize, true)) maxsize = Infinity;
@@ -1002,7 +1002,7 @@ function str_nd(x, shape, MAXPRINTSIZE, stringify, i0, indices)
         }
         if (lim < n)
         {
-            if (str.length) str += "\n:";
+            if ((n > MAXPRINTSIZE) && str.length) str += "\n:";
             for (i=n-lim; i<n; ++i)
             {
                 if (str.length) str += "\n";
@@ -1056,7 +1056,7 @@ function tex_nd(x, shape, MAXPRINTSIZE, texify, i0, indices)
         }
         if (lim < n)
         {
-            if (tex.length) tex += "\\\\ \\vdots";
+            if ((n > MAXPRINTSIZE) && tex.length) tex += "\\\\ \\vdots";
             for (i=n-lim; i<n; ++i)
             {
                 if (tex.length) tex += "\\\\";
