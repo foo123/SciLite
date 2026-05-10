@@ -13,27 +13,27 @@ function stft(inp, win, FFTLEN, OVERLAP, inv)
         wx = new Array(FFTLEN),
         fx = new Array(FFTLEN);
 
-    // normalize win.*win to unit energy
-    //nw = win.^2
-    nw = dotpow(abs(win), two);
-    for (i=HOP; i<WLEN; i+=HOP)
-    {
-        //nw[1:end-i+1] += win[i:end].^2
-        for (j=i; j<WLEN; ++j)
-        {
-            nw[j-i] = scalar_add(nw[j], scalar_pow(scalar_abs(win[j]), two));
-        }
-        //nw[i:end] += win[1:end-i+1].^2
-        for (j=i; j<WLEN; ++j)
-        {
-            nw[j] = scalar_add(nw[j], scalar_pow(scalar_abs(win[j-i]), two));
-        }
-    }
-    //win = win ./ sqrt(real(norm))
-    win = win.map(function(wi, i) {return scalar_div(wi, realMath.sqrt(real(nw[i])));});
-
     if (inv)
     {
+        // normalize win.*win to unit energy
+        //nw = win.^2
+        nw = dotpow(abs(win), two);
+        for (i=HOP; i<WLEN; i+=HOP)
+        {
+            //nw[1:end-i+1] += win[i:end].^2
+            for (j=i; j<WLEN; ++j)
+            {
+                nw[j-i] = scalar_add(nw[j], scalar_pow(scalar_abs(win[j]), two));
+            }
+            //nw[i:end] += win[1:end-i+1].^2
+            for (j=i; j<WLEN; ++j)
+            {
+                nw[j] = scalar_add(nw[j], scalar_pow(scalar_abs(win[j-i]), two));
+            }
+        }
+        //win = win ./ sqrt(real(norm))
+        win = win.map(function(wi, i) {return scalar_div(wi, realMath.sqrt(real(nw[i])));});
+
         // inverse short-time fourier transform using ifft
         SEGMENTS = COLS(inp);
         N = stdMath.max(0, SEGMENTS * HOP + OVERLAP);
@@ -60,6 +60,12 @@ function stft(inp, win, FFTLEN, OVERLAP, inv)
     }
     else
     {
+        // normalize win.*win to unit energy
+        //nw = win.^2
+        nw = dotpow(abs(win), two);
+        //win = win ./ sqrt(real(norm))
+        win = win.map(function(wi, i) {return scalar_div(wi, realMath.sqrt(real(nw[i])));});
+        
         // short-time fourier transform using fft
         N = inp.length;
         // if (N - OVERLAP) / HOP is integer istft produces output of same length as original input

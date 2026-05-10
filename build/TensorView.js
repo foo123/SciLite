@@ -1,7 +1,7 @@
 /**
 *  TensorView
 *  View array data as multidimensional tensors of various shapes efficiently
-*  @VERSION 2.1.2
+*  @VERSION 2.1.3
 *  https://github.com/foo123/TensorView
 *
 **/
@@ -596,19 +596,20 @@ function TensorView(data, o, _)
         });
     };
 }
-TensorView.VERSION = '2.1.2';
-TensorView.stringify = function(type, ndarray, shape, stringify, maxsize, i0) {
+TensorView.VERSION = '2.1.3';
+TensorView.stringify = function(type, ndarray, shape, stringify, maxsize, i0, with_shape) {
+    with_shape = "noshape" !== with_shape;
     i0 = i0 || 0;
     if (!is_num(maxsize, true)) maxsize = Infinity;
     if (!is_function(stringify)) stringify = to_string;
     var ndim = shape.length;
     if ('tex' === type)
     {
-        return 2 < ndim ? '\\displaylines{'+tex_nd(ndarray, shape, maxsize, stringify, i0)+'}' : (2 === ndim ? tex_2d(ndarray, shape, maxsize, stringify) : tex_1d(ndarray, shape, maxsize, stringify));
+        return 2 <= ndim ? ('\\displaylines{'+(with_shape ? (shape.join(' \\times ')+' \\\\ ') : '')+(2 < ndim ? tex_nd(ndarray, shape, maxsize, stringify, i0) : tex_2d(ndarray, shape, maxsize, stringify))+'}') : tex_1d(ndarray, shape, maxsize, stringify);
     }
     else //if ('str' === type)
     {
-        return 2 < ndim ? str_nd(ndarray, shape, maxsize, stringify, i0) : (2 === ndim ? str_2d(ndarray, shape, maxsize, stringify) : str_1d(ndarray, shape, maxsize, stringify));
+        return 2 <= ndim ? ((with_shape ? (shape.join("\u00D7")+"\n") : '')+(2 < ndim ? str_nd(ndarray, shape, maxsize, stringify, i0) : str_2d(ndarray, shape, maxsize, stringify))) : str_1d(ndarray, shape, maxsize, stringify);
     }
 };
 TensorView[proto] = {
@@ -658,13 +659,13 @@ TensorView[proto] = {
         });
         return ndarray;
     },
-    toString: function(maxsize, stringify, i0) {
+    toString: function(maxsize, stringify, i0, with_shape) {
         var self = this;
-        return TensorView.stringify('str', self.toNDArray(), self.shape(), stringify, maxsize, i0 || 0);
+        return TensorView.stringify('str', self.toNDArray(), self.shape(), stringify, maxsize, i0 || 0, with_shape);
     },
-    toTex: function(maxsize, texify, i0) {
+    toTex: function(maxsize, texify, i0, with_shape) {
         var self = this;
-        return TensorView.stringify('tex', self.toNDArray(), self.shape(), texify, maxsize, i0 || 0);
+        return TensorView.stringify('tex', self.toNDArray(), self.shape(), texify, maxsize, i0 || 0, with_shape);
     }
 };
 if (('undefined' !== typeof Symbol) && ('undefined' !== typeof Symbol.iterator))
