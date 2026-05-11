@@ -958,6 +958,47 @@ codemirror_define_grammar_mode("scilite", {
 "supportAutoCompletion"     : true
 }, CodeMirror, CodeMirrorGrammar);
 
+function serialize_scalar(x)
+{
+    if ("string" === typeof x)
+    {
+        return x;
+    }
+    x = $._.tonumber(x);
+    if ("number" === typeof x)
+    {
+        if (isNaN(x)) return {scalar:"nan"};
+        if (!isFinite(x)) return {scalar:0 > x ? "-inf" : "inf"};
+    }
+    return x;
+}
+function unserialize_scalar(x)
+{
+    if ("string" === typeof x)
+    {
+        return x;
+    }
+    if (x)
+    {
+        if ((null != x.re) && (null != x.im))
+        {
+            return $.fn.complex(unserialize_scalar(x.re), unserialize_scalar(x.im));
+        }
+        if ("inf" === x.scalar)
+        {
+            return Infinity;
+        }
+        if ("-inf" === x.scalar)
+        {
+            return -Infinity;
+        }
+        if ("nan" === x.scalar)
+        {
+            return NaN;
+        }
+    }
+    return x;
+}
 function serialize(x)
 {
     if (Array.isArray(x))
@@ -966,11 +1007,11 @@ function serialize(x)
     }
     else if (x instanceof $.fn.complex)
     {
-        return {re:$._.tonumber(x.re),im:$._.tonumber(x.im)};
+        return {re:serialize_scalar(x.re), im:serialize_scalar(x.im)};
     }
     else
     {
-        return $._.tonumber(x);
+        return serialize_scalar(x);
     }
 }
 function unserialize(x)
@@ -979,13 +1020,9 @@ function unserialize(x)
     {
         return x.map(unserialize);
     }
-    else if (x && (null != x.re) && (null != x.im))
-    {
-        return $.fn.complex(x.re, x.im);
-    }
     else
     {
-        return x;
+        return unserialize_scalar(x);
     }
 }
 
