@@ -728,6 +728,7 @@ function parse(s, ctx, lineStart, posStart)
                 result, args;
             if (up_to_end)
             {
+                var oops = ops.slice(), tterms = terms.slice();
                 while (0 < ops.length)
                 {
                     o2 = ops.shift();
@@ -739,7 +740,18 @@ function parse(s, ctx, lineStart, posStart)
                         ops.unshift(o2);
                         break;
                     }
-                    if (opc2.arity > terms.length)
+                    if ((0 < ops.length) && ('=' === ops[0][0]) && (opc2.arity > terms.length-1))
+                    {
+                        if ((null != opc2.arityalt) && (opc2.arityalt <= terms.length-1))
+                        {
+                            args = terms.splice(0, opc2.arityalt).reverse();
+                        }
+                        else
+                        {
+                            throw error('invalid or missing argument for "'+op2+'"', o2[1], o2[2]);
+                        }
+                    }
+                    else if (opc2.arity > terms.length)
                     {
                         if ((null != opc2.arityalt) && (opc2.arityalt <= terms.length))
                         {
@@ -807,7 +819,18 @@ function parse(s, ctx, lineStart, posStart)
                             LEFT === opc2.associativity))))
                         )
                         {
-                            if (opc2.arity > terms.length)
+                            if ((1 < ops.length) && ('=' === ops[1][0]) && (opc2.arity > terms.length-1))
+                            {
+                                if ((null != opc2.arityalt) && (opc2.arityalt <= terms.length-1))
+                                {
+                                    args = terms.splice(0, opc2.arityalt).reverse();
+                                }
+                                else
+                                {
+                                    throw error('invalid or missing argument for "'+op2+'"', o2[1], o2[2]);
+                                }
+                            }
+                            else if (opc2.arity > terms.length)
                             {
                                 if ((null != opc2.arityalt) && (opc2.arityalt <= terms.length))
                                 {
