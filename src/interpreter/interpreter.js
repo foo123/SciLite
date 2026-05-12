@@ -740,7 +740,7 @@ function parse(s, ctx, lineStart, posStart)
                         ops.unshift(o2);
                         break;
                     }
-                    if ((0 < ops.length) && ('=' === ops[0][0]) && (opc2.arity > terms.length-1))
+                    if ((0 < ops.length) && ((OP[ops[0][0]].arityalt || OP[ops[0][0]].arity) > 1) && (opc2.arity > terms.length-1))
                     {
                         if ((null != opc2.arityalt) && (opc2.arityalt <= terms.length-1))
                         {
@@ -819,7 +819,7 @@ function parse(s, ctx, lineStart, posStart)
                             LEFT === opc2.associativity))))
                         )
                         {
-                            if ((1 < ops.length) && ('=' === ops[1][0]) && (opc2.arity > terms.length-1))
+                            if ((1 < ops.length) && ((OP[ops[1][0]].arityalt || OP[ops[1][0]].arity) > 1) && (opc2.arity > terms.length-1))
                             {
                                 if ((null != opc2.arityalt) && (opc2.arityalt <= terms.length-1))
                                 {
