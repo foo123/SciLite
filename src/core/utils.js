@@ -153,28 +153,34 @@ function is_scalar(x, strict)
 $_.is_scalar = is_scalar;
 function is_vector(x)
 {
+    if ((null != x) && x.$scilitedims$) return x.$scilitedims$.length === 1;
     return is_array(x) && is_scalar(x[0]);
 }
 $_.is_vector = is_vector;
 function is_matrix(x)
 {
+    if ((null != x) && x.$scilitedims$) return x.$scilitedims$.length === 2;
     return is_array(x) && is_array(x[0]) && is_scalar(x[0][0]);
 }
 $_.is_matrix = is_matrix;
 function is_0d(x)
 {
+    if ((null != x) && x.$scilitedims$) return x.$scilitedims$.length < 1;
     return !is_array(x);
 }
 function is_1d(x)
 {
+    if ((null != x) && x.$scilitedims$) return x.$scilitedims$.length < 2;
     return is_array(x) && !is_array(x[0]);
 }
 function is_2d(x)
 {
+    if ((null != x) && x.$scilitedims$) return x.$scilitedims$.length > 1;
     return is_array(x) && is_array(x[0]);
 }
 function is_nd(x)
 {
+    if ((null != x) && x.$scilitedims$) return x.$scilitedims$.length > 2;
     return is_array(x) && is_array(x[0]) && is_array(x[0][0]);
 }
 function array(n, v)
@@ -229,6 +235,11 @@ ndarray.indices = function(dims, f) {
     }
 };
 $_.ndarray = ndarray;
+function cellarray(array, dims)
+{
+    array.$scilitedims$ = dims || [];
+    return array;
+}
 function rowvec(n, v)
 {
     return array(n, v);
@@ -282,7 +293,7 @@ function vec(x)
     {
         return x;
     }
-    else if (is_2d(x) && !is_array(x[0][0]))
+    else if (is_2d(x) && !is_nd(x))
     {
         if (1 === ROWS(x)) return x[0];
         else if (1 === COLS(x)) return x.map(function(xi) {return xi[0];});
@@ -297,10 +308,12 @@ $_.vec = vec;
 
 function ROWS(mat)
 {
+    if ((null != mat) && mat.$scilitedims$) return mat.$scilitedims$[0] || 1;
     return mat.length;
 }
 function COLS(mat)
 {
+    if ((null != mat) && mat.$scilitedims$) return mat.$scilitedims$[1] || 1;
     return mat[0].length;
 }
 function ROW(mat, i)
@@ -594,7 +607,17 @@ function varargout(f, nargout_default)
         var args = [].slice.call(arguments), ans;
         args.unshift(nargout_default); // nargout=nargout_default
         ans = f.apply(null, args);
-        if ((1 < nargout_default) && is_array(ans)) ans.$scilitevarargout$ = true;
+        if (ans instanceof Promise)
+        {
+            ans = ans.then(function(ans) {
+                if ((1 < nargout_default) && is_array(ans)) ans.$scilitevarargout$ = true;
+                return ans;
+            })
+        }
+        else
+        {
+            if ((1 < nargout_default) && is_array(ans)) ans.$scilitevarargout$ = true;
+        }
         return ans;
     };
     f_with_nargout.nargout = function(nargout) {
@@ -602,7 +625,17 @@ function varargout(f, nargout_default)
             var args = [].slice.call(arguments), ans;
             args.unshift(nargout); // nargout=nargout
             ans = f.apply(null, args);
-            if (((1 < nargout) || (1 < nargout_default)) && is_array(ans)) ans.$scilitevarargout$ = true;
+            if (ans instanceof Promise)
+            {
+                ans = ans.then(function(ans) {
+                    if (((1 < nargout) || (1 < nargout_default)) && is_array(ans)) ans.$scilitevarargout$ = true;
+                    return ans;
+                })
+            }
+            else
+            {
+                if (((1 < nargout) || (1 < nargout_default)) && is_array(ans)) ans.$scilitevarargout$ = true;
+            }
             return ans;
         };
     };

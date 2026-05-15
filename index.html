@@ -459,6 +459,8 @@ window.MathJax = {
 <br>
 <a href="#" aria-label="run if-else example" onclick="return runExample('ifelse');">If-ElseIf-Else</a>
 • <a href="#" aria-label="run loops example" onclick="return runExample('loops');">Loops</a>
+<br>
+<a href="#" aria-label="run define functions example" onclick="return runExample('def_functions');">Define Functions</a>
 </div>
 
 <span class="label">&nbsp;</span><div id="output"></div><br>
@@ -588,6 +590,9 @@ function init($)
                 'v1 = -1:1',
                 'v2 = (-1):1',
                 'v3 = -(1:2)',
+                'a = [1 2 3]',
+                'a(1)',
+                'a(1) = 0',
                 'zeros(2, 3)',
                 'ones(2, 3)',
                 'eye(2)',
@@ -822,6 +827,19 @@ function init($)
                 'b = 1',
                 'while a==1\n b=b+1\n if b==3\n  break\n end\nend',
                 'while a==0\n b=b+1\n if b==3\n  break\n end\nend'
+                ]);
+            break;
+            case 'def_functions':
+                return run_session([
+                '% define custom functions',
+                'function fn=factorial(n)\n fn=prod(1:n);\nend',
+                'function [s,varargout]=mysize(x)\n nout=max([nargout 1])-1;\n s=size(x);\n for i=1:nout\n  varargout{i}=s(i);\n end\nend',
+                'function varargout=echo(varargin)\n for i=1:min([nargin nargout])\n  varargout{i}=varargin{i};\n end\nend',
+                'factorial(3)',
+                'factorial(5)',
+                'mysize(ones(3,2))',
+                '[s,rows,cols]=mysize(ones(3,2,4))',
+                '[o1,o2]=echo(1,2,3)'
                 ]);
             break;
         }

@@ -4,7 +4,7 @@ A **scientific computing environment** in pure JavaScript for browser and nodejs
 
 ![SciLite](./scilite.png)
 
-**v.0.9.19** (131 kB minified)
+**v.0.10.0 in progress** (131 kB minified)
 
 [![SciLite](./scilite-live.png)](https://foo123.github.io/examples/scilite/)
 
@@ -31,6 +31,9 @@ JavaScript syntax:
 ```js
 const {add, dotmul, mul, get, set} = SciLite._;
 const fn = SciLite.fn;
+
+// TensorView.js needed for nd-array support
+SciLite._.tensorview(TensorView);
 
 // optionally for arbitrary precision support use Decimal.js
 //SciLite._.decimal(Decimal);
@@ -59,7 +62,7 @@ let [Ref, Pivots] = fn.rref.nargout(2)(A); // variable output
 * support multi-dimensional nd-arrays (w/ `TensorView`) **[DONE]**
 * support symbolic computations (TODO)
 * support GPU computations and mix of CPU/GPU computations (TODO)
-* support user-defined functions similar to Octave/Matlab (TODO)
+* support user-defined functions similar to Octave/Matlab (IN PROGRESS)
 
 **see also:**
 

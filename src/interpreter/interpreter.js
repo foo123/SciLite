@@ -432,7 +432,7 @@ var OP = {
                         {
                             // set whole array as one variable, do not assume de-structuring
                             if (is_vector(arg1) && arg1.$scilitevarargout$) arg1.$scilitevarargout$ = null;
-                            return await set_var(arg0, arg1.$scilitevarargout$ ? arg1[0] : arg1);
+                            return await set_var(arg0, (null != arg1) && arg1.$scilitevarargout$ ? arg1[0] : arg1);
                         }
                     }
     }
@@ -559,6 +559,51 @@ async function while_end($arg, v, $)
     $.brk = brk;
     $.cont = cont;
     return ans;
+}
+
+function def_fn(fn_def)
+{
+    var fn = varargout(async function(nargout) {
+        var i, nargin = arguments.length-1, argout,
+            $ = {ctx:{ans:null}};
+        for (i=1; i<=nargin; ++i)
+        {
+            if ('varargin' === fn_def.argin[i-1])
+            {
+                $.ctx.varargin = cellarray([].slice.call(arguments, i), [arguments.length-i]);
+                break;
+            }
+            else
+            {
+                $.ctx[fn_def.argin[i-1]] = arguments[i];
+            }
+        }
+        $.ctx.nargin = nargin;
+        $.ctx.nargout = nargout;
+        if (fn_def.argout.length && ('varargout' === fn_def.argout[fn_def.argout.length-1]))
+        {
+            $.ctx.varargout = cellarray(array(100, null), [100]);
+        }
+        await vale(fn_def.body, null, $);
+        if (fn_def.argout.length)
+        {
+            argout = array(nargout, function(i) {
+                if (('varargout' === fn_def.argout[fn_def.argout.length-1]) && (i >= fn_def.argout.length-1))
+                {
+                    return $.ctx.varargout[i-(fn_def.argout.length-1)];
+                }
+                else
+                {
+                    return (i < fn_def.argout.length) && HAS.call($.ctx, fn_def.argout[i]) ? $.ctx[fn_def.argout[i]] : null;
+                }
+            });
+            return 1 === nargout ? argout[0] : argout;
+        }
+        return null;
+    });
+    fn.fname = fn_def.name; // fn.name is read-only
+    fn.nargin = fn_def.argin.length;
+    return fn;
 }
 
 function variable(ctx, v, i)
@@ -1170,6 +1215,44 @@ function parse(s, ctx, lineStart, posStart)
                 statements.push(expr(while_end, arg));
                 continue;
             }
+            if (eat(/^function\b/))
+            {
+                end(true);
+                eat(/^[ \t\v\f]+/);
+                arg = {argout:null, name:null, argin:null, body:[]};
+                if (match = eat(/^([_a-z][_a-z0-9]*)\s*=\s*/i))
+                {
+                    // single output
+                    arg.argout = [match[1]];
+                }
+                else if (match = eat(/^\[\s*([_a-z][_a-z0-9]*(?:\s*,\s*[_a-z][_a-z0-9]*)*)\s*\]\s*=\s*/i))
+                {
+                    // multiple output
+                    arg.argout = match[1].split(',').map(function(v) {return v.trim();});
+                }
+                else
+                {
+                    // no output
+                    arg.argout = [];
+                }
+                if (match = eat(/^([_a-z][_a-z0-9]*)(?:\s*\((\s*([_a-z][_a-z0-9]*(?:\s*,\s*[_a-z][_a-z0-9]*)*)?\s*)\))?/i))
+                {
+                    arg.name = match[1];
+                    arg.argin = match[2] ? match[2].split(',').map(function(v) {return v.trim();}) : [];
+                }
+                else
+                {
+                    throw error('missing or invalid function declaration');
+                }
+                for (;;)
+                {
+                    tmp = parse_until(['end']);
+                    if (tmp) arg.body = arg.body.concat(tmp);
+                    if (eat('end') || !tmp) break;
+                }
+                ctx[arg.name] = def_fn(arg);
+                continue;
+            }
             if (match = eat(/^(continue|break|elseif|else|end)\b/, false))
             {
                 if (expected && (-1 < expected.indexOf(match[1])))
@@ -1331,11 +1414,11 @@ function parse(s, ctx, lineStart, posStart)
                 merge();
                 continue;
             }
-            if (match = eat(/^([_a-z][_a-z0-9]*)\s*\(/i))
+            if (match = eat(/^([_a-z][_a-z0-9]*)\s*(\(|\{)/i))
             {
-                // function or matrix indexing
+                // function or array indexing
                 m = match[1];
-                if (eat(/^\s*\:\s*\)/))
+                if (eat('(' === match[2] ? /^\s*\:\s*\)/ : /^\s*\:\s*\}/))
                 {
                     // single colon
                     term = expr('v', variable(ctx, m));
@@ -1348,19 +1431,24 @@ function parse(s, ctx, lineStart, posStart)
                     arg = [];
                     for (;;)
                     {
-                        tmp = parse_until(',)');
+                        tmp = parse_until('(' === match[2] ? ',)' : ',}');
                         if (tmp) arg.push(tmp);
                         if (!eat(',')) break;
                     }
-                    if (!eat(')')) throw error("mismatched parentheses");
-                    if (HAS.call(fn, m))
+                    if (!eat('(' === match[2] ? ')' : '}')) throw error('(' === match[2] ? "mismatched parentheses" : "mismatched brackets");
+                    if ('(' === match[2] && HAS.call(ctx, m) && is_callable(ctx[m]))
+                    {
+                        // defined function
+                        term = expr(ctx[m], arg);
+                    }
+                    else if ('(' === match[2] && HAS.call(fn, m))
                     {
                         // function
                         term = expr(fn[m], arg);
                     }
                     else
                     {
-                        // matrix indexing
+                        // array indexing
                         term = expr('v', variable(ctx, m, arg.length ? arg : null));
                     }
                     terms.unshift(term);
@@ -1378,7 +1466,12 @@ function parse(s, ctx, lineStart, posStart)
             {
                 // variable
                 m = match[0];
-                if (HAS.call(fn, m) && (0 === fn[m].length))
+                if (HAS.call(ctx, m) && is_callable(ctx[m]) && (0 === ctx[m].nargin))
+                {
+                    // defined function without arguments
+                    term = expr(ctx[m], []);
+                }
+                else if (HAS.call(fn, m) && (0 === fn[m].length))
                 {
                     // function without arguments
                     term = expr(fn[m], []);
@@ -1548,6 +1641,18 @@ function parse(s, ctx, lineStart, posStart)
                     throw error('mismatched parentheses');
                 }
             }
+            if ('}' === c)
+            {
+                if ((expected) && (-1 < expected.indexOf('}')))
+                {
+                    // end bracket
+                    break;
+                }
+                else
+                {
+                    throw error('mismatched brackets');
+                }
+            }
             if ((',' === c) && (expected) && (-1 < expected.indexOf(',')))
             {
                 break;
@@ -1607,6 +1712,7 @@ async function evaluate(e, v, $)
         else if ('v' === e.op)
         {
             // variable
+            if ($ && $.ctx) e.arg.ctx = $.ctx; // local context
             if (false === v)
             {
                 return e.arg;
@@ -1654,12 +1760,17 @@ async function evaluate(e, v, $)
             if (is_array(argout) && is_instance(argout[0], variable))
             {
                 $.nargout = argout.length; // variable output
+                if ($.ctx) argout = argout.map(function(v) {v.ctx = $.ctx; return v;});
+            }
+            if (is_instance(argout, variable))
+            {
+                if ($.ctx) argout.ctx = $.ctx;
             }
             if ((2 === e.arg.length) && ('v' === e.arg[1].op))
             {
                 // A = B, A = B(:,:), ..
                 // make sure a copy is set and not by reference
-                return await e.op.apply(null, [argout, /*(e.arg[0].arg.v === e.arg[1].arg.v) ||*/ e.arg[1].arg.isByRef() ? copy(await evaluate(e.arg[1], v, $, true)) : await evaluate(e.arg[1], v, $, true)]);
+                return await e.op.apply(null, [argout, /*(e.arg[0].arg.v === e.arg[1].arg.v) ||*/ e.arg[1].arg.isByRef() ? copy(await evaluate(e.arg[1], v, $)) : await evaluate(e.arg[1], v, $)]);
             }
             else
             {

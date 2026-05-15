@@ -932,7 +932,7 @@ codemirror_define_grammar_mode("scilite", {
                                     // start, end delims  (null matches end-of-line)
                                     ["%",  null]
                                 ]}
-    ,"<keyword>"                : {"autocomplete":true,"tokens":["if","elseif","else","for","while","break","continue","end"]}
+    ,"<keyword>"                : {"autocomplete":true,"tokens":["function","if","elseif","else","for","while","break","continue","end"]}
     ,"<builtin>"                : {"autocomplete":true,"tokens":Object.keys($.fn)}
     ,"<identifier>"             : "RE::/[_A-Za-z][_A-Za-z0-9]*/"
     ,"<string>"                 : {"type":"block","tokens":

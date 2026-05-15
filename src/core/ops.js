@@ -1318,7 +1318,7 @@ function get(mat /*, ..slices*/)
 {
     // indices start from 1 to end
     // B=A(:,[5 6]); B=get(A,':','4,5');
-    var slices = [].slice.call(arguments, 1), sz = size(mat), tot, ret;
+    var slices = [].slice.call(arguments, 1), sz = is_1d(mat) ? [mat.length] : size(mat), tot, ret;
     if (1 === slices.length)
     {
         if (is_array(slices[0]) && arr_eq(sz, size(slices[0])) && all(slices[0], function(v) {return 0 === _(v) || 1 === _(v);}))
@@ -1404,10 +1404,11 @@ function set(mat /*, ..slices, val*/)
     // B=A(:,[5 6]); B=get(A,':','4,5');
     var slices = [].slice.call(arguments, 1, -1),
         val = arguments[arguments.length-1],
-        sz = size(mat), szv, tot, ret;
+        sz = is_1d(mat) ? [mat.length] : size(mat),
+        szv = is_1d(val) ? [val.length] : size(val),
+        tot, ret;
     if (!mat.length && slices.length)
     {
-        szv = size(val);
         slices.forEach(function(slice, dim) {
             if (!(((dim < szv.length) && (':' === slice)) || ((dim >= szv.length) && (1 === _(slice)))))
             {
@@ -1418,7 +1419,6 @@ function set(mat /*, ..slices, val*/)
     }
     else if (sz.length < slices.length)
     {
-        szv = size(val);
         slices.forEach(function(slice, dim) {
             if (!(((dim < szv.length) && (':' === slice)) || ((dim === slices.length-1) && (2 === _(slice))) || ((dim >= szv.length) && (dim < slices.length-1) && (1 === _(slice)))))
             {
@@ -1429,14 +1429,13 @@ function set(mat /*, ..slices, val*/)
     }
     else if (is_int(slices[slices.length-1]) && (sz[sz.length-1]+1 === _(slices[slices.length-1])))
     {
-        szv = size(val);
         mat = tensorview(mat, {shape: sz}).concat(tensorview(val, {shape: !is_array(val) ? (sz.slice(0, -1).concat(1)) : (szv.concat(array(slices.length-szv.length, 1)))}), slices.length-1).toNDArray();
     }
     else if (1 === slices.length)
     {
         if (is_array(slices[0]) && arr_eq(sz, size(slices[0])) && all(slices[0], function(v) {return 0 === _(v) || 1 === _(v);}))
         {
-            tensorview(mat, {shape:sz, ndarray:sz}).select(tonumber(slices[0])).setFrom(tensorview(val));
+            tensorview(mat, {shape:sz, ndarray:sz}).select(tonumber(slices[0])).setFrom(tensorview(val, {shape:is_array(val) ? szv : null, ndarray:is_array(val) ? szv : null}));
         }
         else
         {
@@ -1464,7 +1463,7 @@ function set(mat /*, ..slices, val*/)
                 {
                     throw "set: invalid range";
                 }
-            })).setFrom(tensorview(val));
+            })).setFrom(tensorview(val, {shape:is_array(val) ? szv : null, ndarray:is_array(val) ? szv : null}));
         }
     }
     else
@@ -1492,7 +1491,7 @@ function set(mat /*, ..slices, val*/)
             {
                 throw "set: invalid range";
             }
-        })).setFrom(tensorview(val));
+        })).setFrom(tensorview(val, {shape:is_array(val) ? szv : null, ndarray:is_array(val) ? szv : null}));
     }
     return mat;
 }
