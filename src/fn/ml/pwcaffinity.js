@@ -118,15 +118,16 @@ function pwcaffinity(s, damping, max_iter)
     }, []);
     K = e.length;
     return array(n, function(i) {
-        var max = -inf, score = 0, cluster = 0, k;
+        var max = -inf, score = 0, cluster = 0, k, j;
         for (k=0; k<K; ++k)
         {
-            if (e[k] === i)
+            j = e[k];
+            if (j === i)
             {
                 cluster = k;
                 break;
             }
-            score = r[i][e[k]] + a[e[k]][i];
+            score = r[i][j] + a[j][i];
             if (score > max)
             {
                 max = score;
