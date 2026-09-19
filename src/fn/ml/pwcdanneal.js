@@ -26,9 +26,7 @@ function pwcdanneal(D, k, alpha, max_iter)
     if (!Tstart)
     {
         // trivial
-        return matrix(n, k, function(i, j) {
-            return 0 === j ? 1 : 0;
-        });
+        return array(n, 1);
     }
 
     // initialize in (0,1) uniformly
