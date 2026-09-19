@@ -48,7 +48,7 @@ function pwcaffinity(s, damping, max_iter)
                 for (j=0; j<n; ++j)
                 {
                     if (j === k) continue;
-                    t = stdMath.max(t, a[j][i] + t2[j]);
+                    t = stdMath.max(t, a[j][i] + tmp2[j]);
                 }
                 tmp1[k] = tmp2[k] - t;
             }
