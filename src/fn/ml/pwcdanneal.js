@@ -108,7 +108,13 @@ function pwcdanneal(D, k, alpha, max_iter)
         }
         T = alpha*T;   // decrease temperature exponentially
     }
-    return M;
+    return array(n, function(i) {
+        for (var Mi=M[i],cluster=0,c=1; c<k; ++c)
+        {
+            if (Mi[c] > Mi[cluster]) cluster = c;
+        }
+        return cluster+1;
+    });
 }
 fn.pwcdanneal = function(D, k) {
     k = stdMath.round(_(sca(k, true)));
@@ -126,12 +132,5 @@ fn.pwcdanneal = function(D, k) {
         }
         i += 2;
     }
-    var M = pwcdanneal(D, k, alpha, max_iter);
-    return array(ROWS(M), function(i) {
-        for (var Mi=M[i],cluster=0,c=1; c<k; ++c)
-        {
-            if (Mi[c] > Mi[cluster]) cluster = c;
-        }
-        return cluster+1;
-    });
+    return pwcdanneal(D, k, alpha, max_iter);
 };
