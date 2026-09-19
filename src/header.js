@@ -1,7 +1,7 @@
 /**
 *
 * SciLite,
-* A scientific computing environment similar to Octave/Matlab in pure JavaScript
+* A scientific computing environment similar to Octave/Matlab/SciPy in pure JavaScript
 * @version: @@VERSION@@
 * @@DATE@@
 * https://github.com/foo123/SciLite
