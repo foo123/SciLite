@@ -11,7 +11,7 @@ function pwcaffinity(s, damping, max_iter)
     if (null == max_iter) max_iter = 100;
     if (null == damping) damping = 0.5;
 
-    var n = ROWS(S), r, a,
+    var n = ROWS(s), r, a,
         e, e_prev,
         tmp, tmp1, tmp2,
         iter, notchanged,
