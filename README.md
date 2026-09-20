@@ -50,13 +50,13 @@ let [Ref, Pivots] = fn.rref.nargout(2)(A); // variable output
 ```
 
 ### Todo
-* implement more builtin functions from Octave/Matlab (IN PROGRESS)
+* implement more builtin functions from Octave/Matlab **[DONE PARTIALLY]**
 * complete implementation of the usual matrix decompositions, eg `lu`, `qr`, `schur`, `eig`, `svd` **[DONE]**
 * complete implementation of the usual matrix functions, eg `sqrtm`, `expm`, `logm` **[DONE]**
 * complete implementation of extra matrix functions, eg `cosm`, `acosm`, .. **[DONE]**
 * implement generalized `schur`/`qz` decomposition (TODO)
 * implement generalized/polynomial `eig` decomposition (TODO)
-* implement more machine learning functions (IN PROGRESS)
+* implement more machine learning functions **[DONE PARTIALLY]**
 * implement some independent component/subspace analysis functions (eg `jade`, `picard`, ..) (IN PROGRESS)
 * support arbitrary precision computations (w/ `Decimal`) **[DONE]**
 * support multi-dimensional nd-arrays (w/ `TensorView`) **[DONE]**
