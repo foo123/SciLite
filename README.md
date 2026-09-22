@@ -10,7 +10,7 @@ A **scientific computing environment** similar to Octave/Matlab/SciPy, in pure J
 
 [SciLite Live](https://foo123.github.io/examples/scilite/)
 
-SciLite includes an optional interpreter that handles (almost) all of Octave/Matlab (see demo), however one can use the SciLite methods directly in JavaScript as well.
+SciLite includes an optional interpreter that handles (almost) all of Octave/Matlab syntax (see demo), however one can use the SciLite methods directly in JavaScript as well.
 
 **example**
 
