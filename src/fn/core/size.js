@@ -6,10 +6,10 @@ function size(x)
 {
     var dims = [].slice.call(arguments, 1), sizex;
     if (is_array(dims[0])) dims = vec(dims[0]);
-    if ((null != x) && x.$scilitedims$)
+    if ((null != x) && x.$scilitecell$)
     {
         // cell array with given dims
-        sizex = x.$scilitedims$.slice();
+        sizex = x.$scilitecell$.slice();
         if (sizex.length < 1) sizex = [1, 1];
         else if (sizex.length < 2) sizex.unshift(sizex[0] ? 1 : 0);
     }

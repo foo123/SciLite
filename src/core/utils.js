@@ -69,6 +69,12 @@ $_.decimal = function(Decimal) {
     }
     constant["true"] = I;
     constant["false"] = O;
+    constant["0"] = O;
+    constant["1"] = I;
+    constant["-1"] = J;
+    constant["1/2"] = half;
+    constant["2"] = two;
+    constant["10"] = ten;
     if (complex)
     {
         i = new complex(O, I);
@@ -145,42 +151,47 @@ function is_scalar(x, strict)
     if (is_number(x) || is_complex(x) || is_decimal(x)) return true;
     if (false === strict)
     {
-        if (is_vector(x) && (1 === x.length)) return true;
-        if (is_matrix(x) && (1 === x.length) && (1 === x[0].length)) return true;
+        if (is_vector(x, false) && (1 === x.length)) return true;
+        if (is_matrix(x, false) && (1 === x.length) && (1 === x[0].length)) return true;
     }
     return false;
 }
 $_.is_scalar = is_scalar;
-function is_vector(x)
+function is_vector(x, no_cell)
 {
-    if ((null != x) && x.$scilitedims$) return x.$scilitedims$.length === 1;
+    if ((null != x) && x.$scilitecell$) return false === no_cell ? (x.$scilitecell$.length === 1) : false;
     return is_array(x) && is_scalar(x[0]);
 }
 $_.is_vector = is_vector;
-function is_matrix(x)
+function is_matrix(x, no_cell)
 {
-    if ((null != x) && x.$scilitedims$) return x.$scilitedims$.length === 2;
+    if ((null != x) && x.$scilitecell$) return false === no_cell ? (x.$scilitecell$.length === 2) : false;
     return is_array(x) && is_array(x[0]) && is_scalar(x[0][0]);
 }
 $_.is_matrix = is_matrix;
+function is_cell(x)
+{
+    return is_array(x) && !!x.$scilitecell$;
+}
+//$_.is_cell = is_cell;
 function is_0d(x)
 {
-    if ((null != x) && x.$scilitedims$) return x.$scilitedims$.length < 1;
+    if ((null != x) && x.$scilitecell$) return x.$scilitecell$.length < 1;
     return !is_array(x);
 }
 function is_1d(x)
 {
-    if ((null != x) && x.$scilitedims$) return x.$scilitedims$.length < 2;
+    if ((null != x) && x.$scilitecell$) return x.$scilitecell$.length < 2;
     return is_array(x) && !is_array(x[0]);
 }
 function is_2d(x)
 {
-    if ((null != x) && x.$scilitedims$) return x.$scilitedims$.length > 1;
+    if ((null != x) && x.$scilitecell$) return x.$scilitecell$.length > 1;
     return is_array(x) && is_array(x[0]);
 }
 function is_nd(x)
 {
-    if ((null != x) && x.$scilitedims$) return x.$scilitedims$.length > 2;
+    if ((null != x) && x.$scilitecell$) return x.$scilitecell$.length > 2;
     return is_array(x) && is_array(x[0]) && is_array(x[0][0]);
 }
 function array(n, v)
@@ -237,7 +248,7 @@ ndarray.indices = function(dims, f) {
 $_.ndarray = ndarray;
 function cellarray(array, dims)
 {
-    array.$scilitedims$ = dims || [];
+    array.$scilitecell$ = dims || [];
     return array;
 }
 function rowvec(n, v)
@@ -268,11 +279,11 @@ function sca(x, real)
     {
         return real ? x.re : x;
     }
-    else if (is_vector(x) && (1 === x.length))
+    else if (is_vector(x, false) && (1 === x.length))
     {
         return sca(x[0], real);
     }
-    else if (is_matrix(x) && (1 === x.length) && (1 === x[0].length))
+    else if (is_matrix(x, false) && (1 === x.length) && (1 === x[0].length))
     {
         return sca(x[0][0], real);
     }
@@ -293,7 +304,7 @@ function vec(x)
     {
         return x;
     }
-    else if (is_2d(x) && !is_nd(x))
+    else if (is_matrix(x))
     {
         if (1 === ROWS(x)) return x[0];
         else if (1 === COLS(x)) return x.map(function(xi) {return xi[0];});
@@ -308,12 +319,12 @@ $_.vec = vec;
 
 function ROWS(mat)
 {
-    if ((null != mat) && mat.$scilitedims$) return mat.$scilitedims$[0] || 1;
+    if ((null != mat) && mat.$scilitecell$) return mat.$scilitecell$[0] || 0;
     return mat.length;
 }
 function COLS(mat)
 {
-    if ((null != mat) && mat.$scilitedims$) return mat.$scilitedims$[1] || 1;
+    if ((null != mat) && mat.$scilitecell$) return mat.$scilitecell$[1] || 1;
     return mat[0].length;
 }
 function ROW(mat, i)
@@ -365,7 +376,12 @@ $_.todecimal = todecimal;
 
 function copy(x)
 {
-    if (is_array(x)) x = x.map(function(xi) {return copy(xi);});
+    if (is_array(x))
+    {
+        var x2 = x.map(copy);
+        if (x.$scilitecell$) x2.$scilitecell$ = x.$scilitecell$.slice();
+        return x2;
+    }
     return x;
 }
 $_.copy = copy;
@@ -690,7 +706,7 @@ function texify(x)
     }
     else if (is_num(x))
     {
-        x = ([eps,realmax,realmin,intmax,intmin]).reduce(function(v, c) {return v || n_eq(x, c);}, false) ? String(x) : (num2str(x).split('e').join('\\text{e}').split('nan').join('\\text{nan}').split('inf').join('\\text{inf}'));
+        x = ([eps,realmax,realmin,intmax,intmin]).reduce(function(v, c) {return v || n_eq(x, c);}, false) ? (String(x).split('e').join('\\text{e}')) : (num2str(x).split('e').join('\\text{e}').split('nan').join('\\text{nan}').split('inf').join('\\text{inf}'));
     }
     else if (is_complex(x))
     {
@@ -699,7 +715,10 @@ function texify(x)
     else if (is_2d(x))
     {
         // 2d or nd array
-        x = tensorview.stringify('tex', x, size(x), texify, $_.MAXPRINTSIZE, 1);
+        x = (x.$scilitecell$ ? '\\text{cell }' : '') + (tensorview.stringify('tex', x, size(x), x.$scilitecell$ ? function(x) {
+            return '\\{' + (is_string(x) ? '\\text{"'+x+'"}' : (is_array(x) ? (x.$scilitecell$ ? '\\text{cell }' : '') + size(x).join(' \\times ') : texify(x))) + '\\}';
+        } : texify, $_.MAXPRINTSIZE, 1));
+        if ('\\text{cell }\\displaylines{' === x.slice(0, 26)) x = x.replace('\\text{cell }\\displaylines{', '\\displaylines{\\text{cell }');
     }
     else if (is_array(x))
     {
@@ -707,7 +726,9 @@ function texify(x)
         {
             x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat(['\\cdots']).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
         }
-        x = x.map(texify).join(' \\hskip 1em ');
+        x = x.map(x.$scilitecell$ ? function(x) {
+            return '\\{' + (is_string(x) ? '\\text{"'+x+'"}' : (is_array(x) ? (x.$scilitecell$ ? '\\text{cell }' : '') + size(x).join(' \\times ') : texify(x))) + '\\}';
+        } : texify).join(' \\hskip 1em ');
     }
     else if (("object" === typeof x) || ("function" === typeof x))
     {
@@ -740,12 +761,14 @@ $_.tex = function(x) {
                     x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat('\\vdots').concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
                 }
                 //x = "\\[" + x.map(texify).join(' \\hskip 1em ') + "\\]";
-                x = "\\[" + x.map(texify).join("\\]\n\\[") + "\\]";
+                x = "\\[" + x.map(x.$scilitecell$ ? function(x) {
+                    return '\\{' + (is_string(x) ? '\\text{"'+x+'"}' : (is_array(x) ? (x.$scilitecell$ ? '\\text{cell }' : '') + size(x).join(' \\times ') : texify(x))) + '\\}';
+                } : texify).join("\\]\n\\[") + "\\]";
             }
         }
         else
         {
-            x = '';
+            x = x.$scilitecell$ ? "\\[" + '\\text{cell }' + size(x).join(' \\times ') + "\\]" : '';
         }
     }
     else
@@ -781,7 +804,9 @@ function stringify(x)
     else if (is_2d(x))
     {
         // 2d or nd array
-        x = tensorview.stringify('str', x, size(x), stringify, $_.MAXPRINTSIZE, 1);
+        x = (x.$scilitecell$ ? 'cell ' : '') + tensorview.stringify('str', x, size(x), x.$scilitecell$ ? function(x) {
+            return '{' + (is_string(x) ? '"'+x+'"' : (is_array(x) ? (x.$scilitecell$ ? 'cell ' : '') + size(x).join("\u00D7") : stringify(x))) + '}';
+        } : stringify, $_.MAXPRINTSIZE, 1);
     }
     else if (is_array(x))
     {
@@ -789,7 +814,9 @@ function stringify(x)
         {
             x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat(['..']).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
         }
-        x = x.map(stringify).join('  ');
+        x = x.map(x.$scilitecell$ ? function(x) {
+            return '{' + (is_string(x) ? '"'+x+'"' : (is_array(x) ? (x.$scilitecell$ ? 'cell ' : '') + size(x).join("\u00D7") : stringify(x))) + '}';
+        } : stringify).join('  ');
     }
     else if (("object" === typeof x) || ("function" === typeof x))
     {
@@ -821,12 +848,14 @@ $_.str = function(x) {
                 {
                     x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat(':').concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
                 }
-                x = x.map(stringify).join("\n");
+                x = x.map(x.$scilitecell$ ? function(x) {
+                    return '{' + (is_string(x) ? '"'+x+'"' : (is_array(x) ? (x.$scilitecell$ ? 'cell ' : '') + size(x).join("\u00D7") : stringify(x))) + '}';
+                } : stringify).join("\n");
             }
         }
         else
         {
-            x = '';
+            x = x.$scilitecell$ ? 'cell ' + size(x).join("\u00D7") : '';
         }
     }
     else

@@ -4,13 +4,13 @@ A **scientific computing environment** similar to Octave/Matlab/SciPy, in pure J
 
 ![SciLite](./scilite.png)
 
-**v.0.10.0 in progress** (131 kB minified)
+**v.0.10.0** (139 kB minified)
 
 [![SciLite](./scilite-live.png)](https://foo123.github.io/examples/scilite/)
 
 [SciLite Live](https://foo123.github.io/examples/scilite/)
 
-SciLite includes an optional interpreter that handles all of Octave/Matlab syntax except `function` definitions (see demo), however one can use the SciLite methods directly in JavaScript as well.
+SciLite includes an optional interpreter that handles (almost) all of Octave/Matlab (see demo), however one can use the SciLite methods directly in JavaScript as well.
 
 **example**
 
@@ -50,6 +50,10 @@ let [Ref, Pivots] = fn.rref.nargout(2)(A); // variable output
 ```
 
 ### Todo
+* support arbitrary precision computations (w/ `Decimal`) **[DONE]**
+* support multi-dimensional nd-arrays (w/ `TensorView`) **[DONE]**
+* support cell arrays **[DONE]**
+* support user defined functions similar to Octave/Matlab **[DONE]**
 * implement more builtin functions from Octave/Matlab **[DONE PARTIALLY]**
 * complete implementation of the usual matrix decompositions, eg `lu`, `qr`, `schur`, `eig`, `svd` **[DONE]**
 * complete implementation of the usual matrix functions, eg `sqrtm`, `expm`, `logm` **[DONE]**
@@ -58,11 +62,8 @@ let [Ref, Pivots] = fn.rref.nargout(2)(A); // variable output
 * implement generalized/polynomial `eig` decomposition (TODO)
 * implement more machine learning functions **[DONE PARTIALLY]**
 * implement some independent component/subspace analysis functions (eg `jade`, `picard`, ..) (IN PROGRESS)
-* support arbitrary precision computations (w/ `Decimal`) **[DONE]**
-* support multi-dimensional nd-arrays (w/ `TensorView`) **[DONE]**
 * support symbolic computations (TODO)
 * support GPU computations and mix of CPU/GPU computations (TODO)
-* support user-defined functions similar to Octave/Matlab (IN PROGRESS)
 
 **see also:**
 

@@ -56,6 +56,8 @@ var tensorview = null,
         _: {},
         // builtin functions
         fn: {},
+        // user-defined functions
+        "@fn": {},
         // symbolic computation
         sym: {
             fn: {}
@@ -72,7 +74,9 @@ var tensorview = null,
             intmin: intmin,
             inf: inf, Inf: inf,
             nan: nan, NaN: nan,
-            "true": I, "false": O
+            "true": I, "false": O,
+            "0": O, "1": I, "-1": J,
+            "1/2": half, "2": two, "10": ten
         }
     },
     $_ = $._,

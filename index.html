@@ -446,6 +446,7 @@ window.MathJax = {
 • <a href="#" aria-label="run matrices example" onclick="return runExample('matrices');">Matrices</a>
 <br>
 <a href="#" aria-label="run multidimensional arrays example" onclick="return runExample('ndarrays');">Multi Dimensional Arrays</a>
+• <a href="#" aria-label="run cell arrays example" onclick="return runExample('cells');">Cells</a>
 <br>
 <a href="#" aria-label="run linear algebra example" onclick="return runExample('linalg');">Linear Algebra</a>
 • <a href="#" aria-label="run matrix functions example" onclick="return runExample('matfun');">Matrix Functions</a>
@@ -460,7 +461,7 @@ window.MathJax = {
 <a href="#" aria-label="run if-else example" onclick="return runExample('ifelse');">If-ElseIf-Else</a>
 • <a href="#" aria-label="run loops example" onclick="return runExample('loops');">Loops</a>
 <br>
-<a href="#" aria-label="run define functions example" onclick="return runExample('def_functions');">Define Functions</a>
+<a href="#" aria-label="run user functions example" onclick="return runExample('user_functions');">User Functions</a>
 </div>
 
 <span class="label">&nbsp;</span><div id="output"></div><br>
@@ -657,6 +658,24 @@ function init($)
                 '% and more..'
                 ]);
             break;
+            case 'cells':
+                return run_session([
+                '% cell arrays',
+                'C = {}',
+                'C = cell([2 3])',
+                'C = {1,2,3;"text",rand(5,10,2),{11; 22; 33}}',
+                'C = {"2017-08-16",[56 67 78]}',
+                'C(2,:) = {"2017-08-17",[58 69 79]};',
+                'C(3,:) = {"2017-08-18",[60 68 81]}',
+                'C(3,1)',
+                'C{3,1}',
+                'C{3,1} = "changed";',
+                'C',
+                'C(3,1) = {"changed2"};',
+                'C',
+                '% and more..'
+                ]);
+            break;
             case 'linalg':
                 return run_session([
                 '% linear algebra',
@@ -829,9 +848,9 @@ function init($)
                 'while a==0\n b=b+1\n if b==3\n  break\n end\nend'
                 ]);
             break;
-            case 'def_functions':
+            case 'user_functions':
                 return run_session([
-                '% define custom functions',
+                '% user defined functions',
                 'function fn=factorial(n)\n fn=prod(1:n);\nend',
                 'function [s,varargout]=mysize(x)\n nout=max([nargout 1])-1;\n s=size(x);\n for i=1:nout\n  varargout{i}=s(i);\n end\nend',
                 'function varargout=echo(varargin)\n for i=1:min([nargin nargout])\n  varargout{i}=varargin{i};\n end\nend',

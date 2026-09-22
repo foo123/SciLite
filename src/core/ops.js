@@ -1318,13 +1318,18 @@ function get(mat /*, ..slices*/)
 {
     // indices start from 1 to end
     // B=A(:,[5 6]); B=get(A,':','4,5');
-    var slices = [].slice.call(arguments, 1), sz = is_1d(mat) ? [mat.length] : size(mat), tot, ret;
+    if (!is_array(mat)) return mat;
+    var has_b = '()' === arguments[1] || '{}' === arguments[1],
+        b = has_b ? arguments[1] : '()', iscell = is_cell(mat),
+        slices = [].slice.call(arguments, has_b ? 2 : 1),
+        sz = is_1d(mat) ? [mat.length] : size(mat), tot, ret;
     if (1 === slices.length)
     {
         if (is_array(slices[0]) && arr_eq(sz, size(slices[0])) && all(slices[0], function(v) {return 0 === _(v) || 1 === _(v);}))
         {
             ret = tensorview(mat, {shape:sz, ndarray:sz}).select(tonumber(slices[0])).permute(array(sz.length, function(i) {return sz.length-1-i;})).toArray();
-            if (1 === ret.length) ret = ret[0];
+            if ((1 === ret.length) && ('{}' === b || !iscell)) ret = ret[0];
+            else if (iscell) ret = cellarray(ret, [ret.length]);
         }
         else
         {
@@ -1353,7 +1358,8 @@ function get(mat /*, ..slices*/)
                     throw "get: invalid range";
                 }
             })).toArray();
-            if (1 === ret.length) ret = ret[0];
+            if ((1 === ret.length) && ('{}' === b || !iscell)) ret = ret[0];
+            else if (iscell) ret = cellarray(ret, [ret.length]);
         }
     }
     else
@@ -1385,14 +1391,17 @@ function get(mat /*, ..slices*/)
         if (1 === ret.length)
         {
             ret = ret.get(array(ret.dimension, 0));
+            if (iscell && ('()' === b)) ret = cellarray([ret], [1]);
         }
         else if (0 === ret.length)
         {
             ret = [];
+            if (iscell && ('()' === b)) ret = cellarray([ret], [1]);
         }
         else
         {
-            ret = ret.toNDArray();
+            if (iscell && ('()' === b)) ret = cellarray(ret.toNDArray(), ret.shape());
+            else ret = ret.toNDArray();
         }
     }
     return ret;
@@ -1402,11 +1411,16 @@ function set(mat /*, ..slices, val*/)
 {
     // indices start from 1 to end
     // B=A(:,[5 6]); B=get(A,':','4,5');
-    var slices = [].slice.call(arguments, 1, -1),
-        val = arguments[arguments.length-1],
+    if (!is_array(mat)) return arguments[arguments.length-1];
+    var has_b = 3 <= arguments.length && ('()' === arguments[1] || '{}' === arguments[1]),
+        b = has_b ? arguments[1] : '()',
+        slices = [].slice.call(arguments, has_b ? 2 : 1, -1),
+        val = '{}' === b ? [arguments[arguments.length-1]] : arguments[arguments.length-1],
+        iscell = is_cell(mat), iscellv = is_cell(val),
         sz = is_1d(mat) ? [mat.length] : size(mat),
-        szv = is_1d(val) ? [val.length] : size(val),
-        tot, ret;
+        szv = '{}' === b ? [1] : (is_1d(val) ? [val.length] : size(val)),
+        tot, concat_dim = -1;
+    //if (iscellv && ('()' === b) && (2 === szv.length/*only?*/) && arr_eq(szv, array(szv.length, 1))) szv = [1];
     if (!mat.length && slices.length)
     {
         slices.forEach(function(slice, dim) {
@@ -1415,7 +1429,15 @@ function set(mat /*, ..slices, val*/)
                 throw "set: invalid range";
             }
         });
-        mat = tensorview(val, {shape:szv.concat(array(slices.length-szv.length, 1))}).toNDArray();
+        mat = tensorview(val, {shape:szv.concat(array(slices.length-szv.length, 1))});
+        if (iscell || iscellv)
+        {
+            mat = cellarray(mat.toNDArray(), mat.shape());
+        }
+        else
+        {
+            mat = mat.toNDArray();
+        }
     }
     else if (sz.length < slices.length)
     {
@@ -1425,22 +1447,47 @@ function set(mat /*, ..slices, val*/)
                 throw "set: invalid range";
             }
         });
-        mat = tensorview(mat, {shape: sz.concat(array(slices.length-sz.length, 1))}).concat(tensorview(val, {shape: szv.concat(array(slices.length-szv.length, 1))}), slices.length-1).toNDArray();
+        mat = tensorview(mat, {shape: sz.concat(array(slices.length-sz.length, 1))}).concat(tensorview(val, {shape: szv.concat(array(slices.length-szv.length, 1))}), slices.length-1);
+        if (iscell)
+        {
+            mat = cellarray(mat.toNDArray(), mat.shape());
+        }
+        else
+        {
+            mat = mat.toNDArray();
+        }
     }
     else if (is_int(slices[slices.length-1]) && (sz[sz.length-1]+1 === _(slices[slices.length-1])))
     {
-        mat = tensorview(mat, {shape: sz}).concat(tensorview(val, {shape: !is_array(val) ? (sz.slice(0, -1).concat(1)) : (szv.concat(array(slices.length-szv.length, 1)))}), slices.length-1).toNDArray();
+        mat = tensorview(mat, {shape: sz}).concat(tensorview(val, {shape: !is_array(val) ? (sz.slice(0, -1).concat(1)) : (szv.concat(array(slices.length-szv.length, 1)))}), slices.length-1);
+        if (iscell)
+        {
+            mat = cellarray(mat.toNDArray(), mat.shape());
+        }
+        else
+        {
+            mat = mat.toNDArray();
+        }
     }
     else if (1 === slices.length)
     {
         if (is_array(slices[0]) && arr_eq(sz, size(slices[0])) && all(slices[0], function(v) {return 0 === _(v) || 1 === _(v);}))
         {
+            /*if (iscell && iscellv)
+            {
+                tot = _(nnz(slices[0]));
+                if (1 < tot)
+                {
+                    val = array(tot, function(i) {return i ? copy(val) : val;});
+                    szv = [tot];
+                }
+            }*/
             tensorview(mat, {shape:sz, ndarray:sz}).select(tonumber(slices[0])).setFrom(tensorview(val, {shape:is_array(val) ? szv : null, ndarray:is_array(val) ? szv : null}));
         }
         else
         {
             tot = prod(sz);
-            tensorview(mat, {shape:sz, ndarray:sz}).permute(array(sz.length, function(i) {return sz.length-1-i;})).reshape([tot]).slice(slices.map(function(slice, dim) {
+            slices = slices.map(function(slice, dim) {
                 if (is_string(slice))
                 {
                     return slice;
@@ -1448,14 +1495,30 @@ function set(mat /*, ..slices, val*/)
                 else if (is_int(slice))
                 {
                     var index = _(slice);
-                    if (1 <= index && index <= tot) return index-1;
+                    if (1 <= index && index <= tot)
+                    {
+                        return index-1;
+                    }
+                    /*else if (index === tot+1)
+                    {
+                        concat_dim = dim;
+                        return index-1;
+                    }*/
                     throw "set: index out of bounds";
                 }
                 else if (is_vector(slice))
                 {
                     return slice.map(function(index) {
                         index = _(index);
-                        if (1 <= index && index <= tot) return index-1;
+                        if (1 <= index && index <= tot)
+                        {
+                            return index-1;
+                        }
+                        /*else if (index === tot+1)
+                        {
+                            concat_dim = dim;
+                            return index-1;
+                        }*/
                         throw "set: index out of bounds";
                     });
                 }
@@ -1463,12 +1526,28 @@ function set(mat /*, ..slices, val*/)
                 {
                     throw "set: invalid range";
                 }
-            })).setFrom(tensorview(val, {shape:is_array(val) ? szv : null, ndarray:is_array(val) ? szv : null}));
+            });
+            /*if (null != concat_dim)
+            {
+                mat = tensorview(mat, {shape: sz}).concat(tensorview(val, {shape: !is_array(val) ? (sz.slice(0, concat_dim).concat(1).concat(sz.slice(concat_dim+1))) : (szv.concat(array(slices.length-szv.length, 1)))}), concat_dim);
+                if (iscell)
+                {
+                    mat = cellarray(mat.toNDArray(), mat.shape());
+                }
+                else
+                {
+                    mat = mat.toNDArray();
+                }
+            }
+            else
+            {*/
+                tensorview(mat, {shape:sz, ndarray:sz}).permute(array(sz.length, function(i) {return sz.length-1-i;})).reshape([tot]).slice(slices).setFrom(tensorview(val, {shape:is_array(val) ? szv : null, ndarray:is_array(val) ? szv : null}));
+            /*}*/
         }
     }
     else
     {
-        tensorview(mat, {shape:sz, ndarray:sz}).slice(slices.map(function(slice, dim) {
+        slices = slices.map(function(slice, dim) {
             if (is_string(slice))
             {
                 return slice;
@@ -1476,14 +1555,30 @@ function set(mat /*, ..slices, val*/)
             else if (is_int(slice))
             {
                 var index = _(slice);
-                if (1 <= index && index <= sz[dim]) return index-1;
+                if (1 <= index && index <= sz[dim])
+                {
+                    return index-1;
+                }
+                else if (index === sz[dim]+1)
+                {
+                    concat_dim = dim;
+                    return index-1;
+                }
                 throw "set: index out of bounds";
             }
             else if (is_vector(slice))
             {
                 return slice.map(function(index) {
                     index = _(index);
-                    if (1 <= index && index <= sz[dim]) return index-1;
+                    if (1 <= index && index <= sz[dim])
+                    {
+                        return index-1;
+                    }
+                    else if (index === sz[dim]+1)
+                    {
+                        concat_dim = dim;
+                        return index-1;
+                    }
                     throw "set: index out of bounds";
                 });
             }
@@ -1491,7 +1586,23 @@ function set(mat /*, ..slices, val*/)
             {
                 throw "set: invalid range";
             }
-        })).setFrom(tensorview(val, {shape:is_array(val) ? szv : null, ndarray:is_array(val) ? szv : null}));
+        });
+        if (-1 < concat_dim)
+        {
+            mat = tensorview(mat, {shape: sz}).concat(tensorview(val, {shape: !is_array(val) ? (sz.slice(0, concat_dim).concat(1).concat(sz.slice(concat_dim+1))) : (szv.concat(array(slices.length-szv.length, 1)))}), concat_dim);
+            if (iscell)
+            {
+                mat = cellarray(mat.toNDArray(), mat.shape());
+            }
+            else
+            {
+                mat = mat.toNDArray();
+            }
+        }
+        else
+        {
+            tensorview(mat, {shape:sz, ndarray:sz}).slice(slices).setFrom(tensorview(val, {shape:is_array(val) ? szv : null, ndarray:is_array(val) ? szv : null}));
+        }
     }
     return mat;
 }

@@ -186,6 +186,7 @@ $.fn.exist = function(variable) {
     return ctx && $._.exist(variable, ctx) ? 1 : 0;
 };
 $.fn.clear = function() {
+    if (arguments.length && ('all' === arguments[0])) $["@fn"] = {}; // clear user-defined functions
     ctx = null;
 };
 $.fn.eval = async function(code) {
@@ -930,7 +931,10 @@ codemirror_define_grammar_mode("scilite", {
     "<comment>"                 : {"type":"comment","tokens":[
                                     // line comment
                                     // start, end delims  (null matches end-of-line)
-                                    ["%",  null]
+                                    ["%",  null],
+                                    // block comment
+                                    // start, end delims
+                                    ["{%",  "%}"]
                                 ]}
     ,"<keyword>"                : {"autocomplete":true,"tokens":["function","if","elseif","else","for","while","break","continue","end"]}
     ,"<builtin>"                : {"autocomplete":true,"tokens":Object.keys($.fn)}
@@ -1003,7 +1007,7 @@ function serialize(x)
 {
     if (Array.isArray(x))
     {
-        return x.map(serialize);
+        return x.$scilitecell$ ? {cell:x.map(serialize), dims:x.$scilitecell$.slice()} : x.map(serialize);
     }
     else if (x instanceof $.fn.complex)
     {
@@ -1016,7 +1020,13 @@ function serialize(x)
 }
 function unserialize(x)
 {
-    if (Array.isArray(x))
+    if (("object" === typeof x) && Array.isArray(x.cell) && Array.isArray(x.dims))
+    {
+        const y = x.cell.map(unserialize);
+        y.$scilitecell$ = x.dims.slice();
+        return y;
+    }
+    else if (Array.isArray(x))
     {
         return x.map(unserialize);
     }

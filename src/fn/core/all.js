@@ -4,7 +4,7 @@ function all(x, check)
     {
         return check(x, 1, 1) ? 1 : 0;
     }
-    else if (is_vector(x))
+    else if (is_vector(x, false))
     {
         for (var i=0,n=x.length; i<n; ++i)
         {
@@ -12,7 +12,7 @@ function all(x, check)
         }
         return 1;
     }
-    else if (is_matrix(x))
+    else if (is_matrix(x, false))
     {
         for (var i=0,rows=ROWS(x),cols=COLS(x); i<rows; ++i)
         {

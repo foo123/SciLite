@@ -53,7 +53,7 @@ var OP = {
     ,commutativity: NONCOMMUTATIVE
     ,priority     : 0
     ,fn           : function(/*args..*/) {
-                        var arr = [], row = [];
+                        var arr = [], row = [], cols = null;
                         [].forEach.call(arguments, function(arg) {
                             if (',' === arg)
                             {
@@ -65,10 +65,14 @@ var OP = {
                                 {
                                     if (is_array(row[0]))
                                     {
+                                        if (null == cols) cols = COLS(row);
+                                        else if (cols !== COLS(row)) throw "array rows with different dimensions";
                                         arr = arr.length ? cat_vert(arr, row) : row;
                                     }
                                     else
                                     {
+                                        if (null == cols) cols = row.length;
+                                        else if (cols !== row.length) throw "array rows with different dimensions";
                                         arr.push(row);
                                     }
                                     row = [];
@@ -94,10 +98,14 @@ var OP = {
                         {
                             if (is_array(row[0]))
                             {
+                                if (null == cols) cols = COLS(row);
+                                else if (cols !== COLS(row)) throw "array rows with different dimensions";
                                 arr = arr.length ? cat_vert(arr, row) : row;
                             }
                             else if (arr.length)
                             {
+                                if (null == cols) cols = row.length;
+                                else if (cols !== row.length) throw "array rows with different dimensions";
                                 arr.push(row);
                             }
                             else
@@ -106,6 +114,46 @@ var OP = {
                             }
                         }
                         return arr;
+                    }
+    },
+    "{}": {
+     name         : 'literal_cellarray'
+    ,arity        : 1
+    ,fixity       : PREFIX
+    ,associativity: LEFT
+    ,commutativity: NONCOMMUTATIVE
+    ,priority     : 0
+    ,fn           : function(/*args..*/) {
+                        var arr = [], row = [], dims = [];
+                        [].forEach.call(arguments, function(arg) {
+                            if (',' === arg)
+                            {
+                                // pass
+                            }
+                            else if (';' === arg)
+                            {
+                                if (row.length)
+                                {
+                                    if (!dims.length) dims.unshift(row.length);
+                                    else if (dims[0] !== row.length) throw "cell array rows with different dimensions";
+                                    arr.push(row);
+                                    row = [];
+                                }
+                            }
+                            else
+                            {
+                                row.push(arg);
+                            }
+                        });
+                        if (row.length)
+                        {
+                            if (!dims.length) dims.unshift(row.length);
+                            else if (dims[0] !== row.length) throw "cell array rows with different dimensions";
+                            arr.push(row);
+                        }
+                        dims.unshift(arr.length);
+                        if (2 > dims.length) dims.unshift(dims[0] ? 1 : 0);
+                        return cellarray(arr, dims);
                     }
     },
     "(:)": {
@@ -606,19 +654,21 @@ function def_fn(fn_def)
     return fn;
 }
 
-function variable(ctx, v, i)
+function variable(ctx, v, i, b)
 {
     var self = this;
-    if (!is_instance(self, variable)) return new variable(ctx, v, i);
-    self.ctx = ctx;
-    self.v = v;
-    self.i = i;
+    if (!is_instance(self, variable)) return new variable(ctx, v, i, b);
+    self.ctx = ctx; // current context
+    self.v = v; // actual variable name
+    self.i = i; // any indexing applied
+    self.b = b || '()'; // type of bracket indexing
 }
 variable.prototype = {
     constructor: variable,
     ctx: null,
     v: null,
     i: null,
+    b: null,
     get: async function(orig) {
         var self = this, val, s, i;
         if ('' === self.v)
@@ -643,7 +693,7 @@ variable.prototype = {
             i = await Promise.all(self.i.map(function(ind, i) {
                 return vale(ind, {end:1 === self.i.length ? prod(s) : s[i]});
             }));
-            val = get.apply(null, [val].concat(i));
+            val = get.apply(get, [val, is_cell(val) ? self.b : '()'].concat(i));
         }
         return val;
     },
@@ -677,7 +727,7 @@ variable.prototype = {
             i = await Promise.all(self.i.map(function(ind, i) {
                 return vale(ind, {end:1 === self.i.length ? prod(s) : s[i]});
             }));
-            val = set.apply(null, [val].concat(i).concat([value]));
+            val = set.apply(set, [val, is_cell(val) ? self.b : '()'].concat(i).concat([value]));
             if (!is_instance(self.v, expr))
             {
                 self.ctx[self.v] = val; // may change shape etc.., so store again
@@ -1010,17 +1060,18 @@ function parse(s, ctx, lineStart, posStart)
             return [r, j+1];
         }
 
-        function array_literal()
+        function array_literal(brackets)
         {
-            var tmp, arg, entry, j = findmatching(']', '[', true);
+            brackets = brackets || {open:'[',close:']'};
+            var tmp, arg, entry, j = findmatching(brackets.close, brackets.open, true);
             if (-1 === j) throw error('mismatched brackets');
             tmp = s.slice(0, j);
-            if (/[\[\]]/.test(tmp))
+            if ('{' === brackets.open)
             {
                 arg = [];
                 for (;;)
                 {
-                    entry = parse_until(',;]');
+                    entry = parse_until(',;}');
                     if (entry)
                     {
                         arg.push(entry);
@@ -1043,60 +1094,93 @@ function parse(s, ctx, lineStart, posStart)
                     }
                 }
                 eat(/^\s+/);
-                eat("]");
+                eat('}');
             }
             else
             {
-                if (/[,;\n]/.test(tmp))
+                if (/[\[\]]/.test(tmp))
                 {
-                    arg = tmp.trim().split(/[;\n]/g).reduce(function(arg, row) {
-                        var hasrow = arg.length, hascol = 0;
-                        return row.trim().split(-1 < row.indexOf(',') ? ',' : /\s+/g).reduce(function(arg, col) {
-                            col = col.trim();
-                            if ("~" === col)
+                    arg = [];
+                    for (;;)
+                    {
+                        entry = parse_until(',;]');
+                        if (entry)
+                        {
+                            arg.push(entry);
+                            if (eat(","))
                             {
-                                // dummy variable
-                                col = expr('v', variable(ctx, ''));
+                                arg.push(expr(','));
+                            }
+                            else if (eat(";"))
+                            {
+                                arg.push(expr(';'));
                             }
                             else
                             {
-                                col = parse(col, ctx, l+lineStart, i);
+                                break;
                             }
-                            if (col)
-                            {
-                                if (hascol) arg.push(expr(','));
-                                else if (hasrow) arg.push(expr(';'));
-                                arg.push(col);
-                                hascol = 1;
-                            }
-                            return arg;
-                        }, arg);
-                    }, []);
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+                    eat(/^\s+/);
+                    eat(']');
                 }
                 else
                 {
-                    arg = tmp.trim().split(/\s+/g).reduce(function(arg, col) {
-                        col = parse(col.trim(), ctx, l+lineStart, i);
-                        if (col)
-                        {
-                            if (arg.length) arg.push(expr(','));
-                            arg.push(col);
-                        }
-                        return arg;
-                    }, []);
-                }
-                s = s.slice(j+1);
-                i += j+1;
-                tmp = tmp.split("\n");
-                if (1 < tmp.length)
-                {
-                    l += tmp.length-1;
-                    tmp.slice(0, -1).forEach(function(ln) {
-                        i -= ln.length+1/*\n*/;
-                    });
+                    if (/[,;\n]/.test(tmp))
+                    {
+                        arg = tmp.trim().split(/[;\n]/g).reduce(function(arg, row) {
+                            var hasrow = arg.length, hascol = 0;
+                            return row.trim().split(-1 < row.indexOf(',') ? ',' : /\s+/g).reduce(function(arg, col) {
+                                col = col.trim();
+                                if ("~" === col)
+                                {
+                                    // dummy variable
+                                    col = expr('v', variable(ctx, ''));
+                                }
+                                else
+                                {
+                                    col = parse(col, ctx, l+lineStart, i);
+                                }
+                                if (col)
+                                {
+                                    if (hascol) arg.push(expr(','));
+                                    else if (hasrow) arg.push(expr(';'));
+                                    arg.push(col);
+                                    hascol = 1;
+                                }
+                                return arg;
+                            }, arg);
+                        }, []);
+                    }
+                    else
+                    {
+                        arg = tmp.trim().split(/\s+/g).reduce(function(arg, col) {
+                            col = parse(col.trim(), ctx, l+lineStart, i);
+                            if (col)
+                            {
+                                if (arg.length) arg.push(expr(','));
+                                arg.push(col);
+                            }
+                            return arg;
+                        }, []);
+                    }
+                    s = s.slice(j+1);
+                    i += j+1;
+                    tmp = tmp.split("\n");
+                    if (1 < tmp.length)
+                    {
+                        l += tmp.length-1;
+                        tmp.slice(0, -1).forEach(function(ln) {
+                            i -= ln.length+1/*\n*/;
+                        });
+                    }
                 }
             }
-            return expr(OP['[]'].fn, arg);
+            return expr(OP['{' === brackets.open ? '{}' : '[]'].fn, arg);
         }
 
         while (0 < s.length)
@@ -1250,7 +1334,7 @@ function parse(s, ctx, lineStart, posStart)
                     if (tmp) arg.body = arg.body.concat(tmp);
                     if (eat('end') || !tmp) break;
                 }
-                ctx[arg.name] = def_fn(arg);
+                $["@fn"][arg.name] = def_fn(arg);
                 continue;
             }
             if (match = eat(/^(continue|break|elseif|else|end)\b/, false))
@@ -1436,20 +1520,20 @@ function parse(s, ctx, lineStart, posStart)
                         if (!eat(',')) break;
                     }
                     if (!eat('(' === match[2] ? ')' : '}')) throw error('(' === match[2] ? "mismatched parentheses" : "mismatched brackets");
-                    if ('(' === match[2] && HAS.call(ctx, m) && is_callable(ctx[m]))
+                    if ('(' === match[2] && HAS.call($["@fn"], m) && is_callable($["@fn"][m]))
                     {
-                        // defined function
-                        term = expr(ctx[m], arg);
+                        // user-defined function
+                        term = expr($["@fn"][m], arg);
                     }
                     else if ('(' === match[2] && HAS.call(fn, m))
                     {
-                        // function
+                        // builtin function
                         term = expr(fn[m], arg);
                     }
                     else
                     {
                         // array indexing
-                        term = expr('v', variable(ctx, m, arg.length ? arg : null));
+                        term = expr('v', variable(ctx, m, arg.length ? arg : null, '{' === match[2] ? '{}' : '()'));
                     }
                     terms.unshift(term);
                 }
@@ -1466,14 +1550,14 @@ function parse(s, ctx, lineStart, posStart)
             {
                 // variable
                 m = match[0];
-                if (HAS.call(ctx, m) && is_callable(ctx[m]) && (0 === ctx[m].nargin))
+                if (HAS.call($["@fn"], m) && is_callable($["@fn"][m]) && (0 === $["@fn"][m].nargin))
                 {
-                    // defined function without arguments
-                    term = expr(ctx[m], []);
+                    // user-defined function without arguments
+                    term = expr($["@fn"][m], []);
                 }
                 else if (HAS.call(fn, m) && (0 === fn[m].length))
                 {
-                    // function without arguments
+                    // builtin function without arguments
                     term = expr(fn[m], []);
                 }
                 else
@@ -1556,7 +1640,7 @@ function parse(s, ctx, lineStart, posStart)
                 // bracket, literal array
                 s = s.slice(1);
                 i += 1;
-                term = array_literal();
+                term = array_literal({open:'[',close:']'});
                 if (term)
                 {
                     terms.unshift(term);
@@ -1573,6 +1657,27 @@ function parse(s, ctx, lineStart, posStart)
             if (']' === c)
             {
                 if ((expected) && (-1 < expected.indexOf(']')))
+                {
+                    // end bracket
+                    break;
+                }
+                else
+                {
+                    throw error('mismatched brackets');
+                }
+            }
+            if ('{' === c)
+            {
+                // bracket, literal cell array
+                s = s.slice(1);
+                i += 1;
+                term = array_literal({open:'{',close:'}'});
+                if (term) terms.unshift(term);
+                continue;
+            }
+            if ('}' === c)
+            {
+                if ((expected) && (-1 < expected.indexOf('}')))
                 {
                     // end bracket
                     break;
@@ -1608,7 +1713,7 @@ function parse(s, ctx, lineStart, posStart)
                         }
                         if (!eat(')')) throw error("mismatched parentheses");
                         // matrix indexing
-                        if (arg.length) term = expr('v', variable(ctx, term, arg));
+                        if (arg.length) term = expr('v', variable(ctx, term, arg, '()'));
                     }
                     else
                     {
@@ -1639,18 +1744,6 @@ function parse(s, ctx, lineStart, posStart)
                 else
                 {
                     throw error('mismatched parentheses');
-                }
-            }
-            if ('}' === c)
-            {
-                if ((expected) && (-1 < expected.indexOf('}')))
-                {
-                    // end bracket
-                    break;
-                }
-                else
-                {
-                    throw error('mismatched brackets');
                 }
             }
             if ((',' === c) && (expected) && (-1 < expected.indexOf(',')))

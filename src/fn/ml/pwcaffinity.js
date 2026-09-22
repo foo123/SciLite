@@ -127,7 +127,7 @@ function pwcaffinity(s, damping, max_iter)
                 cluster = k;
                 break;
             }
-            score = r[i][j] + a[j][i];
+            score = /*s[i][j]*/r[i][j] + a[j][i];
             if (score > max)
             {
                 max = score;
