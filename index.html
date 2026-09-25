@@ -851,14 +851,26 @@ function init($)
             case 'user_functions':
                 return run_session([
                 '% user defined functions',
-                'function fn=factorial(n)\n fn=prod(1:n);\nend',
-                'function [s,varargout]=mysize(x)\n nout=max([nargout 1])-1;\n s=size(x);\n for i=1:nout\n  varargout{i}=s(i);\n end\nend',
-                'function varargout=echo(varargin)\n for i=1:min([nargin nargout])\n  varargout{i}=varargin{i};\n end\nend',
+                'function fn=factorial(n)\n fn = prod(1:n);\nend',
+                'function fn=rfactorial(n)\n % recursion is supported\n if 1 >= n\n  fn = 1;\n else\n  fn = n*rfactorial(n-1);\n end\nend',
+                'function [s,varargout]=mysize(x)\n nout = max([nargout 1])-1;\n s = size(x);\n for i=1:nout\n  varargout{i} = s(i);\n end\nend',
+                'function varargout=echo(varargin)\n for i=1:min([nargin nargout])\n  varargout{i} = varargin{i};\n end\nend',
+                'fh = @factorial; % function handle',
+                'f = @(n) factorial(n); % anonymous function',
                 'factorial(3)',
                 'factorial(5)',
+                'rfactorial(3)',
+                'rfactorial(5)',
+                'fh(3)',
+                'fh(5)',
+                'f(3)',
+                'f(5)',
                 'mysize(ones(3,2))',
                 '[s,rows,cols]=mysize(ones(3,2,4))',
-                '[o1,o2]=echo(1,2,3)'
+                '[o1,o2]=echo(1,2,3)',
+                'arrayfun(@factorial, [1 2; 3 4])',
+                'arrayfun(fh, [1 2; 3 4])',
+                'arrayfun(f, [1 2; 3 4])'
                 ]);
             break;
         }

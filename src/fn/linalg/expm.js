@@ -46,21 +46,14 @@ function expm(A, with_neg)
     }
 
     // fast squaring
-    for (i=1,k=_(k); i<=k; ++i)
-    {
-        expA = mul(expA, expA);
-    }
-    if (with_neg)
-    {
-        for (i=1; i<=k; ++i)
-        {
-            expA_neg = mul(expA_neg, expA_neg);
-        }
-    }
+    for (i=1,k=_(k); i<=k; ++i) expA = mul(expA, expA);
+    if (with_neg) for (i=1; i<=k; ++i) expA_neg = mul(expA_neg, expA_neg);
+
     return with_neg ? {'+':expA, '-':expA_neg} : expA;
 }
 fn.expm = function(A) {
     if (is_scalar(A)) return fn.exp(A);
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("expm");
+    if (1 === ROWS(A)) return [[fn.exp(A[0][0])]];
     return expm(A);
 };

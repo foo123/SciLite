@@ -257,7 +257,14 @@ function rowvec(n, v)
 }
 function vec2row(vec)
 {
-    return is_0d(vec) ? [[vec]] : (is_1d(vec) ? [vec] : vec);
+    if (vec && vec.$scilitecell$)
+    {
+        return is_0d(vec) ? cellarray([[vec]], [1, 1]) : (is_1d(vec) ? cellarray([vec.map(copy)], [1].concat(vec.$scilitecell$)) : vec);
+    }
+    else
+    {
+        return is_0d(vec) ? [[vec]] : (is_1d(vec) ? [vec] : vec);
+    }
 }
 fn.rowvec = vec2row;
 function colvec(n, v)
@@ -266,7 +273,14 @@ function colvec(n, v)
 }
 function vec2col(vec)
 {
-    return is_0d(vec) ? [[vec]] : (is_1d(vec) ? vec.map(function(vi) {return [vi];}) : vec);
+    if (vec && vec.$scilitecell$)
+    {
+        return is_0d(vec) ? cellarray([[vec]], [1, 1]) : (is_1d(vec) ? cellarray(vec.map(function(vi) {return [vi];}), vec.$scilitecell$.concat(1)) : vec);
+    }
+    else
+    {
+        return is_0d(vec) ? [[vec]] : (is_1d(vec) ? vec.map(function(vi) {return [vi];}) : vec);
+    }
 }
 fn.colvec = vec2col;
 function sca(x, real)
@@ -697,7 +711,7 @@ function texify(x)
     {
         if (-1 === (['\\cdots','\\vdots','\\ddots']).indexOf(x))
         {
-            x = '\\text{' + x + '}';
+            x = '\\text{"' + x + '"}';
         }
     }
     else if (is_nan(x))
@@ -788,6 +802,7 @@ function stringify(x)
     else if (is_string(x))
     {
         // pass
+        x = '"' + x + '"';
     }
     else if (is_nan(x))
     {

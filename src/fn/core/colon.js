@@ -18,7 +18,9 @@ function colon(a, b, c)
             return ans;*/
             sz = size(a);
             // use octave-compatible columnwise-ordering by permuting back and forth
-            return tensorview(a, {shape:sz,ndarray:sz}).permute(array(sz.length, function(i) {return sz.length-1-i;})).toArray();
+            ans = tensorview(a, {shape:sz,ndarray:sz}).permute(array(sz.length, function(i) {return sz.length-1-i;})).toArray();
+            if (a.$scilitecell$) ans = cellarray(ans, [ans.length]);
+            return ans;
         }
         return a;
     }

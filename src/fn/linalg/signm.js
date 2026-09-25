@@ -62,5 +62,6 @@ function signm(A)
 fn.signm = function(A) {
     if (is_scalar(A)) return fn.sign(A);
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("signm");
+    if (1 === ROWS(A)) return [[fn.sign(A[0][0])]];
     return signm(A);
 };

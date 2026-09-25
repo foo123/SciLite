@@ -90,6 +90,7 @@ fn.sqrtm = varargout(function(nargout, A) {
     if (2 < nargout) throw "sqrtm: output not supported";
     if (is_scalar(A)) return 1 < nargout ? [fn.sqrt(A), O] : fn.sqrt(A);
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("sqrtm");
+    if (1 === ROWS(A)) return 1 < nargout ? [[[fn.sqrt(A[0][0])]], O] : [[fn.sqrt(A[0][0])]];
     var sqrtA = sqrtm(A);
     return 1 < nargout ? [sqrtA, scalar_div(norm(sub(A, mul(sqrtA, sqrtA)), I), norm(A, I))] : sqrtA;
 });

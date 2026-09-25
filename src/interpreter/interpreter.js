@@ -613,38 +613,46 @@ function def_fn(fn_def)
 {
     var fn = varargout(async function(nargout) {
         var i, nargin = arguments.length-1, argout,
-            $ = {ctx:{ans:null}};
+            $ = {ctx:{ans:null}}, ans;
         for (i=1; i<=nargin; ++i)
         {
             if ('varargin' === fn_def.argin[i-1])
             {
-                $.ctx.varargin = cellarray([].slice.call(arguments, i), [arguments.length-i]);
+                $.ctx.varargin = cellarray([].slice.call(arguments, i).map(copy), [arguments.length-i]); // pass by value
                 break;
             }
             else
             {
-                $.ctx[fn_def.argin[i-1]] = arguments[i];
+                $.ctx[fn_def.argin[i-1]] = copy(arguments[i]); // pass by value
             }
         }
         $.ctx.nargin = nargin;
         $.ctx.nargout = nargout;
         if (fn_def.argout.length && ('varargout' === fn_def.argout[fn_def.argout.length-1]))
         {
-            $.ctx.varargout = cellarray(array(100, null), [100]);
+            $.ctx.varargout = cellarray(array(100, null), [100]); // pre-allocate a large array
         }
-        await vale(fn_def.body, null, $);
+        ans = await vale(fn_def.body, null, $);
         if (fn_def.argout.length)
         {
-            argout = array(nargout, function(i) {
-                if (('varargout' === fn_def.argout[fn_def.argout.length-1]) && (i >= fn_def.argout.length-1))
-                {
-                    return $.ctx.varargout[i-(fn_def.argout.length-1)];
-                }
-                else
-                {
-                    return (i < fn_def.argout.length) && HAS.call($.ctx, fn_def.argout[i]) ? $.ctx[fn_def.argout[i]] : null;
-                }
-            });
+            if ('' === fn_def.name)
+            {
+                // anonymous function
+                argout = ans && ans.$scilitevarargout$ ? ans : [ans];
+            }
+            else
+            {
+                argout = array(nargout, function(i) {
+                    if (('varargout' === fn_def.argout[fn_def.argout.length-1]) && (i >= fn_def.argout.length-1))
+                    {
+                        return $.ctx.varargout[i-(fn_def.argout.length-1)];
+                    }
+                    else
+                    {
+                        return (i < fn_def.argout.length) && HAS.call($.ctx, fn_def.argout[i]) ? $.ctx[fn_def.argout[i]] : null;
+                    }
+                });
+            }
             return 1 === nargout ? argout[0] : argout;
         }
         return null;
@@ -659,16 +667,31 @@ function variable(ctx, v, i, b)
     var self = this;
     if (!is_instance(self, variable)) return new variable(ctx, v, i, b);
     self.ctx = ctx; // current context
-    self.v = v; // actual variable name
+    self.v = v; // variable name or value
     self.i = i; // any indexing applied
     self.b = b || '()'; // type of bracket indexing
 }
 variable.prototype = {
     constructor: variable,
     ctx: null,
+    _ctx: null,
     v: null,
     i: null,
     b: null,
+    new_ctx: function(new_ctx) {
+        var self = this;
+        if (new_ctx)
+        {
+            self._ctx = self.ctx;
+            self.ctx = new_ctx;
+        }
+        else
+        {
+            self.ctx = self._ctx;
+            self._ctx = null;
+        }
+        return self;
+    },
     get: async function(orig) {
         var self = this, val, s, i;
         if ('' === self.v)
@@ -679,6 +702,10 @@ variable.prototype = {
         {
             val = await vale(self.v);
         }
+        else if (is_array(self.v))
+        {
+            val = self.v[0];
+        }
         else
         {
             if (!HAS.call(self.ctx, self.v) && !HAS.call(constant, self.v))
@@ -687,13 +714,13 @@ variable.prototype = {
             }
             val = HAS.call(self.ctx, self.v) ? self.ctx[self.v] : constant[self.v];
         }
-        if ((true !== orig) && (null != self.i))
+        if ((true !== orig) && (null != self.i) && is_array(val))
         {
             s = size(val);
             i = await Promise.all(self.i.map(function(ind, i) {
                 return vale(ind, {end:1 === self.i.length ? prod(s) : s[i]});
             }));
-            val = get.apply(get, [val, is_cell(val) ? self.b : '()'].concat(i));
+            val = get.apply(get, [val, !s[0] || is_cell(val) ? self.b : '()'].concat(i));
         }
         return val;
     },
@@ -710,6 +737,11 @@ variable.prototype = {
                 val = await vale(self.v);
                 s = size(val);
             }
+            else if (is_array(self.v))
+            {
+                val = self.v[0];
+                s = size(val);
+            }
             else
             {
                 if (!HAS.call(self.ctx, self.v))
@@ -724,30 +756,34 @@ variable.prototype = {
                     s = size(val);
                 }
             }
-            i = await Promise.all(self.i.map(function(ind, i) {
-                return vale(ind, {end:1 === self.i.length ? prod(s) : s[i]});
-            }));
-            val = set.apply(set, [val, is_cell(val) ? self.b : '()'].concat(i).concat([value]));
-            if (!is_instance(self.v, expr))
+            if (is_array(val))
             {
-                self.ctx[self.v] = val; // may change shape etc.., so store again
+                i = await Promise.all(self.i.map(function(ind, i) {
+                    return vale(ind, {end:1 === self.i.length ? prod(s) : s[i]});
+                }));
+                val = set.apply(set, [val, !s[0] || is_cell(val) ? self.b : '()'].concat(i).concat([value]));
+            }
+            else
+            {
+                val = value;
             }
         }
         else
         {
-            if (is_instance(self.v, expr))
-            {
-                // nothing
-            }
-            else
-            {
-                self.ctx[self.v] = value;
-            }
+            val = value;
+        }
+        if (is_string(self.v))
+        {
+            self.ctx[self.v] = val; // may change shape etc.., so store again
+        }
+        else if (is_array(self.v))
+        {
+            self.v = [val];
         }
         return self;
     },
     isset: function() {
-        return is_string(this.v) && HAS.call(this.ctx, this.v);
+        return is_array(this.v) || (is_string(this.v) && HAS.call(this.ctx, this.v));
     },
     isByRef: function() {
         return (null == this.i);
@@ -793,15 +829,17 @@ async function vale(x, v, $)
     return x;
 }
 
+var NL_RE = /\r\n|\r|\n/g, NL = '\n';
 function parse(s, ctx, lineStart, posStart)
 {
+    s = s.replace(NL_RE, NL); // normalize newlines
     var i = 0, l = 0, j, t = s;
 
     function error(msg, pos, ln)
     {
         if (null == ln) ln = l;
         if (null == pos) pos = i;
-        var line = t.split("\n")[ln];
+        var line = t.split(NL)[ln];
         msg = String(msg) + ' at line ' + String((lineStart||0)+ln) + ' position ' + String((posStart||0)+pos) + ':';
         return (msg + "\n" + line + "\n" + (new Array(pos+1)).join(' ') + '^' + "\n");
     }
@@ -958,7 +996,10 @@ function parse(s, ctx, lineStart, posStart)
         function end(and_reset)
         {
             merge(true);
-            if ((1 < terms.length) || (0 < ops.length)) throw error('mismatched terms and operators', ops.length ? ops[0][1] : i, ops.length ? ops[0][2] : l);
+            if ((1 < terms.length) || (0 < ops.length))
+            {
+                throw error('mismatched terms and operators', ops.length ? ops[0][1] : i, ops.length ? ops[0][2] : l);
+            }
             if (true === and_reset)
             {
                 if (is_instance(terms[0], expr)) statements.push(terms[0]);
@@ -1002,7 +1043,7 @@ function parse(s, ctx, lineStart, posStart)
             return false;
         }
 
-        function findmatching(close, open, skipstring)
+        /*function findmatching(close, open, skipstring)
         {
             var c, j = 0, k = 0, t;
             while (j < s.length)
@@ -1026,7 +1067,7 @@ function parse(s, ctx, lineStart, posStart)
                 ++j;
             }
             return k || (j >= s.length) ? -1 : j;
-        }
+        }*/
 
         function string_literal(q, eat, j0)
         {
@@ -1060,14 +1101,15 @@ function parse(s, ctx, lineStart, posStart)
             return [r, j+1];
         }
 
+        var arr_id = 0;
         function array_literal(brackets)
         {
-            brackets = brackets || {open:'[',close:']'};
-            var tmp, arg, entry, j = findmatching(brackets.close, brackets.open, true);
-            if (-1 === j) throw error('mismatched brackets');
-            tmp = s.slice(0, j);
-            if ('{' === brackets.open)
+            brackets = brackets || '[]';
+            var arg, entry;
+            if ('{}' === brackets)
             {
+                eat('{');
+                eat(/^[ \t\v\f]+/);
                 arg = [];
                 for (;;)
                 {
@@ -1093,31 +1135,42 @@ function parse(s, ctx, lineStart, posStart)
                         break;
                     }
                 }
-                eat(/^\s+/);
-                eat('}');
+                eat(/^[ \t\v\f]+/);
+                if (!eat('}')) throw error('mismatched curly brackets');
             }
             else
             {
-                if (/[\[\]]/.test(tmp))
+                eat('[');
+                eat(/^[ \t\v\f]+/);
+                arg = [];
+                for (;;)
                 {
-                    arg = [];
-                    for (;;)
+                    entry = parse_until(' ,\n;]');
+                    if (entry)
                     {
-                        entry = parse_until(',;]');
-                        if (entry)
+                        arg.push(entry);
+                        if (eat(","))
                         {
-                            arg.push(entry);
-                            if (eat(","))
+                            arg.push(expr(','));
+                            eat(/^[ \t\v\f]+/);
+                        }
+                        else if (eat(";"))
+                        {
+                            arg.push(expr(';'));
+                            eat(/^[ \t\v\f]+/);
+                        }
+                        else if (eat("\n"))
+                        {
+                            arg.push(expr(';'));
+                            ++l;
+                            i = 0;
+                            eat(/^[ \t\v\f]+/);
+                        }
+                        else if (eat(/^[ \t\v\f]+/))
+                        {
+                            if (!eat(/^[,;\n\]]/, false))
                             {
                                 arg.push(expr(','));
-                            }
-                            else if (eat(";"))
-                            {
-                                arg.push(expr(';'));
-                            }
-                            else
-                            {
-                                break;
                             }
                         }
                         else
@@ -1125,62 +1178,18 @@ function parse(s, ctx, lineStart, posStart)
                             break;
                         }
                     }
-                    eat(/^\s+/);
-                    eat(']');
-                }
-                else
-                {
-                    if (/[,;\n]/.test(tmp))
-                    {
-                        arg = tmp.trim().split(/[;\n]/g).reduce(function(arg, row) {
-                            var hasrow = arg.length, hascol = 0;
-                            return row.trim().split(-1 < row.indexOf(',') ? ',' : /\s+/g).reduce(function(arg, col) {
-                                col = col.trim();
-                                if ("~" === col)
-                                {
-                                    // dummy variable
-                                    col = expr('v', variable(ctx, ''));
-                                }
-                                else
-                                {
-                                    col = parse(col, ctx, l+lineStart, i);
-                                }
-                                if (col)
-                                {
-                                    if (hascol) arg.push(expr(','));
-                                    else if (hasrow) arg.push(expr(';'));
-                                    arg.push(col);
-                                    hascol = 1;
-                                }
-                                return arg;
-                            }, arg);
-                        }, []);
-                    }
                     else
                     {
-                        arg = tmp.trim().split(/\s+/g).reduce(function(arg, col) {
-                            col = parse(col.trim(), ctx, l+lineStart, i);
-                            if (col)
-                            {
-                                if (arg.length) arg.push(expr(','));
-                                arg.push(col);
-                            }
-                            return arg;
-                        }, []);
-                    }
-                    s = s.slice(j+1);
-                    i += j+1;
-                    tmp = tmp.split("\n");
-                    if (1 < tmp.length)
-                    {
-                        l += tmp.length-1;
-                        tmp.slice(0, -1).forEach(function(ln) {
-                            i -= ln.length+1/*\n*/;
-                        });
+                        if (!eat(/^[ \t\v\f]+/))
+                        {
+                            break;
+                        }
                     }
                 }
+                eat(/^[ \t\v\f]+/);
+                if (!eat(']')) throw error('mismatched brackets');
             }
-            return expr(OP['{' === brackets.open ? '{}' : '[]'].fn, arg);
+            return expr(OP[brackets].fn, arg);
         }
 
         while (0 < s.length)
@@ -1246,7 +1255,7 @@ function parse(s, ctx, lineStart, posStart)
             if (eat(/^for\b/))
             {
                 end(true);
-                if (match = eat(/^\s+([_a-z][_a-z0-9]*)\s*=\s*/i))
+                if (match = eat(/^[ \t\v\f]+([_a-z][_a-z0-9]*)[ \t\v\f]*=[ \t\v\f]*/i))
                 {
                     // pass
                 }
@@ -1304,12 +1313,12 @@ function parse(s, ctx, lineStart, posStart)
                 end(true);
                 eat(/^[ \t\v\f]+/);
                 arg = {argout:null, name:null, argin:null, body:[]};
-                if (match = eat(/^([_a-z][_a-z0-9]*)\s*=\s*/i))
+                if (match = eat(/^([_a-z][_a-z0-9]*)[ \t\v\f]*=[ \t\v\f]*/i))
                 {
                     // single output
                     arg.argout = [match[1]];
                 }
-                else if (match = eat(/^\[\s*([_a-z][_a-z0-9]*(?:\s*,\s*[_a-z][_a-z0-9]*)*)\s*\]\s*=\s*/i))
+                else if (match = eat(/^\[[ \t\v\f]*([_a-z][_a-z0-9]*(?:[ \t\v\f]*,[ \t\v\f]*[_a-z][_a-z0-9]*)*)[ \t\v\f]*\][ \t\v\f]*=[ \t\v\f]*/i))
                 {
                     // multiple output
                     arg.argout = match[1].split(',').map(function(v) {return v.trim();});
@@ -1319,7 +1328,7 @@ function parse(s, ctx, lineStart, posStart)
                     // no output
                     arg.argout = [];
                 }
-                if (match = eat(/^([_a-z][_a-z0-9]*)(?:\s*\((\s*([_a-z][_a-z0-9]*(?:\s*,\s*[_a-z][_a-z0-9]*)*)?\s*)\))?/i))
+                if (match = eat(/^([_a-z][_a-z0-9]*)(?:[ \t\v\f]*\(([ \t\v\f]*([_a-z][_a-z0-9]*(?:[ \t\v\f]*,[ \t\v\f]*[_a-z][_a-z0-9]*)*)?[ \t\v\f]*)\))?/i))
                 {
                     arg.name = match[1];
                     arg.argin = match[2] ? match[2].split(',').map(function(v) {return v.trim();}) : [];
@@ -1375,6 +1384,7 @@ function parse(s, ctx, lineStart, posStart)
                     // new line
                     ++l;
                     i = 0;
+                    eat(/^[ \t\v\f]+/);
                 }
                 continue;
             }
@@ -1411,15 +1421,18 @@ function parse(s, ctx, lineStart, posStart)
                     continue;
                 }
             }
-            if (eat(/^\s+/))
+            if (eat(/^[ \t\v\f]+/, false))
             {
-                if (expected && (-1 < expected.indexOf(' ')))
+                if (expected && (-1 < expected.indexOf(' ')) && terms.length && !eat(/^[ \t\v\f]+(&&|\|\||&|\||xor\b|>=|<=|==|~=|>|<|=|\+|-|\.\*|\*|\.\/|\/|\\|\.\^|\^)/, false) && can_merge())
                 {
+                    // space expected that separates a complete expression
+                    //eat(/^[ \t\v\f]+/); // consume it
                     break;
                 }
                 else
                 {
                     // space
+                    eat(/^[ \t\v\f]+/);
                     continue;
                 }
             }
@@ -1478,9 +1491,17 @@ function parse(s, ctx, lineStart, posStart)
             }
             if (match = eat("~"))
             {
-                // logical not
-                ops.unshift(["~", i, l]);
-                merge();
+                if (eat(/^([ \t\v\f]*)[,\]]/, 1))
+                {
+                    // dummy variable
+                    terms.unshift(expr('v', variable(ctx, '')));
+                }
+                else
+                {
+                    // logical not
+                    ops.unshift(["~", i, l]);
+                    merge();
+                }
                 continue;
             }
             if (match = eat('='))
@@ -1498,157 +1519,136 @@ function parse(s, ctx, lineStart, posStart)
                 merge();
                 continue;
             }
-            if (match = eat(/^([_a-z][_a-z0-9]*)\s*(\(|\{)/i))
+            if (match = eat(/^[_a-z][_a-z0-9]*/i))
             {
-                // function or array indexing
-                m = match[1];
-                if (eat('(' === match[2] ? /^\s*\:\s*\)/ : /^\s*\:\s*\}/))
+                m = match[0];
+                arg = null;
+                if ("true" === m)
                 {
-                    // single colon
-                    term = expr('v', variable(ctx, m));
-                    terms.unshift(term);
+                    term = expr(I);
+                }
+                else if ("false" === m)
+                {
+                    term = expr(O);
+                }
+                else if (match = eat(expected && (-1 < expected.indexOf(' ')) ? /^([\(\{])/ : /^[ \t\v\f]*([\(\{])/))
+                {
+                    if ('{' === match[1])
+                    {
+                        // cell array indexing
+                        arg = [];
+                        for (;;)
+                        {
+                            tmp = parse_until(',}');
+                            if (tmp) arg.push(tmp);
+                            if (!eat(',')) break;
+                        }
+                        if (!eat('}')) throw error("mismatched curly brackets");
+                        term = expr('v', variable(ctx, m, arg, '{}'));
+                    }
+                    else if (eat(/^[ \t\v\f]*\:[ \t\v\f]*\)/))
+                    {
+                        // variable single colon
+                        arg = '(:)';
+                        term = expr('v', variable(ctx, m));
+                    }
+                    else
+                    {
+                        // array indexing or function invocation
+                        arg = [];
+                        for (;;)
+                        {
+                            tmp = parse_until(',)');
+                            if (tmp) arg.push(tmp);
+                            if (!eat(',')) break;
+                        }
+                        if (!eat(')')) throw error("mismatched parentheses");
+                        term = expr('v_or_f', [m, arg, ctx, '()']);
+                    }
+                }
+                else
+                {
+                    // variable or function
+                    term = expr('v_or_f', [m, null, ctx]);
+                }
+                terms.unshift(term);
+                if ('(:)' === arg)
+                {
                     ops.unshift(['(:)', i, l]);
                     merge();
                 }
-                else
-                {
-                    arg = [];
-                    for (;;)
-                    {
-                        tmp = parse_until('(' === match[2] ? ',)' : ',}');
-                        if (tmp) arg.push(tmp);
-                        if (!eat(',')) break;
-                    }
-                    if (!eat('(' === match[2] ? ')' : '}')) throw error('(' === match[2] ? "mismatched parentheses" : "mismatched brackets");
-                    if ('(' === match[2] && HAS.call($["@fn"], m) && is_callable($["@fn"][m]))
-                    {
-                        // user-defined function
-                        term = expr($["@fn"][m], arg);
-                    }
-                    else if ('(' === match[2] && HAS.call(fn, m))
-                    {
-                        // builtin function
-                        term = expr(fn[m], arg);
-                    }
-                    else
-                    {
-                        // array indexing
-                        term = expr('v', variable(ctx, m, arg.length ? arg : null, '{' === match[2] ? '{}' : '()'));
-                    }
-                    terms.unshift(term);
-                }
-                eat(/^[ \t\v\f]+/);
-                if ((match = eat("'")) || (match = eat(".'")))
+                if (match = eat(/^[ \t\v\f]*(\.?')/))
                 {
                     // transpose
-                    ops.unshift([match[0], i, l]);
+                    ops.unshift([match[1], i, l]);
                     merge();
                 }
                 continue;
             }
-            if (match = eat(/^[_a-z][_a-z0-9]*/i))
-            {
-                // variable
-                m = match[0];
-                if (HAS.call($["@fn"], m) && is_callable($["@fn"][m]) && (0 === $["@fn"][m].nargin))
-                {
-                    // user-defined function without arguments
-                    term = expr($["@fn"][m], []);
-                }
-                else if (HAS.call(fn, m) && (0 === fn[m].length))
-                {
-                    // builtin function without arguments
-                    term = expr(fn[m], []);
-                }
-                else
-                {
-                    if ("true" === m)
-                    {
-                        term = expr(I);
-                    }
-                    else if ("false" === m)
-                    {
-                        term = expr(O);
-                    }
-                    else
-                    {
-                        term = expr('v', variable(ctx, m));
-                    }
-                }
-                terms.unshift(term);
-                eat(/^[ \t\v\f]+/);
-                if ((match = eat("'")) || (match = eat(".'")))
-                {
-                    // transpose
-                    ops.unshift([match[0], i, l]);
-                    merge();
-                }
-                continue;
-            }
-            if (match = eat(/^(-?\s*\d+(\.\d+)?([eE][+-]?\d+)?)([ij])?/))
+            if (match = eat(/^((?:-[ \t\v\f]*)?\d+(\.\d+)?([eE][+-]?\d+)?)([ij])?/))
             {
                 // number
                 arg = match[1].split(/\s+/).join('');
-                if (decimal)
-                {
-                    // prefer default number for small integers
-                    /*if (!/[\.eE]/.test(arg) && (arg.length < 6))
-                    {
-                        arg = parseFloat(arg, 10);
-                    }
-                    else
-                    {*/
-                        arg = decimal(arg);
-                    /*}*/
-                }
-                else
-                {
-                    arg = parseFloat(arg, 10);
-                }
+                arg = decimal ? decimal(arg) : parseFloat(arg, 10);
                 term = expr(match[4] ? (new complex(0, arg)) : arg);
                 terms.unshift(term);
                 continue;
             }
-            if (match = eat(/^(-?\s*\.\d+([eE][+-]?\d+)?)([ij])?/))
+            if (match = eat(/^((?:-[ \t\v\f]*)?\.\d+([eE][+-]?\d+)?)([ij])?/))
             {
                 // number, shorthand version
                 arg = match[1].split(/\s+/).join('');
                 arg = '-' === arg.charAt(0) ? ('-0'+arg.slice(1)) : ('0'+arg);
-                if (decimal)
-                {
-                    // prefer default number for small integers
-                    /*if (!/[\.eE]/.test(arg) && (arg.length < 6))
-                    {
-                        arg = parseFloat(arg, 10);
-                    }
-                    else
-                    {*/
-                        arg = decimal(arg);
-                    /*}*/
-                }
-                else
-                {
-                    arg = parseFloat(arg, 10);
-                }
+                arg = decimal ? decimal(arg) : parseFloat(arg, 10);
                 term = expr(match[4] ? (new complex(0, arg)) : arg);
                 terms.unshift(term);
                 continue;
             }
             c = s.charAt(0);
+            if ('@' === c)
+            {
+                // function handle
+                if (match = eat(/^@\(([ \t\v\f]*[_a-z][_a-z0-9]*(?:[ \t\v\f]*,[ \t\v\f]*[_a-z][_a-z0-9]*)*[ \t\v\f]*)\)/i))
+                {
+                    // anonymous function
+                    arg = {argout:['*'], name:'', argin:match[1].split(',').map(function(s) {return s.trim();}), body:[]};
+                    tmp = parse_until(',)]};');
+                    if (tmp) arg.body = arg.body.concat(tmp);
+                    terms.unshift(expr(def_fn(arg)));
+                    continue;
+                }
+                if (match = eat(/^@([_a-z][_a-z0-9]*)/i))
+                {
+                    // defined function
+                    m = match[1];
+                    if (HAS.call($["@fn"], m) && is_callable($["@fn"][m]))
+                    {
+                        // user-defined function handle
+                        terms.unshift(expr($["@fn"][m]));
+                    }
+                    else if (HAS.call(fn, m) && is_callable(fn[m]))
+                    {
+                        // builtin function handle
+                        terms.unshift(expr(fn[m]));
+                    }
+                    else
+                    {
+                        throw error('"'+m+'" is not a defined function');
+                    }
+                    continue;
+                }
+            }
             if ('[' === c)
             {
                 // bracket, literal array
-                s = s.slice(1);
-                i += 1;
-                term = array_literal({open:'[',close:']'});
+                term = array_literal('[]');
                 if (term)
                 {
                     terms.unshift(term);
-                    eat(/^[ \t\v\f]+/);
-                    if ((match = eat("'")) || (match = eat(".'")))
+                    if (match = eat(/^[ \t\v\f]*(\.?')/))
                     {
                         // transpose
-                        ops.unshift([match[0], i, l]);
+                        ops.unshift([match[1], i, l]);
                         merge();
                     }
                 }
@@ -1668,23 +1668,51 @@ function parse(s, ctx, lineStart, posStart)
             }
             if ('{' === c)
             {
-                // bracket, literal cell array
-                s = s.slice(1);
-                i += 1;
-                term = array_literal({open:'{',close:'}'});
-                if (term) terms.unshift(term);
+                // curly bracket
+                if (terms.length && can_merge())
+                {
+                    s = s.slice(1);
+                    i += 1;
+                    merge('set');
+                    term = terms.shift();
+                    arg = [];
+                    for (;;)
+                    {
+                        tmp = parse_until(',}');
+                        if (tmp) arg.push(tmp);
+                        if (!eat(',')) break;
+                    }
+                    if (!eat('}')) throw error("mismatched curly brackets");
+                    // de-referencing cell array indexing
+                    if (arg.length) term = expr('v', variable(ctx, term, arg, '{}'));
+                }
+                else
+                {
+                    // literal cell array
+                    term = array_literal('{}');
+                }
+                if (term)
+                {
+                    terms.unshift(term);
+                    if (match = eat(/^[ \t\v\f]*(\.?')/))
+                    {
+                        // transpose
+                        ops.unshift([match[1], i, l]);
+                        merge();
+                    }
+                }
                 continue;
             }
             if ('}' === c)
             {
                 if ((expected) && (-1 < expected.indexOf('}')))
                 {
-                    // end bracket
+                    // end curly bracket
                     break;
                 }
                 else
                 {
-                    throw error('mismatched brackets');
+                    throw error('mismatched curly brackets');
                 }
             }
             if ('(' === c)
@@ -1692,7 +1720,7 @@ function parse(s, ctx, lineStart, posStart)
                 // paren
                 s = s.slice(1);
                 i += 1;
-                if (eat(/^\s*\:\s*\)/))
+                if (eat(/^[ \t\v\f]*\:[ \t\v\f]*\)/))
                 {
                     // single colon
                     ops.unshift(['(:)', i, l]);
@@ -1712,22 +1740,22 @@ function parse(s, ctx, lineStart, posStart)
                             if (!eat(',')) break;
                         }
                         if (!eat(')')) throw error("mismatched parentheses");
-                        // matrix indexing
-                        if (arg.length) term = expr('v', variable(ctx, term, arg, '()'));
+                        // de-referencing array indexing or function invocation
+                        if (arg.length) term = expr('v_or_f', [term, arg, ctx, '()']);
                     }
                     else
                     {
+                        // parenthesized expression
                         term = parse_until(')');
                         if (!eat(')')) throw error("mismatched parentheses");
                     }
                     if (term)
                     {
                         terms.unshift(term);
-                        eat(/^[ \t\v\f]+/);
-                        if ((match = eat("'")) || (match = eat(".'")))
+                        if (match = eat(/^[ \t\v\f]*(\.?')/))
                         {
                             // transpose
-                            ops.unshift([match[0], i, l]);
+                            ops.unshift([match[1], i, l]);
                             merge();
                         }
                     }
@@ -1769,7 +1797,7 @@ function parse(s, ctx, lineStart, posStart)
                 }
                 for (;;)
                 {
-                    term = parse_until(':,)\n');
+                    term = parse_until(':,;})\n');
                     eat(/^[ \t\v\f]+/);
                     if (term) {terms.unshift(term); ++arg;}
                     else if (eat(':', false)) terms.unshift(expr(':'));
@@ -1792,11 +1820,68 @@ function parse(s, ctx, lineStart, posStart)
     return parse_until(false);
 }
 
-async function evaluate(e, v, $)
+async function evaluate(e, v, $$, vf2v)
 {
-    var f, argout, nargout;
+    var f, argout, nargout, tmp, n, arg, ctx, ret;
     if (is_instance(e, expr))
     {
+        if ('v_or_f' === e.op)
+        {
+            // variable or function
+            if ((true === vf2v) && is_string(e.arg[0]))
+            {
+                // default cast to variable
+                e = expr('v', variable(e.arg[2], e.arg[0], e.arg[1] && e.arg[1].length ? e.arg[1] : null, e.arg[3]));
+            }
+            else
+            {
+                ctx = $$ && $$.ctx ? $$.ctx : e.arg[2];
+                n = e.arg[0];
+                arg = e.arg[1];
+                if (is_instance(n, expr))
+                {
+                    ret = await evaluate(n, v, $$);
+                    if (!is_callable(ret)) ret = [ret];
+                }
+                else
+                {
+                    if (is_obj(v) && HAS.call(v, n))
+                    {
+                        ret = n;
+                    }
+                    else if (HAS.call(ctx, n))
+                    {
+                        ret = is_callable(ctx[n]) ? ctx[n] : n;
+                    }
+                    else if (HAS.call($["@fn"], n) && is_callable($["@fn"][n]))
+                    {
+                        ret = $["@fn"][n];
+                    }
+                    else if (HAS.call(constant, n))
+                    {
+                        ret = n;
+                    }
+                    else if (HAS.call(fn, n) && is_callable(fn[n]))
+                    {
+                        ret = fn[n];
+                    }
+                    else
+                    {
+                        ret = n;
+                    }
+                }
+                if (is_callable(ret))
+                {
+                    // function
+                    e = expr(ret, arg);
+                }
+                else
+                {
+                    // variable
+                    e = expr('v', variable(ctx, ret, arg && arg.length ? arg : null, e.arg[3]));
+                }
+            }
+        }
         if ('' === e.op)
         {
             // value
@@ -1805,78 +1890,88 @@ async function evaluate(e, v, $)
         else if ('v' === e.op)
         {
             // variable
-            if ($ && $.ctx) e.arg.ctx = $.ctx; // local context
+            if ($$ && $$.ctx) e.arg.new_ctx($$.ctx); // local context
             if (false === v)
             {
-                return e.arg;
-            }
-            else if (is_instance(e.arg.v, expr))
-            {
-                return await val(e.arg);
+                ret = e.arg;
             }
             else
             {
-                return is_obj(v) && HAS.call(v, e.arg.v) ? v[e.arg.v] : await val(e.arg);
+                ret = is_obj(v) && is_string(e.arg.v) && HAS.call(v, e.arg.v) ? v[e.arg.v] : await val(e.arg);
             }
+            if ($$ && $$.ctx) e.arg.new_ctx(false); // restore context
+            return ret;
         }
         else if (if_end === e.op)
         {
             // if .. else .. elseif .. end
-            return await if_end(e.arg, v, $);
+            return await if_end(e.arg, v, $$);
         }
         else if (for_end === e.op)
         {
             // for .. end loop
-            return await for_end(e.arg, v, $);
+            return await for_end(e.arg, v, $$);
         }
         else if (while_end === e.op)
         {
             // while .. end loop
-            return await while_end(e.arg, v, $);
+            return await while_end(e.arg, v, $$);
         }
         else if ('break' === e.op)
         {
-            if ($ && is_callable($.brk)) $.brk();
+            if ($$ && is_callable($$.brk)) $$.brk();
             return;
         }
         else if ('continue' === e.op)
         {
-            if ($ && is_callable($.cont)) $.cont();
+            if ($$ && is_callable($$.cont)) $$.cont();
             return;
         }
         else if (OP['='].fn === e.op)
         {
             // set
-            $ = $ || {};
+            $$ = $$ || {};
             nargout = $.nargout;
-            argout = await evaluate(e.arg[0], false);
+            argout = await evaluate(e.arg[0], false, null, true);
             if (is_array(argout) && is_instance(argout[0], variable))
             {
-                $.nargout = argout.length; // variable output
-                if ($.ctx) argout = argout.map(function(v) {v.ctx = $.ctx; return v;});
+                $$.nargout = argout.length; // variable output
+                if ($$.ctx) argout = argout.map(function(v) {return v.new_ctx($$.ctx);});
             }
             if (is_instance(argout, variable))
             {
-                if ($.ctx) argout.ctx = $.ctx;
+                if ($$.ctx) argout.new_ctx($$.ctx);
             }
             if ((2 === e.arg.length) && ('v' === e.arg[1].op))
             {
                 // A = B, A = B(:,:), ..
                 // make sure a copy is set and not by reference
-                return await e.op.apply(null, [argout, /*(e.arg[0].arg.v === e.arg[1].arg.v) ||*/ e.arg[1].arg.isByRef() ? copy(await evaluate(e.arg[1], v, $)) : await evaluate(e.arg[1], v, $)]);
+                ret = await e.op.apply(null, [argout, /*(e.arg[0].arg.v === e.arg[1].arg.v) ||*/ e.arg[1].arg.isByRef() ? copy(await evaluate(e.arg[1], v, $$)) : await evaluate(e.arg[1], v, $$)]);
             }
             else
             {
                 // A = other expr
-                return await e.op.apply(null, [argout].concat(await Promise.all(e.arg.slice(1).map(function(e) {return evaluate(e, v, $);}))));
+                ret = await e.op.apply(null, [argout].concat(await Promise.all(e.arg.slice(1).map(function(e) {return evaluate(e, v, $$);}))));
             }
-            $.nargout = nargout;
+            $$.nargout = nargout;
+            if ($$.ctx)
+            {
+                if (is_array(argout) && is_instance(argout[0], variable))
+                {
+                    argout.forEach(function(v) {v.new_ctx(false);});
+                }
+                if (is_instance(argout, variable))
+                {
+                    argout.new_ctx(false);
+                }
+            }
+            return ret;
         }
         else if (is_callable(e.op))
         {
-            // other operator
-            f = $ && is_int($.nargout) && is_callable(e.op.nargout) ? e.op.nargout($.nargout) : e.op;
-            return await f.apply(null, await Promise.all(e.arg.map(function(e) {return evaluate(e, v, $);})));
+            // other operator/function
+            f = $$ && is_int($$.nargout) && is_callable(e.op.nargout) ? e.op.nargout($$.nargout) : e.op;
+            return await f.apply(null, await Promise.all(e.arg.map(function(e) {return evaluate(e, v, $$, vf2v);})));
         }
     }
     throw "invalid expr";

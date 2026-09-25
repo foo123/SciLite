@@ -1,3 +1,8 @@
+function cmp_str(a, b)
+{
+    var sa = String(a), sb = String(b);
+    return sa < sb ? -1 : (sa > sb ? 1 : 0);
+}
 function cmp_real(a, b)
 {
     var ra = real(a), rb = real(b),
@@ -17,13 +22,15 @@ function cmp_abs(a, b)
 function sort(x, dim, dir, cmp, with_indices)
 {
     var ans;
-    if (is_0d(x))
+    if (!is_array(x))
     {
+        // 0d
         return x;
     }
-    else if (is_vector(x))
+    else if (!is_array(x[0]))
     {
-        if (null == cmp) cmp = is_real(x) ? cmp_real : cmp_abs;
+        // 1d
+        if (null == cmp) cmp = is_string(x[0]) ? cmp_str : (is_real(x) ? cmp_real : cmp_abs);
         ans = x.map(function(v, i) {return {v:v, i:i};}).sort('descend' === dir ? function(a, b) {
             return cmp(b.v, a.v) || (a.i - b.i);
         } : function(a, b) {
@@ -31,15 +38,16 @@ function sort(x, dim, dir, cmp, with_indices)
         });
         return with_indices ? [ans.map(function(vi) {return vi.v;}), ans.map(function(vi) {return vi.i+1;})] : ans.map(function(vi) {return vi.v;});
     }
-    else if (is_matrix(x))
+    else if (is_array(x[0]) && !is_array(x[0][0]))
     {
+        // 2d
         if (1 === dim)
         {
             if (with_indices)
             {
                 ans = array(COLS(x), function(c) {
                     var col = COL(x, c);
-                    return sort(col, dim, dir, null == cmp ? (is_real(col) ? cmp_real : cmp_abs) : cmp, true);
+                    return sort(col, dim, dir, null == cmp ? (is_string(col[0]) ? cmp_str : (is_real(col) ? cmp_real : cmp_abs)) : cmp, true);
                 });
                 return [matrix(ROWS(x), COLS(x), function(i, j) {
                     return ans[j][0][i];
@@ -51,7 +59,7 @@ function sort(x, dim, dir, cmp, with_indices)
             {
                 ans = array(COLS(x), function(c) {
                     var col = COL(x, c);
-                    return sort(col, dim, dir, null == cmp ? (is_real(col) ? cmp_real : cmp_abs) : cmp, false);
+                    return sort(col, dim, dir, null == cmp ? (is_string(col[0]) ? cmp_str : (is_real(col) ? cmp_real : cmp_abs)) : cmp, false);
                 });
                 return matrix(ROWS(x), COLS(x), function(i, j) {
                     return ans[j][i];
@@ -64,7 +72,7 @@ function sort(x, dim, dir, cmp, with_indices)
             {
                 ans = array(ROWS(x), function(r) {
                     var row = ROW(x, r);
-                    return sort(row, dim, dir, null == cmp ? (is_real(row) ? cmp_real : cmp_abs) : cmp, true);
+                    return sort(row, dim, dir, null == cmp ? (is_string(row[0]) ? cmp_str : (is_real(row) ? cmp_real : cmp_abs)) : cmp, true);
                 });
                 return [matrix(ROWS(x), COLS(x), function(i, j) {
                     return ans[i][0][j];
@@ -76,7 +84,7 @@ function sort(x, dim, dir, cmp, with_indices)
             {
                 ans = array(ROWS(x), function(r) {
                     var row = ROW(x, r);
-                    return sort(row, dim, dir, null == cmp ? (is_real(row) ? cmp_real : cmp_abs) : cmp, false);
+                    return sort(row, dim, dir, null == cmp ? (is_string(row[0]) ? cmp_str : (is_real(row) ? cmp_real : cmp_abs)) : cmp, false);
                 });
                 return matrix(ROWS(x), COLS(x), function(i, j) {
                     return ans[i][j];
@@ -94,12 +102,13 @@ fn.sort = varargout(function(nargout, x, dim, dir/*, .. args*/) {
         {
             if ('real' === arguments[i+1]) cmp = cmp_real;
             else if ('abs' === arguments[i+1]) cmp = cmp_abs;
-            if (1 === i)
+            else if ('str' === arguments[i+1]) cmp = cmp_str;
+            if (2 === i)
             {
                 dim = 1;
                 dir = 'ascend';
             }
-            else if (2 === i)
+            else if (3 === i)
             {
                 dir = 'ascend';
             }
