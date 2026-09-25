@@ -34,6 +34,7 @@ function intersect(x, y, ord, rows, nargout)
 }
 fn.intersect = varargout(function(nargout, x, y) {
     var ord = "sorted", rows = '', i = 3;
+    if ("rows" === arguments[i]) rows = arguments[i++];
     if ("stable" === arguments[i] || "sorted" === arguments[i]) ord = arguments[i++];
     if ("rows" === arguments[i]) rows = 'rows';
     return intersect(x, y, ord, rows, nargout);

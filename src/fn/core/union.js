@@ -38,7 +38,8 @@ function union(x, y, ord, rows, nargout)
     return 1 < nargout ? [ans, ia, ib] : ans;
 }
 fn.union = varargout(function(nargout, x, y) {
-    var ord = "sorted", rows = '', i = 4;
+    var ord = "sorted", rows = '', i = 3;
+    if ("rows" === arguments[i]) rows = arguments[i++];
     if ("stable" === arguments[i] || "sorted" === arguments[i]) ord = arguments[i++];
     if ("rows" === arguments[i]) rows = 'rows';
     return union(x, y, ord, rows, nargout);

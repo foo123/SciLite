@@ -651,7 +651,7 @@ function varargout(f, nargout_default)
         return ans;
     };
     f_with_nargout.nargout = function(nargout) {
-        return function(/*..args*/) {
+        var fnargout = function(/*..args*/) {
             var args = [].slice.call(arguments), ans;
             args.unshift(nargout); // nargout=nargout
             ans = f.apply(null, args);
@@ -668,6 +668,8 @@ function varargout(f, nargout_default)
             }
             return ans;
         };
+        fnargout.nargout = f_with_nargout.nargout;
+        return fnargout;
     };
     return f_with_nargout;
 }
@@ -690,7 +692,7 @@ function num2str(x)
     else if (is_num(x))
     {
         var absx = scalar_abs(x);
-        x = n_le(absx, 1e-5) && n_ge(absx, 1e-14) ? String(x) : (x.toFixed(4).replace(/\.0{4}$/, ''));
+        x = n_le(absx, 1e-9/*1e-5*/) /*&& n_ge(absx, 1e-14)*/ ? String(x) : (x.toFixed(4).replace(/\.0{4}$/, ''));
     }
     else if (is_complex(x))
     {

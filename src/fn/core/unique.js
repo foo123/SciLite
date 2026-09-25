@@ -87,13 +87,13 @@ fn.unique = varargout(function(nargout, x) {
     var ord = "sorted", occ = "first", rows = '', i = 2;
     if ("stable" === arguments[i] || "sorted" === arguments[i]) ord = arguments[i++];
     if ("first" === arguments[i] || "last" === arguments[i]) occ = arguments[i++];
-    if ("rows" === arguments[i]) rows = 'rows';
+    //if ("rows" === arguments[i]) rows = 'rows';
     return unique(x, ord, occ, rows, nargout);
 });
 fn.uniquetol = varargout(function(nargout, x) {
     var tol = 1e-12, occ = "lowest", rows = '', i = 2;
     if (is_scalar(arguments[i])) tol = real(arguments[i++]);
     if ("lowest" === arguments[i] || "highest" === arguments[i]) occ = arguments[i++];
-    if ("rows" === arguments[i]) rows = 'rows';
+    //if ("rows" === arguments[i]) rows = 'rows';
     return uniquetol(x, tol, occ, rows, nargout);
 });
