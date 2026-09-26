@@ -4,7 +4,7 @@ A **scientific computing environment** similar to Octave/Matlab/SciPy, in pure J
 
 ![SciLite](./scilite.png)
 
-**v.0.11.0 in progress** (139 kB minified)
+**v.0.11.0** (145 kB minified)
 
 [![SciLite](./scilite-live.png)](https://foo123.github.io/examples/scilite/)
 
@@ -32,7 +32,7 @@ JavaScript syntax:
 const {add, dotmul, mul, get, set} = SciLite._;
 const fn = SciLite.fn;
 
-// TensorView.js needed for nd-array support
+// TensorView.js needed for array and nd-array support
 SciLite._.tensorview(TensorView);
 
 // optionally for arbitrary precision support use Decimal.js
@@ -54,6 +54,7 @@ let [Ref, Pivots] = fn.rref.nargout(2)(A); // variable output
 * support multi-dimensional nd-arrays (w/ `TensorView`) **[DONE]**
 * support cell arrays **[DONE]**
 * support user defined functions similar to Octave/Matlab **[DONE]**
+* support anonymous functions similar to Octave/Matlab **[DONE]**
 * implement more builtin functions from Octave/Matlab **[DONE PARTIALLY]**
 * complete implementation of the usual matrix decompositions, eg `lu`, `qr`, `schur`, `eig`, `svd` **[DONE]**
 * complete implementation of the usual matrix functions, eg `sqrtm`, `expm`, `logm` **[DONE]**

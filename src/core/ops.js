@@ -1420,7 +1420,6 @@ function set(mat /*, ..slices, val*/)
         sz = is_1d(mat) ? [mat.length] : size(mat),
         szv = '{}' === b ? [1] : (is_1d(val) ? [val.length] : size(val)),
         tot, concat_dim = [-1, -1];
-    //if (iscellv && ('()' === b) && (2 === szv.length/*only?*/) && arr_eq(szv, array(szv.length, 1))) szv = [1];
     if (!mat.length && slices.length)
     {
         slices.forEach(function(slice, dim) {
@@ -1473,16 +1472,7 @@ function set(mat /*, ..slices, val*/)
     {
         if (is_array(slices[0]) && arr_eq(sz, size(slices[0])) && all(slices[0], function(v) {return 0 === _(v) || 1 === _(v);}))
         {
-            /*if (iscell && iscellv)
-            {
-                tot = _(nnz(slices[0]));
-                if (1 < tot)
-                {
-                    val = array(tot, function(i) {return i ? copy(val) : val;});
-                    szv = [tot];
-                }
-            }*/
-            tensorview(mat, {shape:sz, ndarray:sz}).select(tonumber(slices[0])).setFrom(tensorview(val, {shape:is_array(val) ? szv : null, ndarray:is_array(val) ? szv : null}));
+            tensorview(mat, {shape:sz, ndarray:sz}).select(tonumber(slices[0])).setFrom(tensorview(val, {shape:is_array(val) ? szv : null, ndarray:is_array(val) ? szv : null}), copy);
         }
         else
         {
@@ -1542,7 +1532,7 @@ function set(mat /*, ..slices, val*/)
             }
             else
             {
-                tensorview(mat, {shape:sz, ndarray:sz}).permute(array(sz.length, function(i) {return sz.length-1-i;})).reshape([tot]).slice(slices).setFrom(tensorview(val, {shape:is_array(val) ? szv : null, ndarray:is_array(val) ? szv : null}));
+                tensorview(mat, {shape:sz, ndarray:sz}).permute(array(sz.length, function(i) {return sz.length-1-i;})).reshape([tot]).slice(slices).setFrom(tensorview(val, {shape:is_array(val) ? szv : null, ndarray:is_array(val) ? szv : null}), copy);
             }
         }
     }
@@ -1602,7 +1592,7 @@ function set(mat /*, ..slices, val*/)
         }
         else
         {
-            tensorview(mat, {shape:sz, ndarray:sz}).slice(slices).setFrom(tensorview(val, {shape:is_array(val) ? szv : null, ndarray:is_array(val) ? szv : null}));
+            tensorview(mat, {shape:sz, ndarray:sz}).slice(slices).setFrom(tensorview(val, {shape:is_array(val) ? szv : null, ndarray:is_array(val) ? szv : null}), copy);
         }
     }
     return mat;

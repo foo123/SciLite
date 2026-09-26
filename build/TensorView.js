@@ -1,7 +1,7 @@
 /**
 *  TensorView
 *  View array data as multidimensional tensors of various shapes efficiently
-*  @VERSION 2.1.3
+*  @VERSION 2.1.4
 *  https://github.com/foo123/TensorView
 *
 **/
@@ -22,7 +22,11 @@ var proto = 'prototype',
     NOP = function() {},
     stdMath = Math,
     def = Object.defineProperty,
-    TypedArray = "undefined" !== typeof Float32Array ? Object.getPrototypeOf(Float32Array) : null;
+    TypedArray = "undefined" !== typeof Float32Array ? Object.getPrototypeOf(Float32Array) : null,
+    cdots = {toTex:function() {return '\\cdots';}, toString:function() {return '..';}},
+    vdots = {toTex:function() {return '\\vdots';}, toString:function() {return ':';}},
+    ddots = {toTex:function() {return '\\ddots';}, toString:function() {return ':.';}}
+;
 
 function TensorView(data, o, _)
 {
@@ -360,11 +364,12 @@ function TensorView(data, o, _)
         }
         return self;
     };
-    self.setFrom = function(other) {
+    self.setFrom = function(other, mapper) {
         if (is_array(other)) other = new TensorView(other);
         else if (!(other instanceof TensorView)) other = new TensorView([other]);
         if ((other instanceof TensorView) && (0 < total) && (0 < other.length))
         {
+            if (!is_function(mapper)) mapper = null;
             var selfiter = self.iterator("setter", 1),
                 otheriter = other.iterator("getter", 1),
                 selfnext, othernext,
@@ -394,7 +399,7 @@ function TensorView(data, o, _)
                     }
                 }
                 ++items;
-                selfnext = selfiter.next(othernext.value[0]);
+                selfnext = selfiter.next(mapper ? mapper(othernext.value[0]) : (othernext.value[0]));
                 if (!selfnext || selfnext.done)
                 {
                     // done
@@ -596,20 +601,23 @@ function TensorView(data, o, _)
         });
     };
 }
-TensorView.VERSION = '2.1.3';
-TensorView.stringify = function(type, ndarray, shape, stringify, maxsize, i0, with_shape) {
+TensorView.VERSION = '2.1.4';
+TensorView.cdots = cdots;
+TensorView.vdots = vdots;
+TensorView.ddots = ddots;
+TensorView.stringify = function(type, ndarray, shape, stringify, maxsize, i0, with_shape, prefix, suffix) {
     with_shape = "noshape" !== with_shape;
     i0 = i0 || 0;
     if (!is_num(maxsize, true)) maxsize = Infinity;
-    if (!is_function(stringify)) stringify = to_string;
+    if (!is_function(stringify)) stringify = function(x) {return -1 < [TensorView.cdots, TensorView.vdots, TensorView.ddots].indexOf(x) ? ('tex' === type ? x.toTex() : x.toString()) : to_string(x);};
     var ndim = shape.length;
     if ('tex' === type)
     {
-        return 2 <= ndim ? ('\\displaylines{'+(with_shape ? (shape.join(' \\times ')+' \\\\ ') : '')+(2 < ndim ? tex_nd(ndarray, shape, maxsize, stringify, i0) : tex_2d(ndarray, shape, maxsize, stringify))+'}') : tex_1d(ndarray, shape, maxsize, stringify);
+        return 2 <= ndim ? ('\\displaylines{'+(prefix || '')+(with_shape ? (shape.join(' \\times ')+' \\\\ ') : '')+(2 < ndim ? tex_nd(ndarray, shape, maxsize, stringify, i0) : tex_2d(ndarray, shape, maxsize, stringify))+(suffix || '')+'}') : ((prefix || '')+tex_1d(ndarray, shape, maxsize, stringify)+(suffix || ''));
     }
     else //if ('str' === type)
     {
-        return 2 <= ndim ? ((with_shape ? (shape.join("\u00D7")+"\n") : '')+(2 < ndim ? str_nd(ndarray, shape, maxsize, stringify, i0) : str_2d(ndarray, shape, maxsize, stringify))) : str_1d(ndarray, shape, maxsize, stringify);
+        return 2 <= ndim ? ((prefix || '')+(with_shape ? (shape.join("\u00D7")+"\n") : '')+(2 < ndim ? str_nd(ndarray, shape, maxsize, stringify, i0) : str_2d(ndarray, shape, maxsize, stringify))+(suffix || '')) : ((prefix || '')+str_1d(ndarray, shape, maxsize, stringify)+(suffix || ''));
     }
 };
 TensorView[proto] = {
@@ -659,13 +667,13 @@ TensorView[proto] = {
         });
         return ndarray;
     },
-    toString: function(maxsize, stringify, i0, with_shape) {
+    toString: function(maxsize, stringify, i0, with_shape, prefix, suffix) {
         var self = this;
-        return TensorView.stringify('str', self.toNDArray(), self.shape(), stringify, maxsize, i0 || 0, with_shape);
+        return TensorView.stringify('str', self.toNDArray(), self.shape(), stringify, maxsize, i0 || 0, with_shape, prefix, suffix);
     },
-    toTex: function(maxsize, texify, i0, with_shape) {
+    toTex: function(maxsize, texify, i0, with_shape, prefix, suffix) {
         var self = this;
-        return TensorView.stringify('tex', self.toNDArray(), self.shape(), texify, maxsize, i0 || 0, with_shape);
+        return TensorView.stringify('tex', self.toNDArray(), self.shape(), texify, maxsize, i0 || 0, with_shape, prefix, suffix);
     }
 };
 if (('undefined' !== typeof Symbol) && ('undefined' !== typeof Symbol.iterator))
@@ -919,7 +927,7 @@ function permute(arr, perm)
 function project(x, i, j)
 {
     j = j || 0;
-    if (is_array(x, true))
+    if ((j < i.length) && is_array(x, true))
     {
         return ':' === i[j] ? x.map(function(xj) {return project(xj, i, j+1);}) : project(x[i[j]], i, j+1);
     }
@@ -954,7 +962,7 @@ function str_1d(x, shape, MAXPRINTSIZE, stringify)
 {
     if (shape[0] > MAXPRINTSIZE)
     {
-        x = x.slice(0, stdMath.round(MAXPRINTSIZE/2)).concat(['..']).concat(x.slice(-stdMath.round(MAXPRINTSIZE/2)+1));
+        x = x.slice(0, stdMath.round(MAXPRINTSIZE/2)).concat(TensorView.cdots).concat(x.slice(-stdMath.round(MAXPRINTSIZE/2)+1));
     }
     return '[' + x.map(stringify).join('  ') + ']';
 }
@@ -964,13 +972,13 @@ function str_2d(x, shape, MAXPRINTSIZE, stringify)
     if (shape[1] > MAXPRINTSIZE)
     {
         x = x.map(function(row) {
-            return row.slice(0, stdMath.round(MAXPRINTSIZE/2)).concat('..').concat(row.slice(-stdMath.round(MAXPRINTSIZE/2)+1));
+            return row.slice(0, stdMath.round(MAXPRINTSIZE/2)).concat(TensorView.cdots).concat(row.slice(-stdMath.round(MAXPRINTSIZE/2)+1));
         });
         use_ddots = true;
     }
     if (shape[0] > MAXPRINTSIZE)
     {
-        x = x.slice(0, stdMath.round(MAXPRINTSIZE/2)).concat([array(x[0].length, function(i) {return stdMath.round(MAXPRINTSIZE/2) === i ? (use_ddots ? ':.' : ':') : ':';})]).concat(x.slice(-stdMath.round(MAXPRINTSIZE/2)+1));
+        x = x.slice(0, stdMath.round(MAXPRINTSIZE/2)).concat([array(x[0].length, function(i) {return stdMath.round(MAXPRINTSIZE/2) === i ? (use_ddots ? TensorView.ddots : TensorView.vdots) : TensorView.vdots;})]).concat(x.slice(-stdMath.round(MAXPRINTSIZE/2)+1));
     }
     var ln = array(x[0].length, function(col) {
         return x.map(function(row) {return row[col];}).reduce(function(l, xi) {
@@ -1003,7 +1011,7 @@ function str_nd(x, shape, MAXPRINTSIZE, stringify, i0, indices)
         }
         if (lim < n)
         {
-            if ((n > MAXPRINTSIZE) && str.length) str += "\n:";
+            if ((n > MAXPRINTSIZE) && str.length) str += "\n" + TensorView.vdots.toString();
             for (i=n-lim; i<n; ++i)
             {
                 if (str.length) str += "\n";
@@ -1017,7 +1025,7 @@ function tex_1d(x, shape, MAXPRINTSIZE, texify)
 {
     if (shape[0] > MAXPRINTSIZE)
     {
-        x = x.slice(0, stdMath.round(MAXPRINTSIZE/2)).concat(['\\cdots']).concat(x.slice(-stdMath.round(MAXPRINTSIZE/2)+1));
+        x = x.slice(0, stdMath.round(MAXPRINTSIZE/2)).concat(TensorView.cdots).concat(x.slice(-stdMath.round(MAXPRINTSIZE/2)+1));
     }
     return x.map(texify).join(' \\hskip 1em ');
 }
@@ -1027,13 +1035,13 @@ function tex_2d(x, shape, MAXPRINTSIZE, texify)
     if (shape[1] > MAXPRINTSIZE)
     {
         x = x.map(function(row) {
-            return row.slice(0, stdMath.round(MAXPRINTSIZE/2)).concat(['\\cdots']).concat(row.slice(-stdMath.round(MAXPRINTSIZE/2)+1));
+            return row.slice(0, stdMath.round(MAXPRINTSIZE/2)).concat(TensorView.cdots).concat(row.slice(-stdMath.round(MAXPRINTSIZE/2)+1));
         });
         use_ddots = true;
     }
     if (shape[0] > MAXPRINTSIZE)
     {
-        x = x.slice(0, stdMath.round(MAXPRINTSIZE/2)).concat([array(x[0].length, function(i) {return stdMath.round(MAXPRINTSIZE/2) === i ? (use_ddots ? '\\ddots' : '\\vdots') : '\\vdots';})]).concat(x.slice(-stdMath.round(MAXPRINTSIZE/2)+1));
+        x = x.slice(0, stdMath.round(MAXPRINTSIZE/2)).concat([array(x[0].length, function(i) {return stdMath.round(MAXPRINTSIZE/2) === i ? (use_ddots ? TensorView.ddots : TensorView.vdots) : TensorView.vdots;})]).concat(x.slice(-stdMath.round(MAXPRINTSIZE/2)+1));
     }
     return '\\begin{bmatrix}'+ x.map(function(xi) {return xi.map(texify).join(' & \\hskip 1em ');}).join(' \\\\ ') + '\\end{bmatrix}';
 }
@@ -1057,7 +1065,7 @@ function tex_nd(x, shape, MAXPRINTSIZE, texify, i0, indices)
         }
         if (lim < n)
         {
-            if ((n > MAXPRINTSIZE) && tex.length) tex += "\\\\ \\vdots";
+            if ((n > MAXPRINTSIZE) && tex.length) tex += "\\\\ " + TensorView.vdots.toTex();
             for (i=n-lim; i<n; ++i)
             {
                 if (tex.length) tex += "\\\\";

@@ -1055,7 +1055,7 @@ return {
         else
         {
             return Object.keys(ctx || {}).reduce(function(vars, varname) {
-                if ('ans' !== varname) vars[varname] = serialize(ctx[varname]);
+                if (('ans' !== varname) && ("function" !== typeof ctx[varname])) vars[varname] = serialize(ctx[varname]);
                 return vars;
             }, {});
         }

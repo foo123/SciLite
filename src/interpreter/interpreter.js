@@ -632,7 +632,7 @@ function def_fn(fn_def)
         {
             $.ctx.varargout = cellarray(array(100, null), [100]); // pre-allocate a large array
         }
-        ans = await vale(fn_def.body, null, $);
+        ans = await vale(1 === fn_def.body.length ? fn_def.body[0] : fn_def.body, null, $);
         if (fn_def.argout.length)
         {
             if ('' === fn_def.name)
@@ -1423,7 +1423,7 @@ function parse(s, ctx, lineStart, posStart)
             }
             if (eat(/^[ \t\v\f]+/, false))
             {
-                if (expected && (-1 < expected.indexOf(' ')) && terms.length && !eat(/^[ \t\v\f]+(&&|\|\||&|\||xor\b|>=|<=|==|~=|>|<|=|\+|-|\.\*|\*|\.\/|\/|\\|\.\^|\^)/, false) && can_merge())
+                if (expected && (-1 < expected.indexOf(' ')) && terms.length && !eat(/^[ \t\v\f]+(&&|\|\||&|\||xor\b|>=|<=|==|~=|>|<|=|\+|-\s|\.\*|\*|\.\/|\/|\\|\.\^|\^)/, false) && can_merge())
                 {
                     // space expected that separates a complete expression
                     //eat(/^[ \t\v\f]+/); // consume it

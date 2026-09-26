@@ -2,16 +2,16 @@
 *
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab/SciPy in pure JavaScript
-* @version: 0.10.0
-* 2026-09-22 23:25:00
+* @version: 0.11.0
+* 2026-09-26 11:26:48
 * https://github.com/foo123/SciLite
 *
 **//**
 *
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab/SciPy in pure JavaScript
-* @version: 0.10.0
-* 2026-09-22 23:25:00
+* @version: 0.11.0
+* 2026-09-26 11:26:48
 * https://github.com/foo123/SciLite
 *
 **/
@@ -59,7 +59,7 @@ var tensorview = null,
 
     // lib
     $ = {
-        VERSION: "0.10.0",
+        VERSION: "0.11.0",
         // common functions
         _: {},
         // builtin functions
@@ -350,7 +350,14 @@ function rowvec(n, v)
 }
 function vec2row(vec)
 {
-    return is_0d(vec) ? [[vec]] : (is_1d(vec) ? [vec] : vec);
+    if (vec && vec.$scilitecell$)
+    {
+        return is_0d(vec) ? cellarray([[vec]], [1, 1]) : (is_1d(vec) ? cellarray([vec.map(copy)], [1].concat(vec.$scilitecell$)) : vec);
+    }
+    else
+    {
+        return is_0d(vec) ? [[vec]] : (is_1d(vec) ? [vec] : vec);
+    }
 }
 fn.rowvec = vec2row;
 function colvec(n, v)
@@ -359,7 +366,14 @@ function colvec(n, v)
 }
 function vec2col(vec)
 {
-    return is_0d(vec) ? [[vec]] : (is_1d(vec) ? vec.map(function(vi) {return [vi];}) : vec);
+    if (vec && vec.$scilitecell$)
+    {
+        return is_0d(vec) ? cellarray([[vec]], [1, 1]) : (is_1d(vec) ? cellarray(vec.map(function(vi) {return [vi];}), vec.$scilitecell$.concat(1)) : vec);
+    }
+    else
+    {
+        return is_0d(vec) ? [[vec]] : (is_1d(vec) ? vec.map(function(vi) {return [vi];}) : vec);
+    }
 }
 fn.colvec = vec2col;
 function sca(x, real)
@@ -730,7 +744,7 @@ function varargout(f, nargout_default)
         return ans;
     };
     f_with_nargout.nargout = function(nargout) {
-        return function(/*..args*/) {
+        var fnargout = function(/*..args*/) {
             var args = [].slice.call(arguments), ans;
             args.unshift(nargout); // nargout=nargout
             ans = f.apply(null, args);
@@ -747,6 +761,8 @@ function varargout(f, nargout_default)
             }
             return ans;
         };
+        fnargout.nargout = f_with_nargout.nargout;
+        return fnargout;
     };
     return f_with_nargout;
 }
@@ -769,7 +785,7 @@ function num2str(x)
     else if (is_num(x))
     {
         var absx = scalar_abs(x);
-        x = n_le(absx, 1e-5) && n_ge(absx, 1e-14) ? String(x) : (x.toFixed(4).replace(/\.0{4}$/, ''));
+        x = n_lt(absx, 1e-12) || n_gt(absx, 1e-5) ? (x.toFixed(4).replace(/\.0{4}$/, '')) : String(x);
     }
     else if (is_complex(x))
     {
@@ -781,17 +797,19 @@ $_.num2str = num2str;
 $_.MAXPRINTSIZE = inf;
 function texify(x)
 {
+    var tex;
     if (null == x)
     {
         // pass
         x = '';
     }
+    else if (-1 < [tensorview.cdots, tensorview.vdots, tensorview.ddots].indexOf(x))
+    {
+        x = x.toTex();
+    }
     else if (is_string(x))
     {
-        if (-1 === (['\\cdots','\\vdots','\\ddots']).indexOf(x))
-        {
-            x = '\\text{' + x + '}';
-        }
+        x = '\\text{"' + x + '"}';
     }
     else if (is_nan(x))
     {
@@ -808,20 +826,21 @@ function texify(x)
     else if (is_2d(x))
     {
         // 2d or nd array
-        x = (x.$scilitecell$ ? '\\text{cell }' : '') + (tensorview.stringify('tex', x, size(x), x.$scilitecell$ ? function(x) {
-            return '\\{' + (is_string(x) ? '\\text{"'+x+'"}' : (is_array(x) ? (x.$scilitecell$ ? '\\text{cell }' : '') + size(x).join(' \\times ') : texify(x))) + '\\}';
-        } : texify, $_.MAXPRINTSIZE, 1));
-        if ('\\text{cell }\\displaylines{' === x.slice(0, 26)) x = x.replace('\\text{cell }\\displaylines{', '\\displaylines{\\text{cell }');
+        tex = x.$scilitecell$ ? function(x) {
+            return '\\{' + (is_array(x) ? (x.$scilitecell$ ? '\\text{cell }' : '') + size(x).join(' \\times ') : texify(x)) + '\\}';
+        } : texify;
+        x = tensorview.stringify('tex', x, size(x), tex, $_.MAXPRINTSIZE, 1, true, x.$scilitecell$ ? '\\text{cell }' : '');
     }
     else if (is_array(x))
     {
+        tex = x.$scilitecell$ ? function(x) {
+            return '\\{' + (is_array(x) ? (x.$scilitecell$ ? '\\text{cell }' : '') + size(x).join(' \\times ') : texify(x)) + '\\}';
+        } : texify;
         if (x.length > $_.MAXPRINTSIZE)
         {
-            x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat(['\\cdots']).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
+            x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat(tensorview.cdots).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
         }
-        x = x.map(x.$scilitecell$ ? function(x) {
-            return '\\{' + (is_string(x) ? '\\text{"'+x+'"}' : (is_array(x) ? (x.$scilitecell$ ? '\\text{cell }' : '') + size(x).join(' \\times ') : texify(x))) + '\\}';
-        } : texify).join(' \\hskip 1em ');
+        x = x.map(tex).join(' \\hskip 1em ');
     }
     else if (("object" === typeof x) || ("function" === typeof x))
     {
@@ -849,14 +868,15 @@ $_.tex = function(x) {
             }
             else
             {
+                var tex = x.$scilitecell$ ? function(x) {
+                    return '\\{' + (is_array(x) ? (x.$scilitecell$ ? '\\text{cell }' : '') + size(x).join(' \\times ') : texify(x)) + '\\}';
+                } : texify;
                 if (x.length > $_.MAXPRINTSIZE)
                 {
-                    x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat('\\vdots').concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
+                    x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat(tensorview.vdots).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
                 }
-                //x = "\\[" + x.map(texify).join(' \\hskip 1em ') + "\\]";
-                x = "\\[" + x.map(x.$scilitecell$ ? function(x) {
-                    return '\\{' + (is_string(x) ? '\\text{"'+x+'"}' : (is_array(x) ? (x.$scilitecell$ ? '\\text{cell }' : '') + size(x).join(' \\times ') : texify(x))) + '\\}';
-                } : texify).join("\\]\n\\[") + "\\]";
+                //x = "\\[" + x.map(tex).join(' \\hskip 1em ') + "\\]";
+                x = "\\[" + x.map(tex).join("\\]\n\\[") + "\\]";
             }
         }
         else
@@ -873,14 +893,20 @@ $_.tex = function(x) {
 };
 function stringify(x)
 {
+    var str;
     if (null == x)
     {
         // pass
         x = '';
     }
+    else if (-1 < [tensorview.cdots, tensorview.vdots, tensorview.ddots].indexOf(x))
+    {
+        x = x.toString();
+    }
     else if (is_string(x))
     {
         // pass
+        x = '"' + x + '"';
     }
     else if (is_nan(x))
     {
@@ -897,19 +923,21 @@ function stringify(x)
     else if (is_2d(x))
     {
         // 2d or nd array
-        x = (x.$scilitecell$ ? 'cell ' : '') + tensorview.stringify('str', x, size(x), x.$scilitecell$ ? function(x) {
-            return '{' + (is_string(x) ? '"'+x+'"' : (is_array(x) ? (x.$scilitecell$ ? 'cell ' : '') + size(x).join("\u00D7") : stringify(x))) + '}';
-        } : stringify, $_.MAXPRINTSIZE, 1);
+        str = x.$scilitecell$ ? function(x) {
+            return '{' + (is_array(x) ? (x.$scilitecell$ ? 'cell ' : '') + size(x).join("\u00D7") : stringify(x)) + '}';
+        } : stringify;
+        x = tensorview.stringify('str', x, size(x), str, $_.MAXPRINTSIZE, 1, true, x.$scilitecell$ ? 'cell ' : '');
     }
     else if (is_array(x))
     {
+        str = x.$scilitecell$ ? function(x) {
+            return '{' + (is_array(x) ? (x.$scilitecell$ ? 'cell ' : '') + size(x).join("\u00D7") : stringify(x)) + '}';
+        } : stringify;
         if (x.length > $_.MAXPRINTSIZE)
         {
-            x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat(['..']).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
+            x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat(tensorview.cdots).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
         }
-        x = x.map(x.$scilitecell$ ? function(x) {
-            return '{' + (is_string(x) ? '"'+x+'"' : (is_array(x) ? (x.$scilitecell$ ? 'cell ' : '') + size(x).join("\u00D7") : stringify(x))) + '}';
-        } : stringify).join('  ');
+        x = x.map(str).join('  ');
     }
     else if (("object" === typeof x) || ("function" === typeof x))
     {
@@ -937,13 +965,14 @@ $_.str = function(x) {
             }
             else
             {
+                var str = x.$scilitecell$ ? function(x) {
+                    return '{' + (is_array(x) ? (x.$scilitecell$ ? 'cell ' : '') + size(x).join("\u00D7") : stringify(x)) + '}';
+                } : stringify;
                 if (x.length > $_.MAXPRINTSIZE)
                 {
-                    x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat(':').concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
+                    x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat(tensorview.vdots).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
                 }
-                x = x.map(x.$scilitecell$ ? function(x) {
-                    return '{' + (is_string(x) ? '"'+x+'"' : (is_array(x) ? (x.$scilitecell$ ? 'cell ' : '') + size(x).join("\u00D7") : stringify(x))) + '}';
-                } : stringify).join("\n");
+                x = x.map(str).join("\n");
             }
         }
         else
@@ -2305,7 +2334,7 @@ function get(mat /*, ..slices*/)
         }
         else
         {
-            tot = prod(sz);
+            tot = _(prod(sz));
             ret = tensorview(tensorview(mat, {shape:sz, ndarray:sz}).permute(array(sz.length, function(i) {return sz.length-1-i;})).toArray()).slice(slices.map(function(slice, dim) {
                 if (is_string(slice))
                 {
@@ -2382,7 +2411,7 @@ $_.get = get;
 function set(mat /*, ..slices, val*/)
 {
     // indices start from 1 to end
-    // B=A(:,[5 6]); B=get(A,':','4,5');
+    // B(:,[2 3])=A; set(B,':','1,2', A);
     if (!is_array(mat)) return arguments[arguments.length-1];
     var has_b = 3 <= arguments.length && ('()' === arguments[1] || '{}' === arguments[1]),
         b = has_b ? arguments[1] : '()',
@@ -2391,8 +2420,7 @@ function set(mat /*, ..slices, val*/)
         iscell = is_cell(mat), iscellv = is_cell(val),
         sz = is_1d(mat) ? [mat.length] : size(mat),
         szv = '{}' === b ? [1] : (is_1d(val) ? [val.length] : size(val)),
-        tot, concat_dim = -1;
-    //if (iscellv && ('()' === b) && (2 === szv.length/*only?*/) && arr_eq(szv, array(szv.length, 1))) szv = [1];
+        tot, concat_dim = [-1, -1];
     if (!mat.length && slices.length)
     {
         slices.forEach(function(slice, dim) {
@@ -2445,20 +2473,12 @@ function set(mat /*, ..slices, val*/)
     {
         if (is_array(slices[0]) && arr_eq(sz, size(slices[0])) && all(slices[0], function(v) {return 0 === _(v) || 1 === _(v);}))
         {
-            /*if (iscell && iscellv)
-            {
-                tot = _(nnz(slices[0]));
-                if (1 < tot)
-                {
-                    val = array(tot, function(i) {return i ? copy(val) : val;});
-                    szv = [tot];
-                }
-            }*/
-            tensorview(mat, {shape:sz, ndarray:sz}).select(tonumber(slices[0])).setFrom(tensorview(val, {shape:is_array(val) ? szv : null, ndarray:is_array(val) ? szv : null}));
+            tensorview(mat, {shape:sz, ndarray:sz}).select(tonumber(slices[0])).setFrom(tensorview(val, {shape:is_array(val) ? szv : null, ndarray:is_array(val) ? szv : null}), copy);
         }
         else
         {
-            tot = prod(sz);
+            tot = _(prod(sz));
+            concat_dim[0] = sz.indexOf(tot);
             slices = slices.map(function(slice, dim) {
                 if (is_string(slice))
                 {
@@ -2471,11 +2491,11 @@ function set(mat /*, ..slices, val*/)
                     {
                         return index-1;
                     }
-                    /*else if (index === tot+1)
+                    else if (-1 < concat_dim[0] && index === tot+1)
                     {
-                        concat_dim = dim;
+                        concat_dim[1] = concat_dim[0];
                         return index-1;
-                    }*/
+                    }
                     throw "set: index out of bounds";
                 }
                 else if (is_vector(slice))
@@ -2486,11 +2506,11 @@ function set(mat /*, ..slices, val*/)
                         {
                             return index-1;
                         }
-                        /*else if (index === tot+1)
+                        else if (-1 < concat_dim[0] && index === tot+1)
                         {
-                            concat_dim = dim;
+                            concat_dim[1] = concat_dim[0];
                             return index-1;
-                        }*/
+                        }
                         throw "set: index out of bounds";
                     });
                 }
@@ -2499,9 +2519,9 @@ function set(mat /*, ..slices, val*/)
                     throw "set: invalid range";
                 }
             });
-            /*if (null != concat_dim)
+            if (-1 < concat_dim[1])
             {
-                mat = tensorview(mat, {shape: sz}).concat(tensorview(val, {shape: !is_array(val) ? (sz.slice(0, concat_dim).concat(1).concat(sz.slice(concat_dim+1))) : (szv.concat(array(slices.length-szv.length, 1)))}), concat_dim);
+                mat = tensorview(mat, {shape: sz}).concat(tensorview(val, {shape: !is_array(val) ? (sz.slice(0, concat_dim[1]).concat(1).concat(sz.slice(concat_dim[1]+1))) : (szv.concat(array(slices.length-szv.length, 1)))}), concat_dim[1]);
                 if (iscell)
                 {
                     mat = cellarray(mat.toNDArray(), mat.shape());
@@ -2512,9 +2532,9 @@ function set(mat /*, ..slices, val*/)
                 }
             }
             else
-            {*/
-                tensorview(mat, {shape:sz, ndarray:sz}).permute(array(sz.length, function(i) {return sz.length-1-i;})).reshape([tot]).slice(slices).setFrom(tensorview(val, {shape:is_array(val) ? szv : null, ndarray:is_array(val) ? szv : null}));
-            /*}*/
+            {
+                tensorview(mat, {shape:sz, ndarray:sz}).permute(array(sz.length, function(i) {return sz.length-1-i;})).reshape([tot]).slice(slices).setFrom(tensorview(val, {shape:is_array(val) ? szv : null, ndarray:is_array(val) ? szv : null}), copy);
+            }
         }
     }
     else
@@ -2533,7 +2553,7 @@ function set(mat /*, ..slices, val*/)
                 }
                 else if (index === sz[dim]+1)
                 {
-                    concat_dim = dim;
+                    concat_dim[0] = dim;
                     return index-1;
                 }
                 throw "set: index out of bounds";
@@ -2548,7 +2568,7 @@ function set(mat /*, ..slices, val*/)
                     }
                     else if (index === sz[dim]+1)
                     {
-                        concat_dim = dim;
+                        concat_dim[0] = dim;
                         return index-1;
                     }
                     throw "set: index out of bounds";
@@ -2559,9 +2579,9 @@ function set(mat /*, ..slices, val*/)
                 throw "set: invalid range";
             }
         });
-        if (-1 < concat_dim)
+        if (-1 < concat_dim[0])
         {
-            mat = tensorview(mat, {shape: sz}).concat(tensorview(val, {shape: !is_array(val) ? (sz.slice(0, concat_dim).concat(1).concat(sz.slice(concat_dim+1))) : (szv.concat(array(slices.length-szv.length, 1)))}), concat_dim);
+            mat = tensorview(mat, {shape: sz}).concat(tensorview(val, {shape: !is_array(val) ? (sz.slice(0, concat_dim[0]).concat(1).concat(sz.slice(concat_dim[0]+1))) : (szv.concat(array(slices.length-szv.length, 1)))}), concat_dim[0]);
             if (iscell)
             {
                 mat = cellarray(mat.toNDArray(), mat.shape());
@@ -2573,7 +2593,7 @@ function set(mat /*, ..slices, val*/)
         }
         else
         {
-            tensorview(mat, {shape:sz, ndarray:sz}).slice(slices).setFrom(tensorview(val, {shape:is_array(val) ? szv : null, ndarray:is_array(val) ? szv : null}));
+            tensorview(mat, {shape:sz, ndarray:sz}).slice(slices).setFrom(tensorview(val, {shape:is_array(val) ? szv : null, ndarray:is_array(val) ? szv : null}), copy);
         }
     }
     return mat;
@@ -3524,6 +3544,65 @@ function norm(x, p)
     not_supported("norm");
 }
 fn.norm = norm;
+function arrayfun(fn, arrays, nargout)
+{
+    nargout = nargout || 1;
+    var sz = is_array(arrays[0]) /*&& !arrays[0].$scilitecell$*/ ? (is_1d(arrays[0]) ? [arrays[0].length] : size(arrays[0])) : [], output, promises = [], type;
+
+    if (arrays.length !== arrays.filter(function(arr) {return is_array(arr) /*&& !arr.$scilitecell$*/ && arr_eq(sz, is_1d(arr) ? [arr.length] : size(arr));}).length) not_supported("arrayfun");
+
+    arrays = arrays.map(function(arr) {return tensorview(arr, {shape:sz, ndarray:sz});});
+    output = array(nargout, function() {return tensorview(ndarray(sz, null), {shape:sz, ndarray:sz});});
+    type = array(nargout, "");
+    if ((1 < nargout) && is_callable(fn.nargout)) fn = fn.nargout(nargout);
+    function check_type(j, res)
+    {
+       var typej = type[j];
+       if ("c" !== typej)
+       {
+           if (is_array(res)) type[j] = "c";
+           else if (is_string(res)) type[j] = "" === typej || "s" === typej ? "s" : "c";
+           else if (is_scalar(res)) type[j] = "" === typej || "n" === typej ? "n" : "c";
+           else type[j] = "c";
+       }
+       return res;
+    }
+    function set(i, res)
+    {
+        if ((1 < nargout) && is_array(res))
+        {
+            res = vec(res);
+            output.forEach(function(outj, j) {
+               if (j >= res.length) return;
+               outj.set(i, check_type(j, res[j]));
+            });
+        }
+        else
+        {
+            output[0].set(i, check_type(0, res));
+        }
+    }
+    function ret()
+    {
+        return 1 < nargout ? output.map(function(out, j) {return "c" === type[j] ? cellarray(out.toNDArray(), sz.slice()) : (out.toNDArray());}) : ("c" === type[0] ? cellarray(output[0].toNDArray(), sz.slice()) : (output[0].toNDArray()));
+    }
+    ndarray.indices(sz, function(i) {
+        var res = fn.apply(null, arrays.map(function(arr) {return arr.get(i);}));
+        if (res instanceof Promise)
+        {
+            promises.push(res.then((function(i) {return function(res) {set(i, res);};})(i.slice())));
+        }
+        else
+        {
+            set(i, res);
+        }
+    });
+    return promises.length ? Promise.all(promises).then(ret) : ret();
+}
+fn.arrayfun = varargout(function(nargout, fn/*..arrays*/) {
+    if (!is_callable(fn) || (3 > arguments.length)) not_supported("arrayfun");
+    return arrayfun(fn, [].slice.call(arguments, 2), nargout);
+});
 function cell(/*args*/)
 {
     var args = arguments, dims = [0, 0];
@@ -3904,7 +3983,9 @@ function colon(a, b, c)
             return ans;*/
             sz = size(a);
             // use octave-compatible columnwise-ordering by permuting back and forth
-            return tensorview(a, {shape:sz,ndarray:sz}).permute(array(sz.length, function(i) {return sz.length-1-i;})).toArray();
+            ans = tensorview(a, {shape:sz,ndarray:sz}).permute(array(sz.length, function(i) {return sz.length-1-i;})).toArray();
+            if (a.$scilitecell$) ans = cellarray(ans, [ans.length]);
+            return ans;
         }
         return a;
     }
@@ -4047,11 +4128,14 @@ fn.vertcat = function(A, B /*,..*/) {
 };
 function transpose(x)
 {
+    var ans;
     if (is_2d(x))
     {
-        return matrix(COLS(x), ROWS(x), function(i, j) {
+        ans = matrix(COLS(x), ROWS(x), function(i, j) {
             return x[j][i];
         });
+        if (x.$scilitecell$) ans = cellarray(ans, [x.$scilitecell$[1], x.$scilitecell$[0]].concat(x.$scilitecell$.slice(2)));
+        return ans;
     }
     return x;
 }
@@ -4061,17 +4145,22 @@ fn.transpose = function(x) {
 };
 function ctranspose(x)
 {
+    var ans;
     if (is_2d(x))
     {
-        return matrix(COLS(x), ROWS(x), function(i, j) {
+        ans = matrix(COLS(x), ROWS(x), function(i, j) {
             return is_scalar(x[j][i]) ? scalar_conj(x[j][i]) : x[j][i];
         });
+        if (x.$scilitecell$) ans = cellarray(ans, [x.$scilitecell$[1], x.$scilitecell$[0]].concat(x.$scilitecell$.slice(2)));
+        return ans;
     }
     else if (is_1d(x))
     {
-        return x.map(function(xi) {
+        ans = x.map(function(xi) {
             return is_scalar(xi) ? scalar_conj(xi) : xi;
         });
+        if (x.$scilitecell$) ans = cellarray(ans, x.$scilitecell$.slice());
+        return ans;
     }
     else if (is_scalar(x))
     {
@@ -4424,6 +4513,11 @@ fn.fliplr = function(x) {
 fn.flipud = function(x) {
     return flip(x, 1);
 };
+function cmp_str(a, b)
+{
+    var sa = String(a), sb = String(b);
+    return sa < sb ? -1 : (sa > sb ? 1 : 0);
+}
 function cmp_real(a, b)
 {
     var ra = real(a), rb = real(b),
@@ -4443,13 +4537,15 @@ function cmp_abs(a, b)
 function sort(x, dim, dir, cmp, with_indices)
 {
     var ans;
-    if (is_0d(x))
+    if (!is_array(x))
     {
+        // 0d
         return x;
     }
-    else if (is_vector(x))
+    else if (!is_array(x[0]))
     {
-        if (null == cmp) cmp = is_real(x) ? cmp_real : cmp_abs;
+        // 1d
+        if (null == cmp) cmp = is_string(x[0]) ? cmp_str : (is_real(x) ? cmp_real : cmp_abs);
         ans = x.map(function(v, i) {return {v:v, i:i};}).sort('descend' === dir ? function(a, b) {
             return cmp(b.v, a.v) || (a.i - b.i);
         } : function(a, b) {
@@ -4457,15 +4553,16 @@ function sort(x, dim, dir, cmp, with_indices)
         });
         return with_indices ? [ans.map(function(vi) {return vi.v;}), ans.map(function(vi) {return vi.i+1;})] : ans.map(function(vi) {return vi.v;});
     }
-    else if (is_matrix(x))
+    else if (is_array(x[0]) && !is_array(x[0][0]))
     {
+        // 2d
         if (1 === dim)
         {
             if (with_indices)
             {
                 ans = array(COLS(x), function(c) {
                     var col = COL(x, c);
-                    return sort(col, dim, dir, null == cmp ? (is_real(col) ? cmp_real : cmp_abs) : cmp, true);
+                    return sort(col, dim, dir, null == cmp ? (is_string(col[0]) ? cmp_str : (is_real(col) ? cmp_real : cmp_abs)) : cmp, true);
                 });
                 return [matrix(ROWS(x), COLS(x), function(i, j) {
                     return ans[j][0][i];
@@ -4477,7 +4574,7 @@ function sort(x, dim, dir, cmp, with_indices)
             {
                 ans = array(COLS(x), function(c) {
                     var col = COL(x, c);
-                    return sort(col, dim, dir, null == cmp ? (is_real(col) ? cmp_real : cmp_abs) : cmp, false);
+                    return sort(col, dim, dir, null == cmp ? (is_string(col[0]) ? cmp_str : (is_real(col) ? cmp_real : cmp_abs)) : cmp, false);
                 });
                 return matrix(ROWS(x), COLS(x), function(i, j) {
                     return ans[j][i];
@@ -4490,7 +4587,7 @@ function sort(x, dim, dir, cmp, with_indices)
             {
                 ans = array(ROWS(x), function(r) {
                     var row = ROW(x, r);
-                    return sort(row, dim, dir, null == cmp ? (is_real(row) ? cmp_real : cmp_abs) : cmp, true);
+                    return sort(row, dim, dir, null == cmp ? (is_string(row[0]) ? cmp_str : (is_real(row) ? cmp_real : cmp_abs)) : cmp, true);
                 });
                 return [matrix(ROWS(x), COLS(x), function(i, j) {
                     return ans[i][0][j];
@@ -4502,7 +4599,7 @@ function sort(x, dim, dir, cmp, with_indices)
             {
                 ans = array(ROWS(x), function(r) {
                     var row = ROW(x, r);
-                    return sort(row, dim, dir, null == cmp ? (is_real(row) ? cmp_real : cmp_abs) : cmp, false);
+                    return sort(row, dim, dir, null == cmp ? (is_string(row[0]) ? cmp_str : (is_real(row) ? cmp_real : cmp_abs)) : cmp, false);
                 });
                 return matrix(ROWS(x), COLS(x), function(i, j) {
                     return ans[i][j];
@@ -4520,12 +4617,13 @@ fn.sort = varargout(function(nargout, x, dim, dir/*, .. args*/) {
         {
             if ('real' === arguments[i+1]) cmp = cmp_real;
             else if ('abs' === arguments[i+1]) cmp = cmp_abs;
-            if (1 === i)
+            else if ('str' === arguments[i+1]) cmp = cmp_str;
+            if (2 === i)
             {
                 dim = 1;
                 dir = 'ascend';
             }
-            else if (2 === i)
+            else if (3 === i)
             {
                 dir = 'ascend';
             }
@@ -4540,6 +4638,192 @@ fn.sort = varargout(function(nargout, x, dim, dir/*, .. args*/) {
     if (null == dim) dim = 1;
     dim = _(dim);
     return sort(x, dim, dir, cmp, 1 < nargout);
+});
+function unique(x, ord, occ, rows, nargout)
+{
+    if (!is_array(x)) not_supported("unique");
+    nargout = nargout || 1;
+    x = colon(x);
+    var ans = [], found = {},
+        ia = null, ic = null;
+    x.forEach(function(v, i) {
+        var k = String(v);
+        if (HAS.call(found, k))
+        {
+            found[k][1] = i;
+        }
+        else
+        {
+            found[k] = [i, i];
+            ans.push(v);
+        }
+    });
+    if ("sorted" === ord) ans = sort(ans);
+    if (1 < nargout)
+    {
+        ia = ans.map(function(v) {return found[String(v)]["last" === occ ? 1 : 0] + 1;});
+    }
+    if (2 < nargout)
+    {
+        found = ans.map(function(v) {return String(v);});
+        ic = x.map(function(v) {return found["last" === occ ? 'lastIndexOf' : 'indexOf'](String(v)) + 1;});
+    }
+    return 1 < nargout ? [ans, ia, ic] : ans;
+}
+function uniquetol(x, tol, occ, rows, nargout)
+{
+    if (!is_array(x)) not_supported("uniquetol");
+    if (null == tol) tol = 1e-12;
+    nargout = nargout || 1;
+    tol = __(scalar_abs(tol));
+    x = colon(x);
+    var ans = [],
+        ia = 1 < nargout ? [] : null,
+        ic = 2 < nargout ? new Array(x.length) : null,
+        xx = is_real(x) ? x : abs(x),
+        t = n_mul(tol, max(abs(x))),
+        m_x, m_i;
+
+    for (;;)
+    {
+        m_i = 0;
+        m_x = x.reduce("highest" === occ ? function(m_x, xi, i) {
+            if (null != xi)
+            {
+                if ((null == m_x) || n_gt(xx[i], m_x))
+                {
+                    m_x = xi;
+                    m_i = i;
+                }
+            }
+            return m_x;
+        } : function(m_x, xi, i) {
+            if (null != xi)
+            {
+                if ((null == m_x) || n_lt(xx[i], m_x))
+                {
+                    m_x = xi;
+                    m_i = i;
+                }
+            }
+            return m_x;
+        }, null);
+
+        if (null == m_x) break;
+
+        ans.push(m_x);
+        if (ia) ia.push(m_i+1);
+        x = x.map(function(xi, i) {
+            if ((null != xi) && n_le(scalar_abs(scalar_sub(xi, m_x)), t))
+            {
+                if (ic) ic[i] = ans.length;
+                return null;
+            }
+            return xi;
+        });
+    }
+    return 1 < nargout ? [ans, ia, ic] : ans;
+}
+fn.unique = varargout(function(nargout, x) {
+    var ord = "sorted", occ = "first", rows = '', i = 2;
+    if ("stable" === arguments[i] || "sorted" === arguments[i]) ord = arguments[i++];
+    if ("first" === arguments[i] || "last" === arguments[i]) occ = arguments[i++];
+    //if ("rows" === arguments[i]) rows = 'rows';
+    return unique(x, ord, occ, rows, nargout);
+});
+fn.uniquetol = varargout(function(nargout, x) {
+    var tol = 1e-12, occ = "lowest", rows = '', i = 2;
+    if (is_scalar(arguments[i])) tol = real(arguments[i++]);
+    if ("lowest" === arguments[i] || "highest" === arguments[i]) occ = arguments[i++];
+    //if ("rows" === arguments[i]) rows = 'rows';
+    return uniquetol(x, tol, occ, rows, nargout);
+});
+function intersect(x, y, ord, rows, nargout)
+{
+    if (!is_array(x) || !is_array(y)) not_supported("intersect");
+    nargout = nargout || 1;
+    x = colon(x);
+    y = colon(y);
+    var ans = [], found = {},
+        ia = null, ib = null;
+    x.forEach(function(v, i) {
+        var k = String(v);
+        if (!HAS.call(found, k))
+        {
+            found[k] = [i, -1];
+        }
+    });
+    y.forEach(function(v, i) {
+        var k = String(v);
+        if (HAS.call(found, k))
+        {
+            found[k][1] = i;
+            ans.push(v);
+        }
+    });
+    if ("sorted" === ord) ans = sort(ans);
+    if (1 < nargout)
+    {
+        ia = ans.map(function(v) {return found[String(v)][0] + 1;});
+    }
+    if (2 < nargout)
+    {
+        ib = ans.map(function(v) {return found[String(v)][1] + 1;});
+    }
+    return 1 < nargout ? [ans, ia, ib] : ans;
+}
+fn.intersect = varargout(function(nargout, x, y) {
+    var ord = "sorted", rows = '', i = 3;
+    if ("rows" === arguments[i]) rows = arguments[i++];
+    if ("stable" === arguments[i] || "sorted" === arguments[i]) ord = arguments[i++];
+    if ("rows" === arguments[i]) rows = 'rows';
+    return intersect(x, y, ord, rows, nargout);
+});
+function union(x, y, ord, rows, nargout)
+{
+    if (!is_array(x) || !is_array(y)) not_supported("union");
+    nargout = nargout || 1;
+    x = colon(x);
+    y = colon(y);
+    var ans = [], found = {},
+        ia = null, ib = null;
+    x.forEach(function(v, i) {
+        var k = String(v);
+        if (!HAS.call(found, k))
+        {
+            found[k] = [i, -1];
+            ans.push(v);
+        }
+    });
+    y.forEach(function(v, i) {
+        var k = String(v);
+        if (!HAS.call(found, k))
+        {
+            found[k] = [-1, i];
+            ans.push(v);
+        }
+        else if (0 > found[k][1])
+        {
+            found[k][1] = i;
+        }
+    });
+    if ("sorted" === ord) ans = sort(ans);
+    if (1 < nargout)
+    {
+        ia = ans.map(function(v) {return found[String(v)][0] + 1;}).filter(function(i) {return 0 < i;});
+    }
+    if (2 < nargout)
+    {
+        ib = ans.map(function(v) {return found[String(v)][1] + 1;}).filter(function(i) {return 0 < i;});
+    }
+    return 1 < nargout ? [ans, ia, ib] : ans;
+}
+fn.union = varargout(function(nargout, x, y) {
+    var ord = "sorted", rows = '', i = 3;
+    if ("rows" === arguments[i]) rows = arguments[i++];
+    if ("stable" === arguments[i] || "sorted" === arguments[i]) ord = arguments[i++];
+    if ("rows" === arguments[i]) rows = 'rows';
+    return union(x, y, ord, rows, nargout);
 });
 function min(x, y, dim, ComparisonMethod, method)
 {
@@ -8466,6 +8750,7 @@ fn.sqrtm = varargout(function(nargout, A) {
     if (2 < nargout) throw "sqrtm: output not supported";
     if (is_scalar(A)) return 1 < nargout ? [fn.sqrt(A), O] : fn.sqrt(A);
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("sqrtm");
+    if (1 === ROWS(A)) return 1 < nargout ? [[[fn.sqrt(A[0][0])]], O] : [[fn.sqrt(A[0][0])]];
     var sqrtA = sqrtm(A);
     return 1 < nargout ? [sqrtA, scalar_div(norm(sub(A, mul(sqrtA, sqrtA)), I), norm(A, I))] : sqrtA;
 });
@@ -8517,22 +8802,15 @@ function expm(A, with_neg)
     }
 
     // fast squaring
-    for (i=1,k=_(k); i<=k; ++i)
-    {
-        expA = mul(expA, expA);
-    }
-    if (with_neg)
-    {
-        for (i=1; i<=k; ++i)
-        {
-            expA_neg = mul(expA_neg, expA_neg);
-        }
-    }
+    for (i=1,k=_(k); i<=k; ++i) expA = mul(expA, expA);
+    if (with_neg) for (i=1; i<=k; ++i) expA_neg = mul(expA_neg, expA_neg);
+
     return with_neg ? {'+':expA, '-':expA_neg} : expA;
 }
 fn.expm = function(A) {
     if (is_scalar(A)) return fn.exp(A);
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("expm");
+    if (1 === ROWS(A)) return [[fn.exp(A[0][0])]];
     return expm(A);
 };
 function logm_tri(T, stat)
@@ -8663,29 +8941,34 @@ function signm(A)
 fn.signm = function(A) {
     if (is_scalar(A)) return fn.sign(A);
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("signm");
+    if (1 === ROWS(A)) return [[fn.sign(A[0][0])]];
     return signm(A);
 };
 fn.cosm = function(A) {
     if (is_scalar(A)) return fn.cos(A);
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("cosm");
+    if (1 === ROWS(A)) return [[fn.cos(A[0][0])]];
     var exp = expm(dotmul(A, i), 'with_neg');
     return dotdiv(add(exp['+'], exp['-']), two);//dotdiv(add(expm(dotmul(A, i)), expm(dotmul(A, scalar_mul(J, i)))), two);
 };
 fn.sinm = function(A) {
     if (is_scalar(A)) return fn.sin(A);
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("sinm");
+    if (1 === ROWS(A)) return [[fn.sin(A[0][0])]];
     var exp = expm(dotmul(A, i), 'with_neg');
     return dotdiv(sub(exp['+'], exp['-']), scalar_mul(two, i));//dotdiv(sub(expm(dotmul(A, i)), expm(dotmul(A, scalar_mul(J, i)))), scalar_mul(two, i));
 };
 fn.coshm = function(A) {
     if (is_scalar(A)) return fn.cosh(A);
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("coshm");
+    if (1 === ROWS(A)) return [[fn.cosh(A[0][0])]];
     var exp = expm(A, 'with_neg');
     return dotdiv(add(exp['+'], exp['-']), two);//dotdiv(add(expm(A), expm(dotmul(A, J))), two);
 };
 fn.sinhm = function(A) {
     if (is_scalar(A)) return fn.sinh(A);
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("sinhm");
+    if (1 === ROWS(A)) return [[fn.sinh(A[0][0])]];
     var exp = expm(A, 'with_neg');
     return dotdiv(sub(exp['+'], exp['-']), two);//dotdiv(sub(expm(A), expm(dotmul(A, J))), two);
 };
@@ -9271,49 +9554,56 @@ fn.corr = varargout(function(nargout, X) {
     if (!is_matrix(X)) not_supported("pdist");
     if (1 < arguments.length)
     {
-        switch (arguments[1])
+        if (is_callable(arguments[1]))
         {
-            case "fasteuclidean":
-            case "euclidean":
-            dist = d_euclidean;
-            break;
-            case "fastsquaredeuclidean":
-            case "squaredeuclidean":
-            dist = d_sqeuclidean;
-            break;
-            case "fastseuclidean":
-            case "seuclidean":
-            p = is_array(arguments[2]) ? vec(arguments[2]) : std(X);
-            dist = function(a, b, i, j) {return d_seuclidean(a, b, p[i]);};
-            break;
-            case "mahalanobis":
-            p = is_array(arguments[2]) ? arguments[2] : cov(ctranspose(X));
-            p = inv(p);
-            m = mean(ctranspose(X));
-            dist = function(a, b, i, j) {return realMath.sqrt(d_mahalanobis(b, m, p));};
-            break;
-            case "cityblock":
-            dist = d_cityblock;
-            break;
-            case "minkowski":
-            p = is_scalar(arguments[2]) ? arguments[2] : two;
-            dist = function(a, b, i, j) {return d_minkowski(a, b, p);};
-            break;
-            case "chebychev":
-            dist = d_chebychev;
-            break;
-            case "cosine":
-            dist = d_cosine;
-            break;
-            case "correlation":
-            dist = d_correlation;
-            break;
-            case "hamming":
-            dist = d_hamming;
-            break;
-            case "jaccard":
-            dist = d_jaccard;
-            break;
+            dist = arguments[1];
+        }
+        else
+        {
+            switch (arguments[1])
+            {
+                case "fasteuclidean":
+                case "euclidean":
+                dist = d_euclidean;
+                break;
+                case "fastsquaredeuclidean":
+                case "squaredeuclidean":
+                dist = d_sqeuclidean;
+                break;
+                case "fastseuclidean":
+                case "seuclidean":
+                p = is_array(arguments[2]) ? vec(arguments[2]) : std(X);
+                dist = function(a, b, i, j) {return d_seuclidean(a, b, p[i]);};
+                break;
+                case "mahalanobis":
+                p = is_array(arguments[2]) ? arguments[2] : cov(ctranspose(X));
+                p = inv(p);
+                m = mean(ctranspose(X));
+                dist = function(a, b, i, j) {return realMath.sqrt(d_mahalanobis(b, m, p));};
+                break;
+                case "cityblock":
+                dist = d_cityblock;
+                break;
+                case "minkowski":
+                p = is_scalar(arguments[2]) ? arguments[2] : two;
+                dist = function(a, b, i, j) {return d_minkowski(a, b, p);};
+                break;
+                case "chebychev":
+                dist = d_chebychev;
+                break;
+                case "cosine":
+                dist = d_cosine;
+                break;
+                case "correlation":
+                dist = d_correlation;
+                break;
+                case "hamming":
+                dist = d_hamming;
+                break;
+                case "jaccard":
+                dist = d_jaccard;
+                break;
+            }
         }
     }
     var ans = [], n = COLS(X), i, j;
@@ -9333,49 +9623,56 @@ fn.pdist2 = function(X, Y) {
     if (!is_matrix(X) || !is_matrix(Y) || (ROWS(X) !== ROWS(Y))) not_supported("pdist2");
     if (2 < arguments.length)
     {
-        switch (arguments[2])
+        if (is_callable(arguments[2]))
         {
-            case "fasteuclidean":
-            case "euclidean":
-            dist = d_euclidean;
-            break;
-            case "fastsquaredeuclidean":
-            case "squaredeuclidean":
-            dist = d_sqeuclidean;
-            break;
-            case "fastseuclidean":
-            case "seuclidean":
-            p = is_array(arguments[3]) ? vec(arguments[3]) : std(X);
-            dist = function(a, b, i, j) {return d_seuclidean(a, b, p[i]);};
-            break;
-            case "mahalanobis":
-            p = is_array(arguments[3]) ? arguments[3] : cov(ctranspose(X));
-            p = inv(p);
-            m = mean(ctranspose(X));
-            dist = function(a, b, i, j) {return realMath.sqrt(d_mahalanobis(b, m, p));};
-            break;
-            case "cityblock":
-            dist = d_cityblock;
-            break;
-            case "minkowski":
-            p = is_scalar(arguments[3]) ? arguments[3] : two;
-            dist = function(a, b, i, j) {return d_minkowski(a, b, p);};
-            break;
-            case "chebychev":
-            dist = d_chebychev;
-            break;
-            case "cosine":
-            dist = d_cosine;
-            break;
-            case "correlation":
-            dist = d_correlation;
-            break;
-            case "hamming":
-            dist = d_hamming;
-            break;
-            case "jaccard":
-            dist = d_jaccard;
-            break;
+            dist = arguments[2];
+        }
+        else
+        {
+            switch (arguments[2])
+            {
+                case "fasteuclidean":
+                case "euclidean":
+                dist = d_euclidean;
+                break;
+                case "fastsquaredeuclidean":
+                case "squaredeuclidean":
+                dist = d_sqeuclidean;
+                break;
+                case "fastseuclidean":
+                case "seuclidean":
+                p = is_array(arguments[3]) ? vec(arguments[3]) : std(X);
+                dist = function(a, b, i, j) {return d_seuclidean(a, b, p[i]);};
+                break;
+                case "mahalanobis":
+                p = is_array(arguments[3]) ? arguments[3] : cov(ctranspose(X));
+                p = inv(p);
+                m = mean(ctranspose(X));
+                dist = function(a, b, i, j) {return realMath.sqrt(d_mahalanobis(b, m, p));};
+                break;
+                case "cityblock":
+                dist = d_cityblock;
+                break;
+                case "minkowski":
+                p = is_scalar(arguments[3]) ? arguments[3] : two;
+                dist = function(a, b, i, j) {return d_minkowski(a, b, p);};
+                break;
+                case "chebychev":
+                dist = d_chebychev;
+                break;
+                case "cosine":
+                dist = d_cosine;
+                break;
+                case "correlation":
+                dist = d_correlation;
+                break;
+                case "hamming":
+                dist = d_hamming;
+                break;
+                case "jaccard":
+                dist = d_jaccard;
+                break;
+            }
         }
     }
     return matrix(COLS(X), COLS(Y), function(i, j, mat) {
@@ -9922,7 +10219,47 @@ fn.pwcaffinity = function(S) {
         i += 2;
     }
     return pwcaffinity(S, damping, max_iter);
-};// window functions
+};function confusionmat(actual, predicted, order, nargout)
+{
+    if (!is_array(actual) || !is_array(predicted)) not_supported("confusionmat");
+    nargout = nargout || 1;
+    actual = colon(actual);
+    predicted = colon(predicted);
+    order = order || sort(
+        actual.concat(predicted)
+        .filter(function(v) {
+            return (null != v) && (is_string(v) || (is_num(v) && !is_nan(v)));
+        })
+        .reduce(function(_, v) {
+            var k = String(v);
+            if (!HAS.call(_.h, k))
+            {
+                _.h[k] = 1;
+                _.v.push(v);
+            }
+            return _;
+        }, {h:{},v:[]})
+        .v
+    );
+    var o = order.map(function(v) {return String(v);}),
+        ga = actual.map(function(v) {return String(v);}),
+        gp = predicted.map(function(v) {return String(v);}),
+        mat = matrix(order.length, order.length, function(i, j) {
+            return ga.reduce(function(s, v, iv) {
+                if (v === o[i])
+                {
+                    var vp = predicted[iv];
+                    if ((null != vp) && (is_string(vp) || !is_nan(vp)) && (o[j] === gp[iv])) ++s;
+                }
+                return s;
+            }, 0);
+        })
+    ;
+    return 1 < nargout ? [mat, order] : mat;
+}
+fn.confusionmat = varargout(function(nargout, actual, predicted) {
+    return confusionmat(actual, predicted, "Order" === arguments[3] ? arguments[4] : null, nargout);
+});// window functions
 fn.rectwin = function(L) {
     L = stdMath.round(_(sca(L, true)));
     return vec2col(array(L, function(n) {return I;}));
@@ -10574,7 +10911,7 @@ function stft(inp, win, FFTLEN, OVERLAP, inv)
         nw = dotpow(abs(win), two);
         //win = win ./ sqrt(real(norm))
         win = win.map(function(wi, i) {return scalar_div(wi, realMath.sqrt(real(nw[i])));});
-        
+
         // short-time fourier transform using fft
         N = inp.length;
         // if (N - OVERLAP) / HOP is integer istft produces output of same length as original input
@@ -12204,38 +12541,46 @@ function def_fn(fn_def)
 {
     var fn = varargout(async function(nargout) {
         var i, nargin = arguments.length-1, argout,
-            $ = {ctx:{ans:null}};
+            $ = {ctx:{ans:null}}, ans;
         for (i=1; i<=nargin; ++i)
         {
             if ('varargin' === fn_def.argin[i-1])
             {
-                $.ctx.varargin = cellarray([].slice.call(arguments, i), [arguments.length-i]);
+                $.ctx.varargin = cellarray([].slice.call(arguments, i).map(copy), [arguments.length-i]); // pass by value
                 break;
             }
             else
             {
-                $.ctx[fn_def.argin[i-1]] = arguments[i];
+                $.ctx[fn_def.argin[i-1]] = copy(arguments[i]); // pass by value
             }
         }
         $.ctx.nargin = nargin;
         $.ctx.nargout = nargout;
         if (fn_def.argout.length && ('varargout' === fn_def.argout[fn_def.argout.length-1]))
         {
-            $.ctx.varargout = cellarray(array(100, null), [100]);
+            $.ctx.varargout = cellarray(array(100, null), [100]); // pre-allocate a large array
         }
-        await vale(fn_def.body, null, $);
+        ans = await vale(1 === fn_def.body.length ? fn_def.body[0] : fn_def.body, null, $);
         if (fn_def.argout.length)
         {
-            argout = array(nargout, function(i) {
-                if (('varargout' === fn_def.argout[fn_def.argout.length-1]) && (i >= fn_def.argout.length-1))
-                {
-                    return $.ctx.varargout[i-(fn_def.argout.length-1)];
-                }
-                else
-                {
-                    return (i < fn_def.argout.length) && HAS.call($.ctx, fn_def.argout[i]) ? $.ctx[fn_def.argout[i]] : null;
-                }
-            });
+            if ('' === fn_def.name)
+            {
+                // anonymous function
+                argout = ans && ans.$scilitevarargout$ ? ans : [ans];
+            }
+            else
+            {
+                argout = array(nargout, function(i) {
+                    if (('varargout' === fn_def.argout[fn_def.argout.length-1]) && (i >= fn_def.argout.length-1))
+                    {
+                        return $.ctx.varargout[i-(fn_def.argout.length-1)];
+                    }
+                    else
+                    {
+                        return (i < fn_def.argout.length) && HAS.call($.ctx, fn_def.argout[i]) ? $.ctx[fn_def.argout[i]] : null;
+                    }
+                });
+            }
             return 1 === nargout ? argout[0] : argout;
         }
         return null;
@@ -12250,16 +12595,31 @@ function variable(ctx, v, i, b)
     var self = this;
     if (!is_instance(self, variable)) return new variable(ctx, v, i, b);
     self.ctx = ctx; // current context
-    self.v = v; // actual variable name
+    self.v = v; // variable name or value
     self.i = i; // any indexing applied
     self.b = b || '()'; // type of bracket indexing
 }
 variable.prototype = {
     constructor: variable,
     ctx: null,
+    _ctx: null,
     v: null,
     i: null,
     b: null,
+    new_ctx: function(new_ctx) {
+        var self = this;
+        if (new_ctx)
+        {
+            self._ctx = self.ctx;
+            self.ctx = new_ctx;
+        }
+        else
+        {
+            self.ctx = self._ctx;
+            self._ctx = null;
+        }
+        return self;
+    },
     get: async function(orig) {
         var self = this, val, s, i;
         if ('' === self.v)
@@ -12270,6 +12630,10 @@ variable.prototype = {
         {
             val = await vale(self.v);
         }
+        else if (is_array(self.v))
+        {
+            val = self.v[0];
+        }
         else
         {
             if (!HAS.call(self.ctx, self.v) && !HAS.call(constant, self.v))
@@ -12278,13 +12642,13 @@ variable.prototype = {
             }
             val = HAS.call(self.ctx, self.v) ? self.ctx[self.v] : constant[self.v];
         }
-        if ((true !== orig) && (null != self.i))
+        if ((true !== orig) && (null != self.i) && is_array(val))
         {
             s = size(val);
             i = await Promise.all(self.i.map(function(ind, i) {
                 return vale(ind, {end:1 === self.i.length ? prod(s) : s[i]});
             }));
-            val = get.apply(get, [val, is_cell(val) ? self.b : '()'].concat(i));
+            val = get.apply(get, [val, !s[0] || is_cell(val) ? self.b : '()'].concat(i));
         }
         return val;
     },
@@ -12301,6 +12665,11 @@ variable.prototype = {
                 val = await vale(self.v);
                 s = size(val);
             }
+            else if (is_array(self.v))
+            {
+                val = self.v[0];
+                s = size(val);
+            }
             else
             {
                 if (!HAS.call(self.ctx, self.v))
@@ -12315,30 +12684,34 @@ variable.prototype = {
                     s = size(val);
                 }
             }
-            i = await Promise.all(self.i.map(function(ind, i) {
-                return vale(ind, {end:1 === self.i.length ? prod(s) : s[i]});
-            }));
-            val = set.apply(set, [val, is_cell(val) ? self.b : '()'].concat(i).concat([value]));
-            if (!is_instance(self.v, expr))
+            if (is_array(val))
             {
-                self.ctx[self.v] = val; // may change shape etc.., so store again
+                i = await Promise.all(self.i.map(function(ind, i) {
+                    return vale(ind, {end:1 === self.i.length ? prod(s) : s[i]});
+                }));
+                val = set.apply(set, [val, !s[0] || is_cell(val) ? self.b : '()'].concat(i).concat([value]));
+            }
+            else
+            {
+                val = value;
             }
         }
         else
         {
-            if (is_instance(self.v, expr))
-            {
-                // nothing
-            }
-            else
-            {
-                self.ctx[self.v] = value;
-            }
+            val = value;
+        }
+        if (is_string(self.v))
+        {
+            self.ctx[self.v] = val; // may change shape etc.., so store again
+        }
+        else if (is_array(self.v))
+        {
+            self.v = [val];
         }
         return self;
     },
     isset: function() {
-        return is_string(this.v) && HAS.call(this.ctx, this.v);
+        return is_array(this.v) || (is_string(this.v) && HAS.call(this.ctx, this.v));
     },
     isByRef: function() {
         return (null == this.i);
@@ -12384,15 +12757,17 @@ async function vale(x, v, $)
     return x;
 }
 
+var NL_RE = /\r\n|\r|\n/g, NL = '\n';
 function parse(s, ctx, lineStart, posStart)
 {
+    s = s.replace(NL_RE, NL); // normalize newlines
     var i = 0, l = 0, j, t = s;
 
     function error(msg, pos, ln)
     {
         if (null == ln) ln = l;
         if (null == pos) pos = i;
-        var line = t.split("\n")[ln];
+        var line = t.split(NL)[ln];
         msg = String(msg) + ' at line ' + String((lineStart||0)+ln) + ' position ' + String((posStart||0)+pos) + ':';
         return (msg + "\n" + line + "\n" + (new Array(pos+1)).join(' ') + '^' + "\n");
     }
@@ -12549,7 +12924,10 @@ function parse(s, ctx, lineStart, posStart)
         function end(and_reset)
         {
             merge(true);
-            if ((1 < terms.length) || (0 < ops.length)) throw error('mismatched terms and operators', ops.length ? ops[0][1] : i, ops.length ? ops[0][2] : l);
+            if ((1 < terms.length) || (0 < ops.length))
+            {
+                throw error('mismatched terms and operators', ops.length ? ops[0][1] : i, ops.length ? ops[0][2] : l);
+            }
             if (true === and_reset)
             {
                 if (is_instance(terms[0], expr)) statements.push(terms[0]);
@@ -12593,7 +12971,7 @@ function parse(s, ctx, lineStart, posStart)
             return false;
         }
 
-        function findmatching(close, open, skipstring)
+        /*function findmatching(close, open, skipstring)
         {
             var c, j = 0, k = 0, t;
             while (j < s.length)
@@ -12617,7 +12995,7 @@ function parse(s, ctx, lineStart, posStart)
                 ++j;
             }
             return k || (j >= s.length) ? -1 : j;
-        }
+        }*/
 
         function string_literal(q, eat, j0)
         {
@@ -12651,14 +13029,15 @@ function parse(s, ctx, lineStart, posStart)
             return [r, j+1];
         }
 
+        var arr_id = 0;
         function array_literal(brackets)
         {
-            brackets = brackets || {open:'[',close:']'};
-            var tmp, arg, entry, j = findmatching(brackets.close, brackets.open, true);
-            if (-1 === j) throw error('mismatched brackets');
-            tmp = s.slice(0, j);
-            if ('{' === brackets.open)
+            brackets = brackets || '[]';
+            var arg, entry;
+            if ('{}' === brackets)
             {
+                eat('{');
+                eat(/^[ \t\v\f]+/);
                 arg = [];
                 for (;;)
                 {
@@ -12684,31 +13063,42 @@ function parse(s, ctx, lineStart, posStart)
                         break;
                     }
                 }
-                eat(/^\s+/);
-                eat('}');
+                eat(/^[ \t\v\f]+/);
+                if (!eat('}')) throw error('mismatched curly brackets');
             }
             else
             {
-                if (/[\[\]]/.test(tmp))
+                eat('[');
+                eat(/^[ \t\v\f]+/);
+                arg = [];
+                for (;;)
                 {
-                    arg = [];
-                    for (;;)
+                    entry = parse_until(' ,\n;]');
+                    if (entry)
                     {
-                        entry = parse_until(',;]');
-                        if (entry)
+                        arg.push(entry);
+                        if (eat(","))
                         {
-                            arg.push(entry);
-                            if (eat(","))
+                            arg.push(expr(','));
+                            eat(/^[ \t\v\f]+/);
+                        }
+                        else if (eat(";"))
+                        {
+                            arg.push(expr(';'));
+                            eat(/^[ \t\v\f]+/);
+                        }
+                        else if (eat("\n"))
+                        {
+                            arg.push(expr(';'));
+                            ++l;
+                            i = 0;
+                            eat(/^[ \t\v\f]+/);
+                        }
+                        else if (eat(/^[ \t\v\f]+/))
+                        {
+                            if (!eat(/^[,;\n\]]/, false))
                             {
                                 arg.push(expr(','));
-                            }
-                            else if (eat(";"))
-                            {
-                                arg.push(expr(';'));
-                            }
-                            else
-                            {
-                                break;
                             }
                         }
                         else
@@ -12716,62 +13106,18 @@ function parse(s, ctx, lineStart, posStart)
                             break;
                         }
                     }
-                    eat(/^\s+/);
-                    eat(']');
-                }
-                else
-                {
-                    if (/[,;\n]/.test(tmp))
-                    {
-                        arg = tmp.trim().split(/[;\n]/g).reduce(function(arg, row) {
-                            var hasrow = arg.length, hascol = 0;
-                            return row.trim().split(-1 < row.indexOf(',') ? ',' : /\s+/g).reduce(function(arg, col) {
-                                col = col.trim();
-                                if ("~" === col)
-                                {
-                                    // dummy variable
-                                    col = expr('v', variable(ctx, ''));
-                                }
-                                else
-                                {
-                                    col = parse(col, ctx, l+lineStart, i);
-                                }
-                                if (col)
-                                {
-                                    if (hascol) arg.push(expr(','));
-                                    else if (hasrow) arg.push(expr(';'));
-                                    arg.push(col);
-                                    hascol = 1;
-                                }
-                                return arg;
-                            }, arg);
-                        }, []);
-                    }
                     else
                     {
-                        arg = tmp.trim().split(/\s+/g).reduce(function(arg, col) {
-                            col = parse(col.trim(), ctx, l+lineStart, i);
-                            if (col)
-                            {
-                                if (arg.length) arg.push(expr(','));
-                                arg.push(col);
-                            }
-                            return arg;
-                        }, []);
-                    }
-                    s = s.slice(j+1);
-                    i += j+1;
-                    tmp = tmp.split("\n");
-                    if (1 < tmp.length)
-                    {
-                        l += tmp.length-1;
-                        tmp.slice(0, -1).forEach(function(ln) {
-                            i -= ln.length+1/*\n*/;
-                        });
+                        if (!eat(/^[ \t\v\f]+/))
+                        {
+                            break;
+                        }
                     }
                 }
+                eat(/^[ \t\v\f]+/);
+                if (!eat(']')) throw error('mismatched brackets');
             }
-            return expr(OP['{' === brackets.open ? '{}' : '[]'].fn, arg);
+            return expr(OP[brackets].fn, arg);
         }
 
         while (0 < s.length)
@@ -12837,7 +13183,7 @@ function parse(s, ctx, lineStart, posStart)
             if (eat(/^for\b/))
             {
                 end(true);
-                if (match = eat(/^\s+([_a-z][_a-z0-9]*)\s*=\s*/i))
+                if (match = eat(/^[ \t\v\f]+([_a-z][_a-z0-9]*)[ \t\v\f]*=[ \t\v\f]*/i))
                 {
                     // pass
                 }
@@ -12895,12 +13241,12 @@ function parse(s, ctx, lineStart, posStart)
                 end(true);
                 eat(/^[ \t\v\f]+/);
                 arg = {argout:null, name:null, argin:null, body:[]};
-                if (match = eat(/^([_a-z][_a-z0-9]*)\s*=\s*/i))
+                if (match = eat(/^([_a-z][_a-z0-9]*)[ \t\v\f]*=[ \t\v\f]*/i))
                 {
                     // single output
                     arg.argout = [match[1]];
                 }
-                else if (match = eat(/^\[\s*([_a-z][_a-z0-9]*(?:\s*,\s*[_a-z][_a-z0-9]*)*)\s*\]\s*=\s*/i))
+                else if (match = eat(/^\[[ \t\v\f]*([_a-z][_a-z0-9]*(?:[ \t\v\f]*,[ \t\v\f]*[_a-z][_a-z0-9]*)*)[ \t\v\f]*\][ \t\v\f]*=[ \t\v\f]*/i))
                 {
                     // multiple output
                     arg.argout = match[1].split(',').map(function(v) {return v.trim();});
@@ -12910,7 +13256,7 @@ function parse(s, ctx, lineStart, posStart)
                     // no output
                     arg.argout = [];
                 }
-                if (match = eat(/^([_a-z][_a-z0-9]*)(?:\s*\((\s*([_a-z][_a-z0-9]*(?:\s*,\s*[_a-z][_a-z0-9]*)*)?\s*)\))?/i))
+                if (match = eat(/^([_a-z][_a-z0-9]*)(?:[ \t\v\f]*\(([ \t\v\f]*([_a-z][_a-z0-9]*(?:[ \t\v\f]*,[ \t\v\f]*[_a-z][_a-z0-9]*)*)?[ \t\v\f]*)\))?/i))
                 {
                     arg.name = match[1];
                     arg.argin = match[2] ? match[2].split(',').map(function(v) {return v.trim();}) : [];
@@ -12966,6 +13312,7 @@ function parse(s, ctx, lineStart, posStart)
                     // new line
                     ++l;
                     i = 0;
+                    eat(/^[ \t\v\f]+/);
                 }
                 continue;
             }
@@ -13002,15 +13349,18 @@ function parse(s, ctx, lineStart, posStart)
                     continue;
                 }
             }
-            if (eat(/^\s+/))
+            if (eat(/^[ \t\v\f]+/, false))
             {
-                if (expected && (-1 < expected.indexOf(' ')))
+                if (expected && (-1 < expected.indexOf(' ')) && terms.length && !eat(/^[ \t\v\f]+(&&|\|\||&|\||xor\b|>=|<=|==|~=|>|<|=|\+|-\s|\.\*|\*|\.\/|\/|\\|\.\^|\^)/, false) && can_merge())
                 {
+                    // space expected that separates a complete expression
+                    //eat(/^[ \t\v\f]+/); // consume it
                     break;
                 }
                 else
                 {
                     // space
+                    eat(/^[ \t\v\f]+/);
                     continue;
                 }
             }
@@ -13069,9 +13419,17 @@ function parse(s, ctx, lineStart, posStart)
             }
             if (match = eat("~"))
             {
-                // logical not
-                ops.unshift(["~", i, l]);
-                merge();
+                if (eat(/^([ \t\v\f]*)[,\]]/, 1))
+                {
+                    // dummy variable
+                    terms.unshift(expr('v', variable(ctx, '')));
+                }
+                else
+                {
+                    // logical not
+                    ops.unshift(["~", i, l]);
+                    merge();
+                }
                 continue;
             }
             if (match = eat('='))
@@ -13089,157 +13447,136 @@ function parse(s, ctx, lineStart, posStart)
                 merge();
                 continue;
             }
-            if (match = eat(/^([_a-z][_a-z0-9]*)\s*(\(|\{)/i))
+            if (match = eat(/^[_a-z][_a-z0-9]*/i))
             {
-                // function or array indexing
-                m = match[1];
-                if (eat('(' === match[2] ? /^\s*\:\s*\)/ : /^\s*\:\s*\}/))
+                m = match[0];
+                arg = null;
+                if ("true" === m)
                 {
-                    // single colon
-                    term = expr('v', variable(ctx, m));
-                    terms.unshift(term);
+                    term = expr(I);
+                }
+                else if ("false" === m)
+                {
+                    term = expr(O);
+                }
+                else if (match = eat(expected && (-1 < expected.indexOf(' ')) ? /^([\(\{])/ : /^[ \t\v\f]*([\(\{])/))
+                {
+                    if ('{' === match[1])
+                    {
+                        // cell array indexing
+                        arg = [];
+                        for (;;)
+                        {
+                            tmp = parse_until(',}');
+                            if (tmp) arg.push(tmp);
+                            if (!eat(',')) break;
+                        }
+                        if (!eat('}')) throw error("mismatched curly brackets");
+                        term = expr('v', variable(ctx, m, arg, '{}'));
+                    }
+                    else if (eat(/^[ \t\v\f]*\:[ \t\v\f]*\)/))
+                    {
+                        // variable single colon
+                        arg = '(:)';
+                        term = expr('v', variable(ctx, m));
+                    }
+                    else
+                    {
+                        // array indexing or function invocation
+                        arg = [];
+                        for (;;)
+                        {
+                            tmp = parse_until(',)');
+                            if (tmp) arg.push(tmp);
+                            if (!eat(',')) break;
+                        }
+                        if (!eat(')')) throw error("mismatched parentheses");
+                        term = expr('v_or_f', [m, arg, ctx, '()']);
+                    }
+                }
+                else
+                {
+                    // variable or function
+                    term = expr('v_or_f', [m, null, ctx]);
+                }
+                terms.unshift(term);
+                if ('(:)' === arg)
+                {
                     ops.unshift(['(:)', i, l]);
                     merge();
                 }
-                else
-                {
-                    arg = [];
-                    for (;;)
-                    {
-                        tmp = parse_until('(' === match[2] ? ',)' : ',}');
-                        if (tmp) arg.push(tmp);
-                        if (!eat(',')) break;
-                    }
-                    if (!eat('(' === match[2] ? ')' : '}')) throw error('(' === match[2] ? "mismatched parentheses" : "mismatched brackets");
-                    if ('(' === match[2] && HAS.call($["@fn"], m) && is_callable($["@fn"][m]))
-                    {
-                        // user-defined function
-                        term = expr($["@fn"][m], arg);
-                    }
-                    else if ('(' === match[2] && HAS.call(fn, m))
-                    {
-                        // builtin function
-                        term = expr(fn[m], arg);
-                    }
-                    else
-                    {
-                        // array indexing
-                        term = expr('v', variable(ctx, m, arg.length ? arg : null, '{' === match[2] ? '{}' : '()'));
-                    }
-                    terms.unshift(term);
-                }
-                eat(/^[ \t\v\f]+/);
-                if ((match = eat("'")) || (match = eat(".'")))
+                if (match = eat(/^[ \t\v\f]*(\.?')/))
                 {
                     // transpose
-                    ops.unshift([match[0], i, l]);
+                    ops.unshift([match[1], i, l]);
                     merge();
                 }
                 continue;
             }
-            if (match = eat(/^[_a-z][_a-z0-9]*/i))
-            {
-                // variable
-                m = match[0];
-                if (HAS.call($["@fn"], m) && is_callable($["@fn"][m]) && (0 === $["@fn"][m].nargin))
-                {
-                    // user-defined function without arguments
-                    term = expr($["@fn"][m], []);
-                }
-                else if (HAS.call(fn, m) && (0 === fn[m].length))
-                {
-                    // builtin function without arguments
-                    term = expr(fn[m], []);
-                }
-                else
-                {
-                    if ("true" === m)
-                    {
-                        term = expr(I);
-                    }
-                    else if ("false" === m)
-                    {
-                        term = expr(O);
-                    }
-                    else
-                    {
-                        term = expr('v', variable(ctx, m));
-                    }
-                }
-                terms.unshift(term);
-                eat(/^[ \t\v\f]+/);
-                if ((match = eat("'")) || (match = eat(".'")))
-                {
-                    // transpose
-                    ops.unshift([match[0], i, l]);
-                    merge();
-                }
-                continue;
-            }
-            if (match = eat(/^(-?\s*\d+(\.\d+)?([eE][+-]?\d+)?)([ij])?/))
+            if (match = eat(/^((?:-[ \t\v\f]*)?\d+(\.\d+)?([eE][+-]?\d+)?)([ij])?/))
             {
                 // number
                 arg = match[1].split(/\s+/).join('');
-                if (decimal)
-                {
-                    // prefer default number for small integers
-                    /*if (!/[\.eE]/.test(arg) && (arg.length < 6))
-                    {
-                        arg = parseFloat(arg, 10);
-                    }
-                    else
-                    {*/
-                        arg = decimal(arg);
-                    /*}*/
-                }
-                else
-                {
-                    arg = parseFloat(arg, 10);
-                }
+                arg = decimal ? decimal(arg) : parseFloat(arg, 10);
                 term = expr(match[4] ? (new complex(0, arg)) : arg);
                 terms.unshift(term);
                 continue;
             }
-            if (match = eat(/^(-?\s*\.\d+([eE][+-]?\d+)?)([ij])?/))
+            if (match = eat(/^((?:-[ \t\v\f]*)?\.\d+([eE][+-]?\d+)?)([ij])?/))
             {
                 // number, shorthand version
                 arg = match[1].split(/\s+/).join('');
                 arg = '-' === arg.charAt(0) ? ('-0'+arg.slice(1)) : ('0'+arg);
-                if (decimal)
-                {
-                    // prefer default number for small integers
-                    /*if (!/[\.eE]/.test(arg) && (arg.length < 6))
-                    {
-                        arg = parseFloat(arg, 10);
-                    }
-                    else
-                    {*/
-                        arg = decimal(arg);
-                    /*}*/
-                }
-                else
-                {
-                    arg = parseFloat(arg, 10);
-                }
+                arg = decimal ? decimal(arg) : parseFloat(arg, 10);
                 term = expr(match[4] ? (new complex(0, arg)) : arg);
                 terms.unshift(term);
                 continue;
             }
             c = s.charAt(0);
+            if ('@' === c)
+            {
+                // function handle
+                if (match = eat(/^@\(([ \t\v\f]*[_a-z][_a-z0-9]*(?:[ \t\v\f]*,[ \t\v\f]*[_a-z][_a-z0-9]*)*[ \t\v\f]*)\)/i))
+                {
+                    // anonymous function
+                    arg = {argout:['*'], name:'', argin:match[1].split(',').map(function(s) {return s.trim();}), body:[]};
+                    tmp = parse_until(',)]};');
+                    if (tmp) arg.body = arg.body.concat(tmp);
+                    terms.unshift(expr(def_fn(arg)));
+                    continue;
+                }
+                if (match = eat(/^@([_a-z][_a-z0-9]*)/i))
+                {
+                    // defined function
+                    m = match[1];
+                    if (HAS.call($["@fn"], m) && is_callable($["@fn"][m]))
+                    {
+                        // user-defined function handle
+                        terms.unshift(expr($["@fn"][m]));
+                    }
+                    else if (HAS.call(fn, m) && is_callable(fn[m]))
+                    {
+                        // builtin function handle
+                        terms.unshift(expr(fn[m]));
+                    }
+                    else
+                    {
+                        throw error('"'+m+'" is not a defined function');
+                    }
+                    continue;
+                }
+            }
             if ('[' === c)
             {
                 // bracket, literal array
-                s = s.slice(1);
-                i += 1;
-                term = array_literal({open:'[',close:']'});
+                term = array_literal('[]');
                 if (term)
                 {
                     terms.unshift(term);
-                    eat(/^[ \t\v\f]+/);
-                    if ((match = eat("'")) || (match = eat(".'")))
+                    if (match = eat(/^[ \t\v\f]*(\.?')/))
                     {
                         // transpose
-                        ops.unshift([match[0], i, l]);
+                        ops.unshift([match[1], i, l]);
                         merge();
                     }
                 }
@@ -13259,23 +13596,51 @@ function parse(s, ctx, lineStart, posStart)
             }
             if ('{' === c)
             {
-                // bracket, literal cell array
-                s = s.slice(1);
-                i += 1;
-                term = array_literal({open:'{',close:'}'});
-                if (term) terms.unshift(term);
+                // curly bracket
+                if (terms.length && can_merge())
+                {
+                    s = s.slice(1);
+                    i += 1;
+                    merge('set');
+                    term = terms.shift();
+                    arg = [];
+                    for (;;)
+                    {
+                        tmp = parse_until(',}');
+                        if (tmp) arg.push(tmp);
+                        if (!eat(',')) break;
+                    }
+                    if (!eat('}')) throw error("mismatched curly brackets");
+                    // de-referencing cell array indexing
+                    if (arg.length) term = expr('v', variable(ctx, term, arg, '{}'));
+                }
+                else
+                {
+                    // literal cell array
+                    term = array_literal('{}');
+                }
+                if (term)
+                {
+                    terms.unshift(term);
+                    if (match = eat(/^[ \t\v\f]*(\.?')/))
+                    {
+                        // transpose
+                        ops.unshift([match[1], i, l]);
+                        merge();
+                    }
+                }
                 continue;
             }
             if ('}' === c)
             {
                 if ((expected) && (-1 < expected.indexOf('}')))
                 {
-                    // end bracket
+                    // end curly bracket
                     break;
                 }
                 else
                 {
-                    throw error('mismatched brackets');
+                    throw error('mismatched curly brackets');
                 }
             }
             if ('(' === c)
@@ -13283,7 +13648,7 @@ function parse(s, ctx, lineStart, posStart)
                 // paren
                 s = s.slice(1);
                 i += 1;
-                if (eat(/^\s*\:\s*\)/))
+                if (eat(/^[ \t\v\f]*\:[ \t\v\f]*\)/))
                 {
                     // single colon
                     ops.unshift(['(:)', i, l]);
@@ -13303,22 +13668,22 @@ function parse(s, ctx, lineStart, posStart)
                             if (!eat(',')) break;
                         }
                         if (!eat(')')) throw error("mismatched parentheses");
-                        // matrix indexing
-                        if (arg.length) term = expr('v', variable(ctx, term, arg, '()'));
+                        // de-referencing array indexing or function invocation
+                        if (arg.length) term = expr('v_or_f', [term, arg, ctx, '()']);
                     }
                     else
                     {
+                        // parenthesized expression
                         term = parse_until(')');
                         if (!eat(')')) throw error("mismatched parentheses");
                     }
                     if (term)
                     {
                         terms.unshift(term);
-                        eat(/^[ \t\v\f]+/);
-                        if ((match = eat("'")) || (match = eat(".'")))
+                        if (match = eat(/^[ \t\v\f]*(\.?')/))
                         {
                             // transpose
-                            ops.unshift([match[0], i, l]);
+                            ops.unshift([match[1], i, l]);
                             merge();
                         }
                     }
@@ -13360,7 +13725,7 @@ function parse(s, ctx, lineStart, posStart)
                 }
                 for (;;)
                 {
-                    term = parse_until(':,)\n');
+                    term = parse_until(':,;})\n');
                     eat(/^[ \t\v\f]+/);
                     if (term) {terms.unshift(term); ++arg;}
                     else if (eat(':', false)) terms.unshift(expr(':'));
@@ -13383,11 +13748,68 @@ function parse(s, ctx, lineStart, posStart)
     return parse_until(false);
 }
 
-async function evaluate(e, v, $)
+async function evaluate(e, v, $$, vf2v)
 {
-    var f, argout, nargout;
+    var f, argout, nargout, tmp, n, arg, ctx, ret;
     if (is_instance(e, expr))
     {
+        if ('v_or_f' === e.op)
+        {
+            // variable or function
+            if ((true === vf2v) && is_string(e.arg[0]))
+            {
+                // default cast to variable
+                e = expr('v', variable(e.arg[2], e.arg[0], e.arg[1] && e.arg[1].length ? e.arg[1] : null, e.arg[3]));
+            }
+            else
+            {
+                ctx = $$ && $$.ctx ? $$.ctx : e.arg[2];
+                n = e.arg[0];
+                arg = e.arg[1];
+                if (is_instance(n, expr))
+                {
+                    ret = await evaluate(n, v, $$);
+                    if (!is_callable(ret)) ret = [ret];
+                }
+                else
+                {
+                    if (is_obj(v) && HAS.call(v, n))
+                    {
+                        ret = n;
+                    }
+                    else if (HAS.call(ctx, n))
+                    {
+                        ret = is_callable(ctx[n]) ? ctx[n] : n;
+                    }
+                    else if (HAS.call($["@fn"], n) && is_callable($["@fn"][n]))
+                    {
+                        ret = $["@fn"][n];
+                    }
+                    else if (HAS.call(constant, n))
+                    {
+                        ret = n;
+                    }
+                    else if (HAS.call(fn, n) && is_callable(fn[n]))
+                    {
+                        ret = fn[n];
+                    }
+                    else
+                    {
+                        ret = n;
+                    }
+                }
+                if (is_callable(ret))
+                {
+                    // function
+                    e = expr(ret, arg);
+                }
+                else
+                {
+                    // variable
+                    e = expr('v', variable(ctx, ret, arg && arg.length ? arg : null, e.arg[3]));
+                }
+            }
+        }
         if ('' === e.op)
         {
             // value
@@ -13396,78 +13818,88 @@ async function evaluate(e, v, $)
         else if ('v' === e.op)
         {
             // variable
-            if ($ && $.ctx) e.arg.ctx = $.ctx; // local context
+            if ($$ && $$.ctx) e.arg.new_ctx($$.ctx); // local context
             if (false === v)
             {
-                return e.arg;
-            }
-            else if (is_instance(e.arg.v, expr))
-            {
-                return await val(e.arg);
+                ret = e.arg;
             }
             else
             {
-                return is_obj(v) && HAS.call(v, e.arg.v) ? v[e.arg.v] : await val(e.arg);
+                ret = is_obj(v) && is_string(e.arg.v) && HAS.call(v, e.arg.v) ? v[e.arg.v] : await val(e.arg);
             }
+            if ($$ && $$.ctx) e.arg.new_ctx(false); // restore context
+            return ret;
         }
         else if (if_end === e.op)
         {
             // if .. else .. elseif .. end
-            return await if_end(e.arg, v, $);
+            return await if_end(e.arg, v, $$);
         }
         else if (for_end === e.op)
         {
             // for .. end loop
-            return await for_end(e.arg, v, $);
+            return await for_end(e.arg, v, $$);
         }
         else if (while_end === e.op)
         {
             // while .. end loop
-            return await while_end(e.arg, v, $);
+            return await while_end(e.arg, v, $$);
         }
         else if ('break' === e.op)
         {
-            if ($ && is_callable($.brk)) $.brk();
+            if ($$ && is_callable($$.brk)) $$.brk();
             return;
         }
         else if ('continue' === e.op)
         {
-            if ($ && is_callable($.cont)) $.cont();
+            if ($$ && is_callable($$.cont)) $$.cont();
             return;
         }
         else if (OP['='].fn === e.op)
         {
             // set
-            $ = $ || {};
+            $$ = $$ || {};
             nargout = $.nargout;
-            argout = await evaluate(e.arg[0], false);
+            argout = await evaluate(e.arg[0], false, null, true);
             if (is_array(argout) && is_instance(argout[0], variable))
             {
-                $.nargout = argout.length; // variable output
-                if ($.ctx) argout = argout.map(function(v) {v.ctx = $.ctx; return v;});
+                $$.nargout = argout.length; // variable output
+                if ($$.ctx) argout = argout.map(function(v) {return v.new_ctx($$.ctx);});
             }
             if (is_instance(argout, variable))
             {
-                if ($.ctx) argout.ctx = $.ctx;
+                if ($$.ctx) argout.new_ctx($$.ctx);
             }
             if ((2 === e.arg.length) && ('v' === e.arg[1].op))
             {
                 // A = B, A = B(:,:), ..
                 // make sure a copy is set and not by reference
-                return await e.op.apply(null, [argout, /*(e.arg[0].arg.v === e.arg[1].arg.v) ||*/ e.arg[1].arg.isByRef() ? copy(await evaluate(e.arg[1], v, $)) : await evaluate(e.arg[1], v, $)]);
+                ret = await e.op.apply(null, [argout, /*(e.arg[0].arg.v === e.arg[1].arg.v) ||*/ e.arg[1].arg.isByRef() ? copy(await evaluate(e.arg[1], v, $$)) : await evaluate(e.arg[1], v, $$)]);
             }
             else
             {
                 // A = other expr
-                return await e.op.apply(null, [argout].concat(await Promise.all(e.arg.slice(1).map(function(e) {return evaluate(e, v, $);}))));
+                ret = await e.op.apply(null, [argout].concat(await Promise.all(e.arg.slice(1).map(function(e) {return evaluate(e, v, $$);}))));
             }
-            $.nargout = nargout;
+            $$.nargout = nargout;
+            if ($$.ctx)
+            {
+                if (is_array(argout) && is_instance(argout[0], variable))
+                {
+                    argout.forEach(function(v) {v.new_ctx(false);});
+                }
+                if (is_instance(argout, variable))
+                {
+                    argout.new_ctx(false);
+                }
+            }
+            return ret;
         }
         else if (is_callable(e.op))
         {
-            // other operator
-            f = $ && is_int($.nargout) && is_callable(e.op.nargout) ? e.op.nargout($.nargout) : e.op;
-            return await f.apply(null, await Promise.all(e.arg.map(function(e) {return evaluate(e, v, $);})));
+            // other operator/function
+            f = $$ && is_int($$.nargout) && is_callable(e.op.nargout) ? e.op.nargout($$.nargout) : e.op;
+            return await f.apply(null, await Promise.all(e.arg.map(function(e) {return evaluate(e, v, $$, vf2v);})));
         }
     }
     throw "invalid expr";
