@@ -66,6 +66,7 @@ var tensorview = null,
         op: {},
         // constants
         constant: {
+            __version__: "@@VERSION@@",
             pi: pi, e: e,
             eps: eps,
             realmax: realmax,

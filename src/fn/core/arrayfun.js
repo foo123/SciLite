@@ -42,7 +42,7 @@ function arrayfun(fn, arrays, nargout)
     }
     ndarray.indices(sz, function(i) {
         var res = fn.apply(null, arrays.map(function(arr) {return arr.get(i);}));
-        if (res instanceof Promise)
+        if (is_instance(res, Promise))
         {
             promises.push(res.then((function(i) {return function(res) {set(i, res);};})(i.slice())));
         }

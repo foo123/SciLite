@@ -56,15 +56,17 @@ fn.pdist = function(X) {
             }
         }
     }
-    var ans = [], n = COLS(X), i, j;
+    var ans = [], n = COLS(X), i, j, d, is_promise = false;
     for (i=0; i<n; ++i)
     {
         for (j=i+1; j<n; ++j)
         {
-            ans.push(dist(COL(X, j), COL(X, i), j, i));
+            d = dist(COL(X, j), COL(X, i), j, i);
+            is_promise = is_promise || is_instance(d, Promise);
+            ans.push(d);
         }
     }
-    return ans;
+    return is_promise ? Promise.all(ans) : ans;
 };
 fn.pdist2 = function(X, Y) {
     var dist = d_euclidean, m, p;
@@ -125,9 +127,21 @@ fn.pdist2 = function(X, Y) {
             }
         }
     }
-    return matrix(COLS(X), COLS(Y), function(i, j, mat) {
-        return i <= j ? dist(COL(X, i), COL(Y, j), i, j) : mat[j][i];
-    });
+    var promises = [],
+        ans = matrix(COLS(X), COLS(Y), function(i, j, mat) {
+            if (i <= j)
+            {
+                var d = dist(COL(X, i), COL(Y, j), i, j);
+                if (is_instance(d, Promise)) promises.push(d);
+                return d;
+            }
+            else
+            {
+                return mat[j][i];
+            }
+        })
+    ;
+    return promises.length ? Promise.all(promises).then(function() {return ans;}) : ans;
 };
 fn.mahal = function(Y, X) {
     if (is_vector(X)) X = vec2col(X);

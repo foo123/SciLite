@@ -27,7 +27,7 @@ function sort(x, dim, dir, cmp, with_indices)
         // 0d
         return x;
     }
-    else if (!is_array(x[0]))
+    else if (!is_2d(x))
     {
         // 1d
         if (null == cmp) cmp = is_string(x[0]) ? cmp_str : (is_real(x) ? cmp_real : cmp_abs);
@@ -38,7 +38,7 @@ function sort(x, dim, dir, cmp, with_indices)
         });
         return with_indices ? [ans.map(function(vi) {return vi.v;}), ans.map(function(vi) {return vi.i+1;})] : ans.map(function(vi) {return vi.v;});
     }
-    else if (is_array(x[0]) && !is_array(x[0][0]))
+    else if (is_2d(x) && !is_nd(x))
     {
         // 2d
         if (1 === dim)

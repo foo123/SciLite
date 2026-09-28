@@ -1856,6 +1856,7 @@ async function evaluate(e, v, $$, vf2v)
                     else if (HAS.call($["@fn"], n) && is_callable($["@fn"][n]))
                     {
                         ret = $["@fn"][n];
+                        arg = arg || []; // support function call without ()
                     }
                     else if (HAS.call(constant, n))
                     {
@@ -1864,6 +1865,7 @@ async function evaluate(e, v, $$, vf2v)
                     else if (HAS.call(fn, n) && is_callable(fn[n]))
                     {
                         ret = fn[n];
+                        arg = arg || []; // support function call without ()
                     }
                     else
                     {

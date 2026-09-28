@@ -637,7 +637,7 @@ function varargout(f, nargout_default)
         var args = [].slice.call(arguments), ans;
         args.unshift(nargout_default); // nargout=nargout_default
         ans = f.apply(null, args);
-        if (ans instanceof Promise)
+        if (is_instance(ans, Promise))
         {
             ans = ans.then(function(ans) {
                 if ((1 < nargout_default) && is_array(ans)) ans.$scilitevarargout$ = true;
@@ -655,7 +655,7 @@ function varargout(f, nargout_default)
             var args = [].slice.call(arguments), ans;
             args.unshift(nargout); // nargout=nargout
             ans = f.apply(null, args);
-            if (ans instanceof Promise)
+            if (is_instance(ans, Promise))
             {
                 ans = ans.then(function(ans) {
                     if (((1 < nargout) || (1 < nargout_default)) && is_array(ans)) ans.$scilitevarargout$ = true;

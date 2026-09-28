@@ -2,7 +2,7 @@ function repelem(x, n)
 {
     if (is_array(x))
     {
-        if (is_array(x[0]))
+        if (is_2d(x))
         {
             // higher-dim array
             var sz = size(x), rn = [].slice.call(arguments, 1).map(_);
