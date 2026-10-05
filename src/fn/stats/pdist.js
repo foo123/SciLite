@@ -128,17 +128,10 @@ fn.pdist2 = function(X, Y) {
         }
     }
     var promises = [],
-        ans = matrix(COLS(X), COLS(Y), function(i, j, mat) {
-            if (i <= j)
-            {
-                var d = dist(COL(X, i), COL(Y, j), i, j);
-                if (is_instance(d, Promise)) promises.push(d);
-                return d;
-            }
-            else
-            {
-                return mat[j][i];
-            }
+        ans = matrix(COLS(X), COLS(Y), function(i, j) {
+            var d = dist(COL(X, i), COL(Y, j), i, j);
+            if (is_instance(d, Promise)) promises.push(d);
+            return d;
         })
     ;
     return promises.length ? Promise.all(promises).then(function() {return ans;}) : ans;
