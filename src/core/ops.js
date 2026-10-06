@@ -1322,7 +1322,7 @@ function get(mat /*, ..slices*/)
     var has_b = '()' === arguments[1] || '{}' === arguments[1],
         b = has_b ? arguments[1] : '()', iscell = is_cell(mat),
         slices = [].slice.call(arguments, has_b ? 2 : 1),
-        sz = is_1d(mat) ? [mat.length] : size(mat), tot, ret;
+        sz = is_1d(mat) ? [mat.length] : size(mat), sz2, tot, ret;
     if (1 === slices.length)
     {
         if (is_array(slices[0]) && arr_eq(sz, size(slices[0])) && all(slices[0], function(v) {return 0 === _(v) || 1 === _(v);}))
@@ -1360,6 +1360,55 @@ function get(mat /*, ..slices*/)
             })).toArray();
             if ((1 === ret.length) && ('{}' === b || !iscell)) ret = ret[0];
             else if (iscell) ret = cellarray(ret, [ret.length]);
+        }
+    }
+    else if (slices.length && (slices.length < sz.length))
+    {
+        tot = _(prod(sz));
+        sz2 = array(slices.length, function(dim) {
+            if (dim+1 === slices.length) return tot;
+            tot /= sz[dim];
+            return sz[dim];
+        });
+        ret = tensorview(mat, {shape:sz,ndarray:sz}).permute(array(sz.length, function(i) {return sz.length-1-i;})).reshape(sz2.reverse()).permute(array(sz2.length, function(i) {return sz2.length-1-i;})).slice(slices.map(function(slice, dim) {
+            dim = sz2.length-1-dim;
+            if (is_string(slice))
+            {
+                return slice;
+            }
+            else if (is_int(slice))
+            {
+                var index = _(slice);
+                if (1 <= index && index <= sz2[dim]) return index-1;
+                throw "get: index out of bounds";
+            }
+            else if (is_vector(slice))
+            {
+                return slice.map(function(index) {
+                    index = _(index);
+                    if (1 <= index && index <= sz2[dim]) return index-1;
+                    throw "get: index out of bounds";
+                });
+            }
+            else
+            {
+                throw "get: invalid range";
+            }
+        }));
+        if (1 === ret.length)
+        {
+            ret = ret.get(array(ret.dimension, 0));
+            if (iscell && ('()' === b)) ret = cellarray([ret], [1]);
+        }
+        else if (0 === ret.length)
+        {
+            ret = [];
+            if (iscell && ('()' === b)) ret = cellarray([ret], [1]);
+        }
+        else
+        {
+            if (iscell && ('()' === b)) ret = cellarray(ret.toNDArray(), ret.shape());
+            else ret = ret.toNDArray();
         }
     }
     else
@@ -1417,7 +1466,7 @@ function set(mat /*, ..slices, val*/)
         slices = [].slice.call(arguments, has_b ? 2 : 1, -1),
         val = '{}' === b ? [arguments[arguments.length-1]] : arguments[arguments.length-1],
         iscell = is_cell(mat), iscellv = is_cell(val),
-        sz = is_1d(mat) ? [mat.length] : size(mat),
+        sz = is_1d(mat) ? [mat.length] : size(mat), sz2,
         szv = '{}' === b ? [1] : (is_1d(val) ? [val.length] : size(val)),
         tot, concat_dim = [-1, -1];
     if (!mat.length && slices.length)
@@ -1455,6 +1504,40 @@ function set(mat /*, ..slices, val*/)
         {
             mat = mat.toNDArray();
         }
+    }
+    else if ((1 < slices.length) && (slices.length < sz.length))
+    {
+        tot = _(prod(sz));
+        sz2 = array(slices.length, function(dim) {
+            if (dim+1 === slices.length) return tot;
+            tot /= sz[dim];
+            return sz[dim];
+        });
+        tensorview(mat, {shape:sz,ndarray:sz}).permute(array(sz.length, function(i) {return sz.length-1-i;})).reshape(sz2.reverse()).permute(array(sz2.length, function(i) {return sz2.length-1-i;})).slice(slices.map(function(slice, dim) {
+            dim = sz2.length-1-dim;
+            if (is_string(slice))
+            {
+                return slice;
+            }
+            else if (is_int(slice))
+            {
+                var index = _(slice);
+                if (1 <= index && index <= sz2[dim]) return index-1;
+                throw "set: index out of bounds";
+            }
+            else if (is_vector(slice))
+            {
+                return slice.map(function(index) {
+                    index = _(index);
+                    if (1 <= index && index <= sz2[dim]) return index-1;
+                    throw "set: index out of bounds";
+                });
+            }
+            else
+            {
+                throw "set: invalid range";
+            }
+        })).setFrom(tensorview(val, {shape:is_array(val) ? szv : null, ndarray:is_array(val) ? szv : null}), copy);
     }
     else if (is_int(slices[slices.length-1]) && (sz[sz.length-1]+1 === _(slices[slices.length-1])))
     {
