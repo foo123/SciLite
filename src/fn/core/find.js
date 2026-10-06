@@ -15,10 +15,10 @@ function find(x, check, n, dir, nargout)
             ind = ('last' === dir ? xx.slice().reverse() : xx).reduce(function(ind, xi, i) {
                 if (ind.length < n)
                 {
-                    if (c > cols)
+                    if (r > rows)
                     {
-                        ++r;
-                        c = 1;
+                        ++c;
+                        r = 1;
                     }
                     if ('last' === dir)
                     {
@@ -40,7 +40,7 @@ function find(x, check, n, dir, nargout)
                             if (val) val.push(xi);
                         }
                     }
-                    ++c;
+                    ++r;
                 }
                 return ind;
             }, []);

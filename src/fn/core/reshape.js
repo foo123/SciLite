@@ -18,7 +18,8 @@ function reshape(x/*sz, rows, cols*/)
     }
 
     // use octave-compatible columnwise-ordering by permuting back and forth
-    return ret(tensorview(tensorview(x, {shape:sizex,ndarray:sizex}).permute(array(sizex.length, function(i) {return sizex.length-1-i;})).toArray(), {shape:sz.reverse()}).permute(array(sz.length, function(i) {return sz.length-1-i;})));
+    //return ret(tensorview(tensorview(x, {shape:sizex,ndarray:sizex}).permute(array(sizex.length, function(i) {return sizex.length-1-i;})).toArray(), {shape:sz.reverse()}).permute(array(sz.length, function(i) {return sz.length-1-i;})));
+    return ret(tensorview(x, {shape:sizex,ndarray:sizex}).permute(array(sizex.length, function(i) {return sizex.length-1-i;})).reshape(sz.reverse()).permute(array(sz.length, function(i) {return sz.length-1-i;})));
 
     /*if (is_vector(rows))
     {

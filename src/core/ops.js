@@ -1362,7 +1362,7 @@ function get(mat /*, ..slices*/)
             else if (iscell) ret = cellarray(ret, [ret.length]);
         }
     }
-    else if (slices.length && (slices.length < sz.length))
+    else if ((1 < slices.length) && (slices.length < sz.length))
     {
         tot = _(prod(sz));
         sz2 = array(slices.length, function(dim) {
@@ -1413,30 +1413,39 @@ function get(mat /*, ..slices*/)
     }
     else
     {
-        ret = tensorview(mat, {shape:sz, ndarray:sz}).slice(slices.map(function(slice, dim) {
+        ret = tensorview(mat, {shape:sz, ndarray:sz}).slice(slices.reduce(function(slices, slice, dim) {
+            var szdim = dim >= sz.length ? 1 : (sz[dim]), index;
             if (is_string(slice))
             {
-                return slice;
+                if (dim < sz.length) slices.push(slice);
             }
             else if (is_int(slice))
             {
-                var index = _(slice);
-                if (1 <= index && index <= sz[dim]) return index-1;
-                throw "get: index out of bounds";
+                index = _(slice);
+                if (1 <= index && index <= szdim)
+                {
+                    if (dim < sz.length) slices.push(index-1);
+                }
+                else
+                {
+                    throw "get: index out of bounds";
+                }
             }
             else if (is_vector(slice))
             {
-                return slice.map(function(index) {
+                slice = slice.map(function(index) {
                     index = _(index);
-                    if (1 <= index && index <= sz[dim]) return index-1;
+                    if (1 <= index && index <= szdim) return index-1;
                     throw "get: index out of bounds";
                 });
+                if (dim < sz.length) slices.push(slice);
             }
             else
             {
                 throw "get: invalid range";
             }
-        })).squeeze(2); // remove trivial dimensions after 2d
+            return slices;
+        }, [])).squeeze(2); // remove trivial dimensions after 2d
         if (1 === ret.length)
         {
             ret = ret.get(array(ret.dimension, 0));
