@@ -1325,7 +1325,11 @@ function get(mat /*, ..slices*/)
         sz = is_1d(mat) ? [mat.length] : size(mat), sz2, tot, ret;
     if (1 === slices.length)
     {
-        if (is_array(slices[0]) && arr_eq(sz, size(slices[0])) && all(slices[0], function(v) {return 0 === _(v) || 1 === _(v);}))
+        /*if (':' === slices[0])
+        {
+            return fn.colon(mat);
+        }
+        else*/ if (is_array(slices[0]) && arr_eq(sz, size(slices[0])) && all(slices[0], function(v) {return 0 === _(v) || 1 === _(v);}))
         {
             ret = tensorview(mat, {shape:sz, ndarray:sz}).select(tonumber(slices[0])).permute(array(sz.length, function(i) {return sz.length-1-i;})).toArray();
             if ((1 === ret.length) && ('{}' === b || !iscell)) ret = ret[0];
@@ -1359,7 +1363,7 @@ function get(mat /*, ..slices*/)
                     throw "get: invalid range";
                 }
             })).toArray();
-            if ((1 === ret.length) && ('{}' === b || !iscell)) ret = ret[0];
+            if ((1 === ret.length) && (':' !== slices[0]) && ('{}' === b || !iscell)) ret = ret[0];
             else if (iscell) ret = cellarray(ret, [ret.length]);
         }
     }

@@ -27,13 +27,13 @@ $._.MAXPRINTSIZE = 10;
 const repl = require('repl').start({
     prompt: '>> ',
     writer: function(ans) {
-        return null != ans ? $._.str(ans) : '';
+        return null != ans ? (ans instanceof Error ? ans.toString() : $._.str(ans)) : '';
     },
     eval: function(code, context, replResourceName, cb) {
         code = String(code).trim();
         if (!code.length) return cb(null, null);
         if (null == ctx) ctx = $._.createContext();
-        $._.eval(code, ctx, 1, 1).then(ans => cb(null, ans)).catch(err => cb(err.toString(), ''));
+        $._.eval(code, ctx, 1, 1).then(ans => cb(null, ans)).catch(err => cb(new Error(err.message || err), ''));
     }
 });
 repl.on('reset', function() {

@@ -80,6 +80,7 @@ $_.decimal = function(Decimal) {
         i = new complex(O, I);
         ze = new complex(constant.e, O);
         constant["i"] = i;
+        constant["j"] = i;
     }
     update.forEach(function(u) {u();});
 };

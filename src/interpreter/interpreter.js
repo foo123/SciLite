@@ -851,26 +851,26 @@ var NL_RE = /\r\n|\r|\n/g, NL = '\n';
 function parse(s, ctx, lineStart, posStart)
 {
     s = s.replace(NL_RE, NL); // normalize newlines
-    var i = 0, l = 0, j, t = s;
+    var i = 0, l = 0, j, t = s, lines = t.split(NL);
 
-    function line()
+    function line(ln)
     {
-        return t.split(NL)[l];
+        if (null == ln) ln = l;
+        return lines[ln] || '';
     }
     function error(msg, pos, ln)
     {
         if (null == ln) ln = l;
         if (null == pos) pos = i;
-        var line = t.split(NL)[ln];
         msg = String(msg) + ' at line ' + String((lineStart||0)+ln) + ' position ' + String((posStart||0)+pos) + ':';
-        return (msg + "\n" + line + "\n" + (new Array(pos+1)).join(' ') + '^' + "\n");
+        return (msg + "\n" + line(ln) + "\n" + (new Array(pos+1)).join(' ') + '^' + "\n");
     }
 
     function parse_until(expected)
     {
         var match, m, n, c,
             op, term, arg,
-            tmp, tmp2,
+            tmp, tmp2, ln,
             terms = [], ops = [],
             statements = [];
 
@@ -1123,7 +1123,6 @@ function parse(s, ctx, lineStart, posStart)
             return [r, j+1];
         }
 
-        var arr_id = 0;
         function array_literal(brackets)
         {
             brackets = brackets || '[]';
@@ -1208,6 +1207,7 @@ function parse(s, ctx, lineStart, posStart)
             if (eat(/^if\b/))
             {
                 end(true);
+                ln = line();
                 tmp = parse_until("\n,");
                 if (!tmp) throw error('missing or invalid condition in "if"');
                 if (eat("\n"))
@@ -1260,12 +1260,13 @@ function parse(s, ctx, lineStart, posStart)
                         break;
                     }
                 }
-                statements.push(expr(if_end, arg));
+                statements.push(expr(if_end, arg, ln));
                 continue;
             }
             if (eat(/^for\b/))
             {
                 end(true);
+                ln = line();
                 if (match = eat(/^[ \t\v\f]+([_a-z][_a-z0-9]*)[ \t\v\f]*=[ \t\v\f]*/i))
                 {
                     // pass
@@ -1293,12 +1294,13 @@ function parse(s, ctx, lineStart, posStart)
                     if (tmp) arg.statements = arg.statements.concat(tmp);
                     if (eat('end') || !tmp) break;
                 }
-                statements.push(expr(for_end, arg));
+                statements.push(expr(for_end, arg, ln));
                 continue;
             }
             if (eat(/^while\b/))
             {
                 end(true);
+                ln = line();
                 tmp = parse_until("\n,;");
                 if (!tmp) throw error('missing or invalid condition in "while"');
                 if (eat("\n"))
@@ -1317,7 +1319,7 @@ function parse(s, ctx, lineStart, posStart)
                     if (tmp) arg.statements = arg.statements.concat(tmp);
                     if (eat('end') || !tmp) break;
                 }
-                statements.push(expr(while_end, arg));
+                statements.push(expr(while_end, arg, ln));
                 continue;
             }
             if (eat(/^function\b/))
@@ -1512,7 +1514,7 @@ function parse(s, ctx, lineStart, posStart)
                 if (eat(/^([ \t\v\f]*)[,\]]/, 1))
                 {
                     // dummy variable
-                    terms.unshift(expr('v', variable(ctx, '')));
+                    terms.unshift(expr('v', variable(ctx, ''), line()));
                 }
                 else
                 {
@@ -1543,14 +1545,15 @@ function parse(s, ctx, lineStart, posStart)
                 arg = null;
                 if ("true" === m)
                 {
-                    term = expr(I);
+                    term = expr(I, null, line());
                 }
                 else if ("false" === m)
                 {
-                    term = expr(O);
+                    term = expr(O, null, line());
                 }
                 else if (match = eat(expected && (-1 < expected.indexOf(' ')) ? /^([\(\{])/ : /^[ \t\v\f]*([\(\{])/))
                 {
+                    ln = line();
                     if ('{' === match[1])
                     {
                         // cell array indexing
@@ -1562,13 +1565,13 @@ function parse(s, ctx, lineStart, posStart)
                             if (!eat(',')) break;
                         }
                         if (!eat('}')) throw error("mismatched curly brackets");
-                        term = expr('v', variable(ctx, m, arg, '{}'), line());
+                        term = expr('v', variable(ctx, m, arg, '{}'), ln);
                     }
                     else if (eat(/^[ \t\v\f]*\:[ \t\v\f]*\)/))
                     {
                         // variable single colon
                         arg = '(:)';
-                        term = expr('v', variable(ctx, m), line());
+                        term = expr('v', variable(ctx, m, [expr(':')]), ln);
                     }
                     else
                     {
@@ -1581,7 +1584,7 @@ function parse(s, ctx, lineStart, posStart)
                             if (!eat(',')) break;
                         }
                         if (!eat(')')) throw error("mismatched parentheses");
-                        term = expr('v_or_f', [m, arg, ctx, '()'], line());
+                        term = expr('v_or_f', [m, arg, ctx, '()'], ln);
                     }
                 }
                 else
@@ -1590,11 +1593,11 @@ function parse(s, ctx, lineStart, posStart)
                     term = expr('v_or_f', [m, null, ctx], line());
                 }
                 terms.unshift(term);
-                if ('(:)' === arg)
+                /*if ('(:)' === arg)
                 {
                     ops.unshift(['(:)', i, l]);
                     merge();
-                }
+                }*/
                 if (match = eat(/^[ \t\v\f]*(\.?')/))
                 {
                     // transpose
@@ -1625,6 +1628,7 @@ function parse(s, ctx, lineStart, posStart)
             c = s.charAt(0);
             if ('@' === c)
             {
+                ln = line();
                 // function handle
                 if (match = eat(/^@\(([ \t\v\f]*[_a-z][_a-z0-9]*(?:[ \t\v\f]*,[ \t\v\f]*[_a-z][_a-z0-9]*)*[ \t\v\f]*)\)/i))
                 {
@@ -1632,7 +1636,7 @@ function parse(s, ctx, lineStart, posStart)
                     arg = {argout:['*'], name:'', argin:match[1].split(',').map(function(s) {return s.trim();}), body:[]};
                     tmp = parse_until(',)]};');
                     if (tmp) arg.body = arg.body.concat(tmp);
-                    terms.unshift(expr(def_fn(arg), null, line()));
+                    terms.unshift(expr(def_fn(arg), null, ln));
                     continue;
                 }
                 if (match = eat(/^@([_a-z][_a-z0-9]*)/i))
@@ -1642,12 +1646,12 @@ function parse(s, ctx, lineStart, posStart)
                     if (HAS.call($["@fn"], m) && is_callable($["@fn"][m]))
                     {
                         // user-defined function handle
-                        terms.unshift(expr($["@fn"][m], null, line()));
+                        terms.unshift(expr($["@fn"][m], null, ln));
                     }
                     else if (HAS.call(fn, m) && is_callable(fn[m]))
                     {
                         // builtin function handle
-                        terms.unshift(expr(fn[m], null, line()));
+                        terms.unshift(expr(fn[m], null, ln));
                     }
                     else
                     {
@@ -1738,14 +1742,14 @@ function parse(s, ctx, lineStart, posStart)
                 // paren
                 s = s.slice(1);
                 i += 1;
-                if (eat(/^[ \t\v\f]*\:[ \t\v\f]*\)/))
+                /*if (eat(/^[ \t\v\f]*\:[ \t\v\f]*\)/))
                 {
                     // single colon
                     ops.unshift(['(:)', i, l]);
                     merge();
                 }
                 else
-                {
+                {*/
                     if (terms.length && can_merge())
                     {
                         merge('set');
@@ -1777,7 +1781,7 @@ function parse(s, ctx, lineStart, posStart)
                             merge();
                         }
                     }
-                }
+                /*}*/
                 continue;
             }
             if (')' === c)
@@ -1803,6 +1807,7 @@ function parse(s, ctx, lineStart, posStart)
                 s = s.slice(1);
                 i += 1;
                 tmp = [i, l];
+                ln = line();
                 merge('set');
                 if (terms.length)
                 {
@@ -1811,14 +1816,14 @@ function parse(s, ctx, lineStart, posStart)
                 else
                 {
                     arg = 0;
-                    terms.unshift(expr(':'));
+                    terms.unshift(expr(':', null, ln));
                 }
                 for (;;)
                 {
                     term = parse_until(':,;})\n');
                     eat(/^[ \t\v\f]+/);
                     if (term) {terms.unshift(term); ++arg;}
-                    else if (eat(':', false)) terms.unshift(expr(':'));
+                    else if (eat(':', false)) terms.unshift(expr(':', null, ln));
                     if (!eat(':')) break;
                 }
                 if (1 < arg)
