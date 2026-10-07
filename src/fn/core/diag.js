@@ -5,6 +5,7 @@ function diag(x, k)
     {
         return [[x]];
     }
+    x = vec(x);
     if (is_1d(x))
     {
         return matrix(x.length, x.length, function(i, j) {
