@@ -62,7 +62,8 @@ let [Ref, Pivots] = fn.rref.nargout(2)(A); // variable output
 * implement generalized `schur`/`qz` decomposition (TODO)
 * implement generalized/polynomial `eig` decomposition (TODO)
 * implement more machine learning functions **[DONE PARTIALLY]**
-* implement some independent component/subspace analysis functions (eg `jade`, `picard`, ..) **[DONE PARTIALLY]**
+* implement some independent component/subspace analysis functions **[DONE PARTIALLY]**
+* implement some linear optimization/linear programming functions (TODO)
 * support symbolic computations (TODO)
 * support GPU computations and mix of CPU/GPU computations (TODO)
 
