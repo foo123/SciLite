@@ -936,7 +936,7 @@ codemirror_define_grammar_mode("scilite", {
                                     // start, end delims
                                     ["{%",  "%}"]
                                 ]}
-    ,"<keyword>"                : {"autocomplete":true,"tokens":["function","if","elseif","else","for","while","break","continue","end"]}
+    ,"<keyword>"                : {"autocomplete":true,"tokens":["function","if","elseif","else","for","while","break","continue","return","end"]}
     ,"<builtin>"                : {"autocomplete":true,"tokens":Object.keys($.fn)}
     ,"<identifier>"             : "RE::/[_A-Za-z][_A-Za-z0-9]*/"
     ,"<string>"                 : {"type":"block","tokens":
@@ -950,7 +950,7 @@ codemirror_define_grammar_mode("scilite", {
 
 // Syntax model
 "Syntax"                        : {
-    "<expr>"                    : "(<comment>.COMMENT | <string>.STRING | <number>.NUMBER | '['.OP | ']'.OP  <t>.OP? | '('.OP | ')'.OP  <t>.OP? | <op>.OP | <const>.CONST <t>.OP? | <keyword>.KEYWORD | <builtin>.BUILTIN | <identifier>.IDENTIFIER <t>.OP?)*"
+    "<expr>"                    : "(<comment>.COMMENT | <string>.STRING | <number>.NUMBER | '['.OP | ']'.OP  <t>.OP? | '{'.OP | '}'.OP  <t>.OP? | '('.OP | ')'.OP  <t>.OP? | <op>.OP | <const>.CONST <t>.OP? | <keyword>.KEYWORD | <builtin>.BUILTIN | <identifier>.IDENTIFIER <t>.OP?)*"
 },
 
 // what to parse and in what order

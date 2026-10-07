@@ -2,42 +2,21 @@ function stft(inp, win, FFTLEN, OVERLAP, inv)
 {
     // short-time fourier transform and inverse
     var out,
-        WLEN = win.length,
-        nw,
-        HOP = stdMath.max(1, WLEN - OVERLAP),
-        before = stdMath.floor((FFTLEN - WLEN)/2),
-        //after = FFTLEN - WLEN - before,
+        i, j, k, summa,
         N, SEGMENTS,
+        WLEN = FFTLEN < win.length ? FFTLEN : win.length,
+        HOP = stdMath.max(1, WLEN - OVERLAP),
         zero = new complex(O, O),
-        i, j, k,
         wx = new Array(FFTLEN),
         fx = new Array(FFTLEN);
 
     if (inv)
     {
-        // normalize win.*win to unit energy
-        //nw = win.^2
-        nw = dotpow(abs(win), two);
-        for (i=HOP; i<WLEN; i+=HOP)
-        {
-            //nw[1:end-i+1] += win[i:end].^2
-            for (j=i; j<WLEN; ++j)
-            {
-                nw[j-i] = scalar_add(nw[j], scalar_pow(scalar_abs(win[j]), two));
-            }
-            //nw[i:end] += win[1:end-i+1].^2
-            for (j=i; j<WLEN; ++j)
-            {
-                nw[j] = scalar_add(nw[j], scalar_pow(scalar_abs(win[j-i]), two));
-            }
-        }
-        //win = win ./ sqrt(real(norm))
-        win = win.map(function(wi, i) {return scalar_div(wi, realMath.sqrt(real(nw[i])));});
-
         // inverse short-time fourier transform using ifft
         SEGMENTS = COLS(inp);
-        N = stdMath.max(0, SEGMENTS * HOP + OVERLAP);
+        N = stdMath.max(0, (SEGMENTS-1) * HOP + OVERLAP);
         out = array(N, zero);
+        win = dotdiv(win, sum(dotmul(win, win)));
 
         for (j=0,i=0; i<SEGMENTS; ++i,j+=HOP)
         {
@@ -54,44 +33,33 @@ function stft(inp, win, FFTLEN, OVERLAP, inv)
             for (k=0; k<WLEN; ++k)
             {
                 if (j+k >= N) break;
-                out[j+k] = scalar_add(out[j+k], scalar_mul(win[k], wx[before+k]));
+                out[j+k] = scalar_add(out[j+k], scalar_mul(wx[k], win[k]));
             }
         }
     }
     else
     {
-        // normalize win.*win to unit energy
-        //nw = win.^2
-        nw = dotpow(abs(win), two);
-        //win = win ./ sqrt(real(norm))
-        win = win.map(function(wi, i) {return scalar_div(wi, realMath.sqrt(real(nw[i])));});
-
         // short-time fourier transform using fft
-        N = inp.length;
         // if (N - OVERLAP) / HOP is integer istft produces output of same length as original input
-        SEGMENTS = stdMath.floor((N - OVERLAP) / HOP),
+        N = inp.length;
+        SEGMENTS = stdMath.floor(stdMath.max(0, N - OVERLAP) / HOP)+1;
         out = matrix(FFTLEN, SEGMENTS, zero);
 
         for (j=0,i=0; i<SEGMENTS; ++i,j+=HOP)
         {
-            // apply win to segment with zero padding before and after
-            for (k=0; k<before; ++k)
-            {
-                wx[k] = zero;
-                fx[k] = zero;
-            }
+            // apply win to segment with zero padding
             for (k=0; k<WLEN; ++k)
             {
-                wx[before+k] = j+k < N ? scalar_mul(win[k], inp[j+k]) : zero;
-                fx[before+k] = zero;
+                wx[k] = j+k < N ? scalar_mul(win[k], inp[j+k]) : zero;
+                fx[k] = zero;
             }
-            for (k=before+WLEN; k<FFTLEN; ++k)
+            for (k=WLEN; k<FFTLEN; ++k)
             {
                 wx[k] = zero;
                 fx[k] = zero;
             }
             // fft
-            fft1(/*fftshift(*/wx/*)*/, false, fx);
+            fft1(wx, false, fx);
             // store
             for (k=0; k<FFTLEN; ++k)
             {
@@ -136,13 +104,7 @@ fn.stft = varargout(function(nargout, x) {
     if (null == nfft) nfft = stdMath.max(128, win.length);
     if (null == ovrl) ovrl = stdMath.floor(0.75*win.length);
     x = vec(x);
-    if (is_matrix(x))
-    {
-        ans = array(COLS(x), function(column) {
-            return realify(stft(complexify(COL(x, column)), win, nfft, ovrl, false));
-        });
-    }
-    else if (is_vector(x))
+    if (is_vector(x))
     {
         ans = realify(stft(complexify(x), win, nfft, ovrl, false));
     }

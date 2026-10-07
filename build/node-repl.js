@@ -12,9 +12,6 @@ $._.decimal(require('./decimal.js'));
 let ctx = null;
 
 // extend with plugins
-$.fn.tofixed = function(x, d) {
-    return x.toFixed(d || 10);
-};
 $.fn.exist = function(variable) {
     return ctx && $._.exist(variable, ctx) ? 1 : 0;
 };

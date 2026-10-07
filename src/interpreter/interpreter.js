@@ -559,6 +559,7 @@ async function for_end($arg, v, $)
             // reshape nd-array to 2d-array by columns
             if (2 < sz.length) values = reshape(values, [sz[0], prod(sz.slice(1))]);
         }
+        if ($ && $.ctx) $arg.ind.new_ctx($.ctx);
         for (j=0,k=values_is_2d?COLS(values):(values.length); j<k; ++j)
         {
             is_break = false;
@@ -573,6 +574,7 @@ async function for_end($arg, v, $)
             if (is_break) break;
             else if (is_continue) continue;
         }
+        if ($ && $.ctx) $arg.ind.new_ctx(false);
         $.brk = brk;
         $.cont = cont;
     }
@@ -613,7 +615,8 @@ function def_fn(fn_def)
 {
     var fn = varargout(async function(nargout) {
         var i, nargin = arguments.length-1, argout,
-            $ = {ctx:{ans:null}}, ans;
+            is_return = false, $ = {ctx:{ans:null}},
+            ans, i, n;
         for (i=1; i<=nargin; ++i)
         {
             if ('varargin' === fn_def.argin[i-1])
@@ -626,13 +629,25 @@ function def_fn(fn_def)
                 $.ctx[fn_def.argin[i-1]] = copy(arguments[i]); // pass by value
             }
         }
+        $.retrn = function() {is_return = true;};
         $.ctx.nargin = nargin;
         $.ctx.nargout = nargout;
         if (fn_def.argout.length && ('varargout' === fn_def.argout[fn_def.argout.length-1]))
         {
             $.ctx.varargout = cellarray(array(100, null), [100]); // pre-allocate a large array
         }
-        ans = await vale(1 === fn_def.body.length ? fn_def.body[0] : fn_def.body, null, $);
+        if (1 === fn_def.body.length)
+        {
+            ans = await vale(fn_def.body[0], null, $);
+        }
+        else
+        {
+            for (i=0,n=fn_def.body.length; i<n; ++i)
+            {
+                await vale(fn_def.body[i], null, $);
+                if (is_return) break;
+            }
+        }
         if (fn_def.argout.length)
         {
             if ('' === fn_def.name)
@@ -710,6 +725,7 @@ variable.prototype = {
         {
             if (!HAS.call(self.ctx, self.v) && !HAS.call(constant, self.v))
             {
+                //console.log('defined vars:' + Object.keys(self.ctx).join(', '));
                 throw 'undefined variable "'+self.v+'"';
             }
             val = HAS.call(self.ctx, self.v) ? self.ctx[self.v] : constant[self.v];
@@ -718,7 +734,7 @@ variable.prototype = {
         {
             s = size(val);
             i = await Promise.all(self.i.map(function(ind, i) {
-                return vale(ind, {end:1 === self.i.length ? prod(s) : s[i]});
+                return vale(ind, {end:1 === self.i.length ? prod(s) : s[i]}, {ctx:self.ctx});
             }));
             val = get.apply(get, [val, !s[0] || is_cell(val) ? self.b : '()'].concat(i));
         }
@@ -759,7 +775,7 @@ variable.prototype = {
             if (is_array(val))
             {
                 i = await Promise.all(self.i.map(function(ind, i) {
-                    return vale(ind, {end:1 === self.i.length ? prod(s) : s[i]});
+                    return vale(ind, {end:1 === self.i.length ? prod(s) : s[i]}, {ctx:self.ctx});
                 }));
                 val = set.apply(set, [val, !s[0] || is_cell(val) ? self.b : '()'].concat(i).concat([value]));
             }
@@ -1149,41 +1165,34 @@ function parse(s, ctx, lineStart, posStart)
                     if (entry)
                     {
                         arg.push(entry);
-                        if (eat(","))
+                    }
+                    if (eat(","))
+                    {
+                        arg.push(expr(','));
+                        eat(/^[ \t\v\f]+/);
+                    }
+                    else if (eat(";"))
+                    {
+                        arg.push(expr(';'));
+                        eat(/^[ \t\v\f]+/);
+                    }
+                    else if (eat("\n"))
+                    {
+                        arg.push(expr(';'));
+                        ++l;
+                        i = 0;
+                        eat(/^[ \t\v\f]+/);
+                    }
+                    else if (eat(/^[ \t\v\f]+/))
+                    {
+                        if (entry && !eat(/^[,;\n\]]/, false))
                         {
                             arg.push(expr(','));
-                            eat(/^[ \t\v\f]+/);
-                        }
-                        else if (eat(";"))
-                        {
-                            arg.push(expr(';'));
-                            eat(/^[ \t\v\f]+/);
-                        }
-                        else if (eat("\n"))
-                        {
-                            arg.push(expr(';'));
-                            ++l;
-                            i = 0;
-                            eat(/^[ \t\v\f]+/);
-                        }
-                        else if (eat(/^[ \t\v\f]+/))
-                        {
-                            if (!eat(/^[,;\n\]]/, false))
-                            {
-                                arg.push(expr(','));
-                            }
-                        }
-                        else
-                        {
-                            break;
                         }
                     }
                     else
                     {
-                        if (!eat(/^[ \t\v\f]+/))
-                        {
-                            break;
-                        }
+                        break;
                     }
                 }
                 eat(/^[ \t\v\f]+/);
@@ -1346,11 +1355,17 @@ function parse(s, ctx, lineStart, posStart)
                 $["@fn"][arg.name] = def_fn(arg);
                 continue;
             }
-            if (match = eat(/^(continue|break|elseif|else|end)\b/, false))
+            if (match = eat(/^(return|continue|break|elseif|else|end)\b/, false))
             {
                 if (expected && (-1 < expected.indexOf(match[1])))
                 {
                     break;
+                }
+                else if ('return' === match[1])
+                {
+                    eat('return');
+                    statements.push(expr('return', ''));
+                    continue;
                 }
                 else if ('continue' === match[1])
                 {
@@ -1388,16 +1403,17 @@ function parse(s, ctx, lineStart, posStart)
                 }
                 continue;
             }
-            if (eat(";", false))
+            if (eat(/^[ \t\v\f]*;/, false))
             {
                 if (expected && (-1 < expected.indexOf(";")))
                 {
+                    eat(/^[ \t\v\f]+/);
                     break;
                 }
                 else
                 {
                     // statement end
-                    eat(";");
+                    eat(/^[ \t\v\f]*;/);
                     // new statement
                     end(true);
                     continue;
@@ -1880,7 +1896,7 @@ async function evaluate(e, v, $$, vf2v)
                 else
                 {
                     // variable
-                    e = expr('v', variable(ctx, ret, arg && arg.length ? arg : null, e.arg[3]));
+                    e = expr('v', variable(e.arg[2], ret, arg && arg.length ? arg : null, e.arg[3]));
                 }
             }
         }
@@ -1927,6 +1943,11 @@ async function evaluate(e, v, $$, vf2v)
         else if ('continue' === e.op)
         {
             if ($$ && is_callable($$.cont)) $$.cont();
+            return;
+        }
+        else if ('return' === e.op)
+        {
+            if ($$ && is_callable($$.retrn)) $$.retrn();
             return;
         }
         else if (OP['='].fn === e.op)

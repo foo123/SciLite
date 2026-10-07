@@ -79,6 +79,7 @@ $_.decimal = function(Decimal) {
     {
         i = new complex(O, I);
         ze = new complex(constant.e, O);
+        constant["i"] = i;
     }
     update.forEach(function(u) {u();});
 };
@@ -352,7 +353,7 @@ function COL(mat, j)
 function project(x, i, j)
 {
     j = j || 0;
-    if (is_array(x))
+    if (is_array(x) && (j < i.length))
     {
         return ':' === i[j] ? x.map(function(xj) {return project(xj, i, j+1);}) : project(x[i[j]], i, j+1);
     }
@@ -674,6 +675,24 @@ function varargout(f, nargout_default)
     return f_with_nargout;
 }
 $_.varargout = varargout;
+
+function $fn(name, func)
+{
+    var fn = null;
+    return varargout(async function(nargout /*..args*/) {
+        if (!fn)
+        {
+            // compile it
+            var entry = $["@fn"][name];
+            await $_.eval(func);
+            fn = $["@fn"][name];
+            $["@fn"][name] = entry;
+        }
+        // invoke it
+        return await fn.nargout(nargout).apply(null, [].slice.call(arguments, 1));
+    });
+}
+$_.$fn = $fn;
 
 function num2str(x)
 {

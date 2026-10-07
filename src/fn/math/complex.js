@@ -165,6 +165,7 @@ complex.prototype = {
 };
 i = new complex(O, I);
 ze = new complex(constant.e, O);
+constant["i"] = i;
 
 complexMath = {
     floor: function(z) {

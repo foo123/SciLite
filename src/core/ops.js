@@ -1333,6 +1333,7 @@ function get(mat /*, ..slices*/)
         }
         else
         {
+            slices = slices.map(function(slice) {return is_array(slice) ? vec(slice) : slice;});
             tot = _(prod(sz));
             ret = tensorview(tensorview(mat, {shape:sz, ndarray:sz}).permute(array(sz.length, function(i) {return sz.length-1-i;})).toArray()).slice(slices.map(function(slice, dim) {
                 if (is_string(slice))
@@ -1364,6 +1365,7 @@ function get(mat /*, ..slices*/)
     }
     else if ((1 < slices.length) && (slices.length < sz.length))
     {
+        slices = slices.map(function(slice) {return is_array(slice) ? vec(slice) : slice;});
         tot = _(prod(sz));
         sz2 = array(slices.length, function(dim) {
             if (dim+1 === slices.length) return tot;
@@ -1413,11 +1415,13 @@ function get(mat /*, ..slices*/)
     }
     else
     {
+        slices = slices.map(function(slice) {return is_array(slice) ? vec(slice) : slice;});
         ret = tensorview(mat, {shape:sz, ndarray:sz}).slice(slices.reduce(function(slices, slice, dim) {
             var szdim = dim >= sz.length ? 1 : (sz[dim]), index;
             if (is_string(slice))
             {
                 if (dim < sz.length) slices.push(slice);
+                else if ('0' !== slice) throw "get: index out of bounds";
             }
             else if (is_int(slice))
             {
@@ -1480,6 +1484,7 @@ function set(mat /*, ..slices, val*/)
         tot, concat_dim = [-1, -1];
     if (!mat.length && slices.length)
     {
+        slices = slices.map(function(slice) {return is_array(slice) ? vec(slice) : slice;});
         slices.forEach(function(slice, dim) {
             if (!(((dim < szv.length) && (':' === slice)) || ((dim >= szv.length) && (1 === _(slice)))))
             {
@@ -1498,6 +1503,7 @@ function set(mat /*, ..slices, val*/)
     }
     else if (sz.length < slices.length)
     {
+        slices = slices.map(function(slice) {return is_array(slice) ? vec(slice) : slice;});
         slices.forEach(function(slice, dim) {
             if (!(((dim < szv.length) && (':' === slice)) || ((dim === slices.length-1) && (2 === _(slice))) || ((dim >= szv.length) && (dim < slices.length-1) && (1 === _(slice)))))
             {
@@ -1516,6 +1522,7 @@ function set(mat /*, ..slices, val*/)
     }
     else if ((1 < slices.length) && (slices.length < sz.length))
     {
+        slices = slices.map(function(slice) {return is_array(slice) ? vec(slice) : slice;});
         tot = _(prod(sz));
         sz2 = array(slices.length, function(dim) {
             if (dim+1 === slices.length) return tot;
@@ -1568,6 +1575,7 @@ function set(mat /*, ..slices, val*/)
         }
         else
         {
+            slices = slices.map(function(slice) {return is_array(slice) ? vec(slice) : slice;});
             tot = _(prod(sz));
             concat_dim[0] = sz.indexOf(tot);
             slices = slices.map(function(slice, dim) {
@@ -1630,6 +1638,7 @@ function set(mat /*, ..slices, val*/)
     }
     else
     {
+        slices = slices.map(function(slice) {return is_array(slice) ? vec(slice) : slice;});
         slices = slices.map(function(slice, dim) {
             if (is_string(slice))
             {
