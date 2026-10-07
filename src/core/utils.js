@@ -173,7 +173,7 @@ function is_matrix(x, no_cell)
 $_.is_matrix = is_matrix;
 function is_cell(x)
 {
-    return is_array(x) && !!x.$scilitecell$;
+    return !!x.$scilitecell$ && is_array(x);
 }
 //$_.is_cell = is_cell;
 function is_0d(x)
@@ -199,8 +199,8 @@ function is_nd(x)
 function array(n, v)
 {
     n = stdMath.max(0, stdMath.round(n));
-    var i, arr = new Array(n);
-    for (i=0; i<n; ++i) arr[i] = is_callable(v) ? v(i, arr) : v;
+    var i, arr = new Array(n), callable = is_callable(v);
+    for (i=0; i<n; ++i) arr[i] = callable ? v(i, arr) : v;
     return arr;
 }
 $_.array = array;
@@ -208,13 +208,13 @@ function matrix(rows, cols, v)
 {
     rows = stdMath.max(0, stdMath.round(rows));
     cols = stdMath.max(0, stdMath.round(cols));
-    var r, c, row, mat = new Array(rows);
+    var r, c, row, mat = new Array(rows), callable = is_callable(v);
     for (r=0; r<rows; ++r)
     {
         mat[r] = row = new Array(cols);
         for (c=0; c<cols; ++c)
         {
-            row[c] = is_callable(v) ? v(r, c, mat) : v;
+            row[c] = callable ? v(r, c, mat) : v;
         }
     }
     return mat;
@@ -222,14 +222,15 @@ function matrix(rows, cols, v)
 $_.matrix = matrix;
 function ndarray(dims, v)
 {
+    var callable = is_callable(v);
     return dims.length ? array(dims[0], function(i, ndarr) {
         if (dims.length > 1)
         {
             return ndarray(dims.slice(1), function(j) {
-                return is_callable(v) ? v([i].concat(j), ndarr) : v;
+                return callable ? v([i].concat(j), ndarr) : v;
             }, true);
         }
-        return is_callable(v) ? v([i], ndarr) : v;
+        return callable ? v([i], ndarr) : v;
     }) : [];
 }
 ndarray.indices = function(dims, f) {
@@ -340,7 +341,7 @@ function ROWS(mat)
 }
 function COLS(mat)
 {
-    if ((null != mat) && mat.$scilitecell$) return mat.$scilitecell$[1] || 1;
+    if ((null != mat) && mat.$scilitecell$) return mat.$scilitecell$[1] || 0;
     return mat[0].length;
 }
 function ROW(mat, i)

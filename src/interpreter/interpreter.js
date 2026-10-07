@@ -693,6 +693,7 @@ variable.prototype = {
     v: null,
     i: null,
     b: null,
+    ln: null,
     new_ctx: function(new_ctx) {
         var self = this;
         if (new_ctx)
@@ -725,8 +726,7 @@ variable.prototype = {
         {
             if (!HAS.call(self.ctx, self.v) && !HAS.call(constant, self.v))
             {
-                //console.log('defined vars:' + Object.keys(self.ctx).join(', '));
-                throw 'undefined variable "'+self.v+'"';
+                throw 'undefined variable "'+self.v+'"' + (self.ln ? "\nat: " + self.ln : "");
             }
             val = HAS.call(self.ctx, self.v) ? self.ctx[self.v] : constant[self.v];
         }
@@ -762,7 +762,6 @@ variable.prototype = {
             {
                 if (!HAS.call(self.ctx, self.v))
                 {
-                    //throw 'undefined variable "'+self.v+'"';
                     val = self.ctx[self.v] = []; // dummy empty array
                     s = [0, 0];
                 }
@@ -805,9 +804,17 @@ variable.prototype = {
         return (null == this.i);
     }
 };
-async function val(x)
+async function val(x, ln)
 {
-    return is_instance(x, variable) ? await x.get() : x;
+    if (is_instance(x, variable))
+    {
+        var _ln = x.ln, v;
+        x.ln = ln || _ln;
+        v = await x.get();
+        x.ln = _ln;
+        return v;
+    }
+    return x;
 }
 
 function expr(op, arg, ln)
@@ -829,23 +836,6 @@ expr.prototype = {
     arg: null,
     ln: null
 };
-async function vale(x, v, $)
-{
-    if (is_instance(x, expr))
-    {
-        return await evaluate(x, v, $);
-    }
-    else if (is_array(x))
-    {
-        //return await Promise.all(x.map(function(xi) {return vale(xi, v, $);}));
-        for (var i=0,n=x.length,y=new Array(n); i<n; ++i)
-        {
-            y[i] = await vale(x[i], v, $);
-        }
-        return y;
-    }
-    return x;
-}
 
 var NL_RE = /\r\n|\r|\n/g, NL = '\n';
 function parse(s, ctx, lineStart, posStart)
@@ -856,14 +846,14 @@ function parse(s, ctx, lineStart, posStart)
     function line(ln)
     {
         if (null == ln) ln = l;
-        return lines[ln] || '';
+        return lines[ln];
     }
     function error(msg, pos, ln)
     {
         if (null == ln) ln = l;
         if (null == pos) pos = i;
         msg = String(msg) + ' at line ' + String((lineStart||0)+ln) + ' position ' + String((posStart||0)+pos) + ':';
-        return (msg + "\n" + line(ln) + "\n" + (new Array(pos+1)).join(' ') + '^' + "\n");
+        return (msg + "\n" + (line(ln)||'') + "\n" + (new Array(pos+1)).join(' ') + '^' + "\n");
     }
 
     function parse_until(expected)
@@ -1922,7 +1912,7 @@ async function evaluate(e, v, $$, vf2v)
             }
             else
             {
-                ret = is_obj(v) && is_string(e.arg.v) && HAS.call(v, e.arg.v) ? v[e.arg.v] : await val(e.arg);
+                ret = is_obj(v) && is_string(e.arg.v) && HAS.call(v, e.arg.v) ? v[e.arg.v] : await val(e.arg, e.ln);
             }
             if ($$ && $$.ctx) e.arg.new_ctx(false); // restore context
             return ret;
@@ -2022,6 +2012,22 @@ async function evaluate(e, v, $$, vf2v)
     }
     throw "invalid expr";
 }
+async function vale(x, v, $)
+{
+    if (is_instance(x, expr))
+    {
+        return await evaluate(x, v, $);
+    }
+    else if (is_array(x))
+    {
+        for (var i=0,n=x.length,y=new Array(n); i<n; ++i)
+        {
+            y[i] = await vale(x[i], v, $);
+        }
+        return y;
+    }
+    return x;
+}
 
 $_.createContext = function() {
     return {ans: null};
@@ -2029,11 +2035,11 @@ $_.createContext = function() {
 
 $_.eval = async function(code, ctx, lineStart) {
     ctx = ctx || $_.createContext();
-    var ast = parse(String(code), ctx, null == lineStart ? 1 : lineStart, 1);
-    var ans = null, ans_changed = false;
+    var ast = parse(String(code), ctx, null == lineStart ? 1 : lineStart, 1),
+        ans = null, ans_changed = false, i, n;
     if (is_array(ast))
     {
-        for (var i=0,n=ast.length; i<n; ++i)
+        for (i=0,n=ast.length; i<n; ++i)
         {
             if (ast[i])
             {

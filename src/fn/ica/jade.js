@@ -30,24 +30,19 @@ fn.jadeR = $fn("jadeR", `function B =  jadeR(X, m)
 %     are in order of decreasing norm; this has the effect that the
 %     'most energetically significant' components appear first in the
 %     rows of S=B*X.
-verbose	= 0 ;	% Set to 0 for quiet operation
 
 % Finding the number of sources
 [n,T]	= size(X);
 if nargin==1, m=n ; end; 	% Number of sources defaults to # of sensors
-%if m>n ,    fprintf('jade -> Do not ask more sources than sensors here!!!'), return,end
-%if verbose, fprintf('jade -> Looking for %d sources',m); end ;
+if m>n, m=n; end;
 
 % Mean removal
 %=============
-%if verbose, fprintf('jade -> Removing the mean value'); end
 X	= X - mean(X')' * ones(1,T);
 
 
 %%% whitening & projection onto signal subspace
 %   ===========================================
-%if verbose, fprintf('jade -> Whitening the data'); end
-
 [U,D]     = eig((X*X')/T) ; %% An eigen basis for the sample covariance matrix
 [Ds,k]    = sort(diag(D)) ; %% Sort by increasing variance
 PCs       = n:-1:n-m+1    ; %% The m most significant princip. comp. by decreasing variance
@@ -86,7 +81,6 @@ scales = 0;
 
 %%% Estimation of the cumulant matrices.
 %   ====================================
-%if verbose, fprintf('jade -> Estimating cumulant matrices'); end
 
 %% Reshaping of the data, hoping to speed up things a little bit...
 X = X';
@@ -132,8 +126,6 @@ if 0, 	%% Init by diagonalizing a *single* cumulant matrix.  It seems to save
 	%% some computation time 'sometimes'.  Not clear if initialization is really worth
 	%% it since Jacobi rotations are very efficient.  On the other hand, it does not
 	%% cost much...
-
-	%if verbose, fprintf('jade -> Initialization of the diagonalization'); end
 	[V,D]	= eig(CM(:,1:m)); % Selectng a particular cumulant matrix.
 	for u=1:m:m*nbcm,         % Accordingly updating the cumulant set given the init
 		CM(:,u:u+m-1) = CM(:,u:u+m-1)*V ;
@@ -172,13 +164,8 @@ theta	= 0 ;
 Gain    = 0 ;
 
 %% Joint diagonalization proper
-%if verbose, fprintf('jade -> Contrast optimization by joint diagonalization'); end
-
 while encore, encore=0;
 
-  %if verbose, fprintf('jade -> Sweep #%3d',sweep); end
-  %sweep = sweep+1;
-  %upds  = 0 ;
   Vkeep = V ;
 
   for p=1:m-1,
@@ -199,7 +186,6 @@ while encore, encore=0;
       if abs(theta) > seuil,
 %%      if Gain > 1.0e-3*On/m/m ,
 	encore  = 1 ;
-	%upds    = upds    + 1;
 	c	= cos(theta);
 	s	= sin(theta);
 	G	= [ c -s ; s c ] ;
@@ -213,16 +199,10 @@ while encore, encore=0;
 	On   = On  + Gain;
 	Off  = Off - Gain;
 
-	%% fprintf('jade -> %3d %3d %12.8f',p,q,Off/On);
       end;%%of the if
     end;%%of the loop on q
   end;%%of the loop on p
-  %if verbose, fprintf(' completed in %d rotations',upds); end
-  %updates = updates + upds ;
-
 end;%%of the while loop
-%if verbose, fprintf('jade -> Total of %d Givens rotations',updates); end
-
 
 %%% A separating matrix
 %   ===================
@@ -232,8 +212,6 @@ B	= V'*B ;
 %%% Permut the rows of the separating matrix B to get the most energetic components first.
 %%% Here the **signals** are normalized to unit variance.  Therefore, the sort is
 %%% according to the norm of the columns of A = pinv(B)
-
-%if verbose, fprintf('jade -> Sorting the components',updates); end
 A           = pinv(B) ;
 [Ds,keys]   = sort(sum(A.*A)) ;
 B           = B(keys,:)       ;
@@ -241,8 +219,6 @@ B           = B(m:-1:1,:)     ; % Is this smart ?
 
 
 % Signs are fixed by forcing the first column of B to have non-negative entries.
-
-%if verbose, fprintf('jade -> Fixing the signs',updates); end
 b	= B(:,1) ;
 signs	= sign(sign(b)+0.1) ; % just a trick to deal with sign=0
 B	= diag(signs)*B ;
@@ -271,7 +247,6 @@ fn.jade = $fn("jade", `function [A,S] =  jade(X, m)
 % Jade performs source separation via a
 % Joint Approximate Diagonalization of Eigen-matrices.
 %
-% THIS VERSION ASSUMES ZERO-MEAN SIGNALS
 %
 % Input :
 %   * X: Each column of X is a sample from the n sensors
@@ -288,13 +263,16 @@ fn.jade = $fn("jade", `function [A,S] =  jade(X, m)
 
 %%  source detection not implemented yet !
 if nargin==1, m=n ; end;
-
+if m>n, m=n ; end;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % A few parameters that could be adjusted
 nem	= m;		% number of eigen-matrices to be diagonalized
 seuil	= 1/sqrt(T)/100;% a statistical threshold for stopping joint diag
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% mean removal
+X	= X - mean(X')' * ones(1,T);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% whitening

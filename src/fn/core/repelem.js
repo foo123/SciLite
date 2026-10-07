@@ -16,6 +16,7 @@ function repelem(x, n)
         else
         {
             // 1-dim array
+            if (is_array(n)) n = vec(n);
             if (is_vector(n))
             {
                 if (n.length === x.length)
