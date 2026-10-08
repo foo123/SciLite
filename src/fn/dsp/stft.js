@@ -2,22 +2,24 @@ function stft(inp, win, FFTLEN, OVERLAP, inv)
 {
     // short-time fourier transform and inverse
     var out,
-        i, j, k, summa,
+        i, j, k,
         N, SEGMENTS,
         WLEN = FFTLEN < win.length ? FFTLEN : win.length,
         HOP = stdMath.max(1, WLEN - OVERLAP),
         zero = new complex(O, O),
         wx = new Array(FFTLEN),
-        fx = new Array(FFTLEN);
+        fx = new Array(FFTLEN),
+        pad = stdMath.floor((FFTLEN-WLEN)/2);
 
+    if (WLEN < win.length) win = win.slice(0, WLEN);
+    win = dotdiv(win, norm(win));
     if (inv)
     {
         // inverse short-time fourier transform using ifft
         SEGMENTS = COLS(inp);
-        N = stdMath.max(0, (SEGMENTS-1) * HOP + OVERLAP);
+        N = SEGMENTS * HOP;
         out = array(N, zero);
         win = dotdiv(win, sum(dotmul(win, win)));
-
         for (j=0,i=0; i<SEGMENTS; ++i,j+=HOP)
         {
             // get segment
@@ -33,7 +35,7 @@ function stft(inp, win, FFTLEN, OVERLAP, inv)
             for (k=0; k<WLEN; ++k)
             {
                 if (j+k >= N) break;
-                out[j+k] = scalar_add(out[j+k], scalar_mul(wx[k], win[k]));
+                out[j+k] = scalar_add(out[j+k], scalar_mul(real(wx[pad+k]), win[k]));
             }
         }
     }
@@ -42,30 +44,31 @@ function stft(inp, win, FFTLEN, OVERLAP, inv)
         // short-time fourier transform using fft
         // if (N - OVERLAP) / HOP is integer istft produces output of same length as original input
         N = inp.length;
-        SEGMENTS = stdMath.floor(stdMath.max(0, N - OVERLAP) / HOP)+1;
-        out = matrix(FFTLEN, SEGMENTS, zero);
-
-        for (j=0,i=0; i<SEGMENTS; ++i,j+=HOP)
+        out = [];
+        for (j=0,i=0; j<N; ++i,j+=HOP)
         {
             // apply win to segment with zero padding
-            for (k=0; k<WLEN; ++k)
+            for (k=0; k<pad; ++k)
             {
-                wx[k] = j+k < N ? scalar_mul(win[k], inp[j+k]) : zero;
+                wx[k] = zero;
                 fx[k] = zero;
             }
-            for (k=WLEN; k<FFTLEN; ++k)
+            for (k=0; k<WLEN; ++k)
+            {
+                wx[pad+k] = j+k < N ? scalar_mul(win[k], inp[j+k]) : zero;
+                fx[pad+k] = zero;
+            }
+            for (k=pad+WLEN; k<FFTLEN; ++k)
             {
                 wx[k] = zero;
                 fx[k] = zero;
             }
             // fft
-            fft1(wx, false, fx);
+            fft1(/*fftshift(*/wx/*)*/, false, fx);
             // store
-            for (k=0; k<FFTLEN; ++k)
-            {
-                out[k][i] = fx[k];
-            }
+            out.push(fx.slice());
         }
+        out = transpose(out);
     }
     return out;
 }
@@ -107,22 +110,22 @@ fn.stft = varargout(function(nargout, x) {
     if (is_vector(x))
     {
         ans = realify(stft(complexify(x), win, nfft, ovrl, false));
+        if (1 < nargout)
+        {
+            f = array(nfft, function(k) {
+                return __((k/nfft - 0.5/*nyquist rate*/)*fs);
+            });
+        }
+        if (2 < nargout)
+        {
+            t = array(COLS(ans), function(m) {
+                return __(m*stdMath.max(1, win.length - ovrl + 1)/fs);
+            });
+        }
     }
     else
     {
         not_supported("stft");
-    }
-    if (1 < nargout)
-    {
-        f = array(nfft, function(k) {
-            return __((k/nfft /*- 0.5*//*nyquist rate*/)*fs);
-        });
-    }
-    if (2 < nargout)
-    {
-        t = array(stdMath.floor((x.length - ovrl) / (win.length - ovrl)), function(m) {
-            return __(m*stdMath.max(1, win.length - ovrl)/fs);
-        });
     }
     return 1 < nargout ? [ans, f, t] : ans;
 });
@@ -163,16 +166,16 @@ fn.istft = varargout(function(nargout, X) {
     if (is_matrix(X) && (nfft === ROWS(X)))
     {
         ans = realify(stft(complexify(X), win, nfft, ovrl, true));
+        if (1 < nargout)
+        {
+            t = array(COLS(X), function(m) {
+                return __(m*stdMath.max(1, win.length - ovrl + 1)/fs);
+            });
+        }
     }
     else
     {
         not_supported("istft");
-    }
-    if (1 < nargout)
-    {
-        t = array(stdMath.floor((X.length - ovrl) / (win.length - ovrl)), function(m) {
-            return __(m*stdMath.max(1, win.length - ovrl)/fs);
-        });
     }
     return 1 < nargout ? [ans, t] : ans;
 });

@@ -1,3 +1,38 @@
+function chi2_contingency(observed)
+{
+    var sz = !is_array(observed) ? [1] : (is_1d(observed) ? [observed.length] : size(observed)),
+        dof = n_add(n_sub(prod(sz), sum(sz)), sz.length-1),
+        sums, expected = null, stat, p = null;
+    if (n_eq(dof, O))
+    {
+        stat = O;
+        p = I;
+    }
+    else
+    {
+        sums = array(sz.length, function(dim) {
+            var sumaxes = sum(
+                observed,
+                array(sz.length-1, function(axis) {
+                    return axis < dim ? (axis+1) : (axis+2);
+                })
+            );
+            return ndarray(sz.slice(), function(index) {return sumaxes[index[dim]];});
+        });
+        expected = dotdiv(sums.slice(1).reduce(function(r, s) {
+            return dotmul(r, s);
+        }, sums[0]), scalar_pow(sum(observed, "all"), sz.length-1));
+        // Pearson's chi-squared statistic
+        stat = sum(dotdiv(dotpow(sub(observed, expected), 2), expected), "all");
+        // TODO p value
+    }
+    return {
+        stat: stat,
+        p: p,
+        dof: dof,
+        expected: expected
+    };
+}
 function crosstab(args, nargout)
 {
     nargout = nargout || 1;
@@ -26,10 +61,14 @@ function crosstab(args, nargout)
                 return s;
             }, 0);
         }),
-        chi2 = 0, pvalue = 0 // todo
+        chi2 = 1 < nargout ? chi2_contingency(tab) : {stat:null, p:null}
     ;
-    return 1 < nargout ? [tab, chi2, pvalue, labels] : tab;
+    return 1 < nargout ? [tab, chi2.stat, chi2.p, labels] : tab;
 }
 fn.crosstab = varargout(function(nargout /*..args*/) {
     return crosstab([].slice.call(arguments, 1), nargout);
+});
+fn.chi2contingency = varargout(function(nargout, table) {
+    var chi2 = chi2_contingency(table);
+    return 1 < nargout ? [chi2.stat, chi2.p, chi2.dof, chi2.expected] : chi2.stat;
 });

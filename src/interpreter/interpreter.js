@@ -1637,10 +1637,10 @@ function parse(s, ctx, lineStart, posStart)
                 terms.unshift(term);
                 continue;
             }
+            ln = line();
             c = s.charAt(0);
             if ('@' === c)
             {
-                ln = line();
                 // function handle
                 if (match = eat(/^@\(([ \t\v\f]*[_a-z][_a-z0-9]*(?:[ \t\v\f]*,[ \t\v\f]*[_a-z][_a-z0-9]*)*[ \t\v\f]*)\)/i))
                 {
@@ -1691,15 +1691,12 @@ function parse(s, ctx, lineStart, posStart)
             }
             if (']' === c)
             {
-                if ((expected) && (-1 < expected.indexOf(']')))
+                if (expected && (-1 < expected.indexOf(']')))
                 {
                     // end bracket
                     break;
                 }
-                else
-                {
-                    throw error('mismatched brackets');
-                }
+                throw error('mismatched brackets');
             }
             if ('{' === c)
             {
@@ -1719,7 +1716,7 @@ function parse(s, ctx, lineStart, posStart)
                     }
                     if (!eat('}')) throw error("mismatched curly brackets");
                     // de-referencing cell array indexing
-                    if (arg.length) term = expr('v', variable(ctx, term, arg, '{}'), line());
+                    if (arg.length) term = expr('v', variable(ctx, term, arg, '{}'), ln);
                 }
                 else
                 {
@@ -1740,15 +1737,12 @@ function parse(s, ctx, lineStart, posStart)
             }
             if ('}' === c)
             {
-                if ((expected) && (-1 < expected.indexOf('}')))
+                if (expected && (-1 < expected.indexOf('}')))
                 {
                     // end curly bracket
                     break;
                 }
-                else
-                {
-                    throw error('mismatched curly brackets');
-                }
+                throw error('mismatched curly brackets');
             }
             if ('(' === c)
             {
@@ -1776,7 +1770,7 @@ function parse(s, ctx, lineStart, posStart)
                         }
                         if (!eat(')')) throw error("mismatched parentheses");
                         // de-referencing array indexing or function invocation
-                        if (arg.length) term = expr('v_or_f', [term, arg, ctx, '()'], line());
+                        if (arg.length) term = expr('v_or_f', [term, arg, ctx, '()'], ln);
                     }
                     else
                     {
@@ -1799,19 +1793,18 @@ function parse(s, ctx, lineStart, posStart)
             }
             if (')' === c)
             {
-                if ((expected) && (-1 < expected.indexOf(')')))
+                if (expected && (-1 < expected.indexOf(')')))
                 {
                     // end paren
                     break;
                 }
-                else
-                {
-                    throw error('mismatched parentheses');
-                }
+                throw error('mismatched parentheses');
             }
-            if ((',' === c) && (expected) && (-1 < expected.indexOf(',')))
+            if (',' === c)
             {
-                break;
+                if (expected && (-1 < expected.indexOf(','))) break;
+                eat(',');
+                continue;
             }
             if (':' === c)
             {
@@ -1820,7 +1813,6 @@ function parse(s, ctx, lineStart, posStart)
                 s = s.slice(1);
                 i += 1;
                 tmp = [i, l];
-                ln = line();
                 merge('set');
                 if (terms.length)
                 {
@@ -1833,7 +1825,7 @@ function parse(s, ctx, lineStart, posStart)
                 }
                 for (;;)
                 {
-                    term = parse_until(':,;})\n');
+                    term = parse_until(':,;]})\n');
                     eat(/^[ \t\v\f]+/);
                     if (term) {terms.unshift(term); ++arg;}
                     else if (eat(':', false)) terms.unshift(expr(':', null, ln));
@@ -1859,8 +1851,8 @@ function parse(s, ctx, lineStart, posStart)
 async function v_or_f(e, v, $$, vf2v)
 {
     var ctx, n, arg, ret;
-    if ('v_or_f' === e.op)
-    {
+    /*if ('v_or_f' === e.op)
+    {*/
         // variable or function
         if ((true === vf2v) && is_string(e.arg[0]))
         {
@@ -1922,7 +1914,7 @@ async function v_or_f(e, v, $$, vf2v)
                 e = expr('v', variable(e.arg[2], ret, arg && arg.length ? arg : null, e.arg[3]));
             }
         }
-    }
+    /*}*/
     return e;
 }
 async function evaluate(e, v, $$, vf2v)
@@ -2006,7 +1998,7 @@ async function evaluate(e, v, $$, vf2v)
         {
             // set
             $$ = $$ || {};
-            nargout = $.nargout;
+            nargout = $$.nargout;
             argout = await evaluate(e.arg[0], false, null, true);
             if (is_array(argout) && is_instance(argout[0], variable))
             {
