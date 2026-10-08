@@ -48,6 +48,8 @@ var tensorview = null,
     toString = Object.prototype.toString,
     is_array = Array.isArray || function(o) {return '[object Array]' === toString.call(o);},
     nop = function() {},
+    variable = null,
+    expr = null,
 
     // lib
     $ = {

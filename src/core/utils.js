@@ -90,6 +90,25 @@ function not_supported(fn)
 {
     throw (String(fn) + ": input(s) not supported");
 }
+function merge(output, args)
+{
+    var n = args.length, i, k, o;
+    for (i=0; i<n; ++i)
+    {
+        o = args[i];
+        if (is_obj(o))
+        {
+            for (k in o)
+            {
+                if (HAS.call(o, k))
+                {
+                    output[k] = o[k];
+                }
+            }
+        }
+    }
+    return output;
+}
 function is_instance(x, C)
 {
     return x instanceof C;
@@ -1075,5 +1094,5 @@ fn.warning = function(msg) {
     if (msg.length) console.warn('Warning: '+ (1 < arguments.length ? sprintf.apply(null, [].slice.call(arguments)) : msg));
 };
 fn.error = function(msg) {
-    throw new Error(1 < arguments.length ? sprintf.apply(null, [].slice.call(arguments)) : msg);
+    throw new Error(1 < arguments.length ? sprintf.apply(null, [].slice.call(arguments)) : (msg || 'error'));
 };

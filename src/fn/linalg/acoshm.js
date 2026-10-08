@@ -20,5 +20,6 @@ function acoshm(A)
 fn.acoshm = function(A) {
     if (is_scalar(A)) return fn.acosh(A);
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("acoshm");
+    if (1 === ROWS(A)) return [[fn.acosh(A[0][0])]];
     return acoshm(A);
 };

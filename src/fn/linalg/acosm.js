@@ -46,7 +46,7 @@ function acosm(A)
 
     if (any(d, function(d) {return n_eq(imag(d), O) && (n_eq(real(d), J) || n_eq(real(d), I));}))
     {
-        console.warn("acosm: input must not have an eigenvalue of 1 or -1 else result may be unreliable!");
+        fn.warning("acosm: input must not have an eigenvalue of 1 or -1 else result may be unreliable!");
     }
 
     // Compute lower bound on the number of square roots required.
@@ -269,5 +269,6 @@ function acosm(A)
 fn.acosm = function(A) {
     if (is_scalar(A)) return fn.acos(A);
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("acosm");
+    if (1 === ROWS(A)) return [[fn.acos(A[0][0])]];
     return acosm(A);
 };

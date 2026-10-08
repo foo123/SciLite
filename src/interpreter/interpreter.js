@@ -476,6 +476,10 @@ var OP = {
                             vars.$scilitevarargout$ = true;
                             return vars;
                         }
+                        else if (is_instance(arg1, variable))
+                        {
+                            return await set_var(arg0, await arg1.get('ref'));
+                        }
                         else
                         {
                             // set whole array as one variable, do not assume de-structuring
@@ -494,15 +498,15 @@ async function set_var($var, $val)
     return await $var.get(true);
 }
 
-async function if_end($arg, v, $)
+async function if_end($arg, v, $$)
 {
     var i, j, k, n, statements, res, ans = null;
-    if (TRUE(await vale($arg['if'].cond, v, $)))
+    if (TRUE(await vale($arg['if'].cond, v, $$)))
     {
         statements = $arg['if'].statements;
         for (i=0,n=statements.length; i<n; ++i)
         {
-            res = await vale(statements[i], v, $);
+            res = await vale(statements[i], v, $$);
             if (null != res) ans = res;
         }
         return ans;
@@ -511,12 +515,12 @@ async function if_end($arg, v, $)
     {
         for (j=0,k=$arg['elseif'].length; j<k; ++j)
         {
-            if (TRUE(await vale($arg['elseif'][j].cond, v, $)))
+            if (TRUE(await vale($arg['elseif'][j].cond, v, $$)))
             {
                 statements = $arg['elseif'][j].statements;
                 for (i=0,n=statements.length; i<n; ++i)
                 {
-                    res = await vale(statements[i], v, $);
+                    res = await vale(statements[i], v, $$);
                     if (null != res) ans = res;
                 }
                 return ans;
@@ -528,29 +532,29 @@ async function if_end($arg, v, $)
         statements = $arg['else'].statements;
         for (i=0,n=statements.length; i<n; ++i)
         {
-            res = await vale(statements[i], v, $);
+            res = await vale(statements[i], v, $$);
             if (null != res) ans = res;
         }
         return ans;
     }
 }
 
-async function for_end($arg, v, $)
+async function for_end($arg, v, $$)
 {
     var i, n, j, k, res, ans = [],
         brk, is_break = false,
         cont, is_continue = false,
-        values = await vale($arg.val, v, $),
+        values = await vale($arg.val, v, $$),
         values_is_2d = false, sz,
         statements = $arg.statements;
     ans.$scilitevarargout$ = true;
     if (is_array(values))
     {
-        $ = $ || {};
-        brk = $.brk;
-        cont = $.cont;
-        $.brk = function() {is_break = true;};
-        $.cont = function() {is_continue = true;};
+        $$ = $$ || {};
+        brk = $$.brk;
+        cont = $$.cont;
+        $$.brk = function() {is_break = true;};
+        $$.cont = function() {is_continue = true;};
         values = vec(values);
         values_is_2d = is_2d(values);
         if (values_is_2d)
@@ -559,7 +563,7 @@ async function for_end($arg, v, $)
             // reshape nd-array to 2d-array by columns
             if (2 < sz.length) values = reshape(values, [sz[0], prod(sz.slice(1))]);
         }
-        if ($.ctx) $arg.ind.new_ctx($.ctx);
+        if ($$.ctx) $arg.ind.new_ctx($$.ctx);
         for (j=0,k=values_is_2d?COLS(values):(values.length); j<k; ++j)
         {
             is_break = false;
@@ -567,47 +571,47 @@ async function for_end($arg, v, $)
             await $arg.ind.set(values_is_2d ? vec2col(COL(values, j)) : values[j]);
             for (i=0,n=statements.length; i<n; ++i)
             {
-                res = await vale(statements[i], v, $);
+                res = await vale(statements[i], v, $$);
                 if (is_break || is_continue) break;
                 if (null != res) ans.push(res);
             }
             if (is_break) break;
             else if (is_continue) continue;
         }
-        if ($.ctx) $arg.ind.new_ctx(false);
-        $.brk = brk;
-        $.cont = cont;
+        if ($$.ctx) $arg.ind.new_ctx(false);
+        $$.brk = brk;
+        $$.cont = cont;
     }
     return ans;
 }
 
-async function while_end($arg, v, $)
+async function while_end($arg, v, $$)
 {
     var i, n, res, ans = [],
         brk, is_break = false,
         cont, is_continue = false,
         statements = $arg.statements;
     ans.$scilitevarargout$ = true;
-    $ = $ || {};
-    brk = $.brk;
-    cont = $.cont;
-    $.brk = function() {is_break = true;};
-    $.cont = function() {is_continue = true;};
-    while (TRUE(await vale($arg.cond, v, $)))
+    $$ = $$ || {};
+    brk = $$.brk;
+    cont = $$.cont;
+    $$.brk = function() {is_break = true;};
+    $$.cont = function() {is_continue = true;};
+    while (TRUE(await vale($arg.cond, v, $$)))
     {
         is_break = false;
         is_continue = false;
         for (i=0,n=statements.length; i<n; ++i)
         {
-            res = await vale(statements[i], v, $);
+            res = await vale(statements[i], v, $$);
             if (is_break || is_continue) break;
             if (null != res) ans.push(res);
         }
         if (is_break) break;
         else if (is_continue) continue;
     }
-    $.brk = brk;
-    $.cont = cont;
+    $$.brk = brk;
+    $$.cont = cont;
     return ans;
 }
 
@@ -615,36 +619,36 @@ function def_fn(fn_def)
 {
     var fn = varargout(async function(nargout) {
         var i, nargin = arguments.length-1, argout,
-            is_return = false, $ = {ctx:{ans:null}},
+            is_return = false, $$ = {ctx:{ans:null}, "@fn":merge({}, (fn_def["@fns"]||[]).concat(fn_def["@fn"]))},
             ans, i, n;
         for (i=1; i<=nargin; ++i)
         {
             if ('varargin' === fn_def.argin[i-1])
             {
-                $.ctx.varargin = cellarray([].slice.call(arguments, i).map(copy), [arguments.length-i]); // pass by value
+                $$.ctx.varargin = cellarray([].slice.call(arguments, i).map(copy), [arguments.length-i]); // pass by value
                 break;
             }
             else
             {
-                $.ctx[fn_def.argin[i-1]] = copy(arguments[i]); // pass by value
+                $$.ctx[fn_def.argin[i-1]] = copy(arguments[i]); // pass by value
             }
         }
-        $.retrn = function() {is_return = true;};
-        $.ctx.nargin = nargin;
-        $.ctx.nargout = nargout;
+        $$.retrn = function() {is_return = true;};
+        $$.ctx.nargin = nargin;
+        $$.ctx.nargout = nargout;
         if (fn_def.argout.length && ('varargout' === fn_def.argout[fn_def.argout.length-1]))
         {
-            $.ctx.varargout = cellarray(array(100, null), [100]); // pre-allocate a large array
+            $$.ctx.varargout = cellarray(array(100, null), [100]); // pre-allocate a large array
         }
         if (1 === fn_def.body.length)
         {
-            ans = await vale(fn_def.body[0], null, $);
+            ans = await vale(fn_def.body[0], null, $$);
         }
         else
         {
             for (i=0,n=fn_def.body.length; i<n; ++i)
             {
-                await vale(fn_def.body[i], null, $);
+                await vale(fn_def.body[i], null, $$);
                 if (is_return) break;
             }
         }
@@ -660,11 +664,11 @@ function def_fn(fn_def)
                 argout = array(nargout, function(i) {
                     if (('varargout' === fn_def.argout[fn_def.argout.length-1]) && (i >= fn_def.argout.length-1))
                     {
-                        return $.ctx.varargout[i-(fn_def.argout.length-1)];
+                        return $$.ctx.varargout[i-(fn_def.argout.length-1)];
                     }
                     else
                     {
-                        return (i < fn_def.argout.length) && HAS.call($.ctx, fn_def.argout[i]) ? $.ctx[fn_def.argout[i]] : null;
+                        return (i < fn_def.argout.length) && HAS.call($$.ctx, fn_def.argout[i]) ? $$.ctx[fn_def.argout[i]] : null;
                     }
                 });
             }
@@ -677,15 +681,14 @@ function def_fn(fn_def)
     return fn;
 }
 
-function variable(ctx, v, i, b)
-{
+variable = function(ctx, v, i, b) {
     var self = this;
     if (!is_instance(self, variable)) return new variable(ctx, v, i, b);
     self.ctx = ctx; // current context
     self.v = v; // variable name or value
     self.i = i; // any indexing applied
     self.b = b || '()'; // type of bracket indexing
-}
+};
 variable.prototype = {
     constructor: variable,
     ctx: null,
@@ -701,14 +704,14 @@ variable.prototype = {
             self._ctx = self.ctx;
             self.ctx = new_ctx;
         }
-        else
+        else if (self._ctx)
         {
             self.ctx = self._ctx;
             self._ctx = null;
         }
         return self;
     },
-    get: async function(orig) {
+    get: function(type) {
         var self = this, val, s, i;
         if ('' === self.v)
         {
@@ -716,7 +719,7 @@ variable.prototype = {
         }
         else if (is_instance(self.v, expr))
         {
-            val = await vale(self.v);
+            val = vale(self.v, null, {ctx:self.ctx});
         }
         else if (is_array(self.v))
         {
@@ -730,13 +733,9 @@ variable.prototype = {
             }
             val = HAS.call(self.ctx, self.v) ? self.ctx[self.v] : constant[self.v];
         }
-        if ((true !== orig) && (null != self.i) && is_array(val))
+        if ((true !== type) && (null != self.i))
         {
-            s = size(val);
-            i = await Promise.all(self.i.map(function(ind, i) {
-                return vale(ind, {end:1 === self.i.length ? prod(s) : s[i]}, {ctx:self.ctx});
-            }));
-            val = get.apply(get, [val, !s[0] || is_cell(val) ? self.b : '()'].concat(i));
+            return is_instance(val, Promise) ? val.then(function(val) {return get_val(self, val, 'ref' === type);}) : get_val(self, val, 'ref' === type);
         }
         return val;
     },
@@ -750,7 +749,7 @@ variable.prototype = {
         {
             if (is_instance(self.v, expr))
             {
-                val = await vale(self.v);
+                val = await vale(self.v, null, {ctx:self.ctx});
                 s = size(val);
             }
             else if (is_array(self.v))
@@ -780,11 +779,19 @@ variable.prototype = {
             }
             else
             {
+                if (is_instance(value, tensorview))
+                {
+                    value = value.data.$scilitecell$ ? cellarray(value.toNDArray(), value.shape()) : (value.toNDArray());
+                }
                 val = value;
             }
         }
         else
         {
+            if (is_instance(value, tensorview))
+            {
+                value = value.data.$scilitecell$ ? cellarray(value.toNDArray(), value.shape()) : (value.toNDArray());
+            }
             val = value;
         }
         if (is_string(self.v))
@@ -804,6 +811,19 @@ variable.prototype = {
         return (null == this.i);
     }
 };
+function get_val(self, val, as_view)
+{
+    if (is_array(val))
+    {
+        var s = size(val);
+        return Promise.all(self.i.map(function(ind, i) {
+            return vale(ind, {end:1 === self.i.length ? prod(s) : s[i]}, {ctx:self.ctx});
+        })).then(function(i) {
+            return get.apply(get, [as_view ? self : val, !s[0] || is_cell(val) ? self.b : '()'].concat(i));
+        });
+    }
+    return val;
+}
 async function val(x, ln)
 {
     if (is_instance(x, variable))
@@ -817,8 +837,7 @@ async function val(x, ln)
     return x;
 }
 
-function expr(op, arg, ln)
-{
+expr = function(op, arg, ln) {
     var self = this;
     if (!is_instance(self, expr)) return new expr(op, arg, ln);
     if (null == arg)
@@ -829,7 +848,7 @@ function expr(op, arg, ln)
     self.op = op;
     self.arg = arg;
     self.ln = ln;
-}
+};
 expr.prototype = {
     constructor: expr,
     op: null,
@@ -841,7 +860,7 @@ var NL_RE = /\r\n|\r|\n/g, NL = '\n';
 function parse(s, ctx, lineStart, posStart)
 {
     s = s.replace(NL_RE, NL); // normalize newlines
-    var i = 0, l = 0, j, t = s, lines = t.split(NL);
+    var i = 0, l = 0, j, t = s, lines = t.split(NL), fns = [];
 
     function line(ln)
     {
@@ -1316,7 +1335,7 @@ function parse(s, ctx, lineStart, posStart)
             {
                 end(true);
                 eat(/^[ \t\v\f]+/);
-                arg = {argout:null, name:null, argin:null, body:[]};
+                arg = {argout:null, name:null, argin:null, "@fns":fns.slice().reverse(), "@fn":{}, body:[]};
                 if (match = eat(/^([_a-z][_a-z0-9]*)[ \t\v\f]*=[ \t\v\f]*/i))
                 {
                     // single output
@@ -1341,13 +1360,16 @@ function parse(s, ctx, lineStart, posStart)
                 {
                     throw error('missing or invalid function declaration');
                 }
+                fns.unshift(arg["@fn"]); // storage for internal functions to this function
                 for (;;)
                 {
                     tmp = parse_until(['end']);
                     if (tmp) arg.body = arg.body.concat(tmp);
                     if (eat('end') || !tmp) break;
                 }
-                $["@fn"][arg.name] = def_fn(arg);
+                fns.shift();
+                if (fns.length) fns[0][arg.name] = def_fn(arg); // internal/local function
+                else $["@fn"][arg.name] = def_fn(arg); // global function
                 continue;
             }
             if (match = eat(/^(return|continue|break|elseif|else|end)\b/, false))
@@ -1633,7 +1655,7 @@ function parse(s, ctx, lineStart, posStart)
                 {
                     // defined function
                     m = match[1];
-                    if (HAS.call($["@fn"], m) && is_callable($["@fn"][m]))
+                    /*if (HAS.call($["@fn"], m) && is_callable($["@fn"][m]))
                     {
                         // user-defined function handle
                         terms.unshift(expr($["@fn"][m], null, ln));
@@ -1646,7 +1668,8 @@ function parse(s, ctx, lineStart, posStart)
                     else
                     {
                         throw error('"'+m+'" is not a defined function');
-                    }
+                    }*/
+                    terms.unshift(expr('fh', m, ln));
                     continue;
                 }
             }
@@ -1833,74 +1856,106 @@ function parse(s, ctx, lineStart, posStart)
     return parse_until(false);
 }
 
+async function v_or_f(e, v, $$, vf2v)
+{
+    var ctx, n, arg, ret;
+    if ('v_or_f' === e.op)
+    {
+        // variable or function
+        if ((true === vf2v) && is_string(e.arg[0]))
+        {
+            // default cast to variable
+            e = expr('v', variable(e.arg[2], e.arg[0], e.arg[1] && e.arg[1].length ? e.arg[1] : null, e.arg[3]), e.ln);
+        }
+        else
+        {
+            ctx = $$ && $$.ctx ? $$.ctx : e.arg[2];
+            n = e.arg[0];
+            arg = e.arg[1];
+            if (is_instance(n, expr))
+            {
+                ret = await evaluate(n, v, $$);
+                if (!is_callable(ret)) ret = [ret];
+            }
+            else
+            {
+                if (is_obj(v) && HAS.call(v, n))
+                {
+                    ret = n;
+                }
+                else if (HAS.call(ctx, n))
+                {
+                    ret = is_callable(ctx[n]) ? ctx[n] : n;
+                }
+                else if ($$ && $$["@fn"] && HAS.call($$["@fn"], n) && is_callable($$["@fn"][n]))
+                {
+                    ret = $$["@fn"][n];
+                    arg = arg || []; // support function call without ()
+                }
+                else if (HAS.call($["@fn"], n) && is_callable($["@fn"][n]))
+                {
+                    ret = $["@fn"][n];
+                    arg = arg || []; // support function call without ()
+                }
+                else if (HAS.call(constant, n))
+                {
+                    ret = n;
+                }
+                else if (HAS.call(fn, n) && is_callable(fn[n]))
+                {
+                    ret = fn[n];
+                    arg = arg || []; // support function call without ()
+                }
+                else
+                {
+                    ret = n;
+                }
+            }
+            if (is_callable(ret))
+            {
+                // function
+                e = expr(ret, arg);
+            }
+            else
+            {
+                // variable
+                e = expr('v', variable(e.arg[2], ret, arg && arg.length ? arg : null, e.arg[3]));
+            }
+        }
+    }
+    return e;
+}
 async function evaluate(e, v, $$, vf2v)
 {
-    var f, argout, nargout, tmp, n, arg, ctx, ret;
+    var f, argout, nargout, tmp, tmpe, n, arg, ctx, ret;
     if (is_instance(e, expr))
     {
         if ('v_or_f' === e.op)
         {
-            // variable or function
-            if ((true === vf2v) && is_string(e.arg[0]))
-            {
-                // default cast to variable
-                e = expr('v', variable(e.arg[2], e.arg[0], e.arg[1] && e.arg[1].length ? e.arg[1] : null, e.arg[3]), e.ln);
-            }
-            else
-            {
-                ctx = $$ && $$.ctx ? $$.ctx : e.arg[2];
-                n = e.arg[0];
-                arg = e.arg[1];
-                if (is_instance(n, expr))
-                {
-                    ret = await evaluate(n, v, $$);
-                    if (!is_callable(ret)) ret = [ret];
-                }
-                else
-                {
-                    if (is_obj(v) && HAS.call(v, n))
-                    {
-                        ret = n;
-                    }
-                    else if (HAS.call(ctx, n))
-                    {
-                        ret = is_callable(ctx[n]) ? ctx[n] : n;
-                    }
-                    else if (HAS.call($["@fn"], n) && is_callable($["@fn"][n]))
-                    {
-                        ret = $["@fn"][n];
-                        arg = arg || []; // support function call without ()
-                    }
-                    else if (HAS.call(constant, n))
-                    {
-                        ret = n;
-                    }
-                    else if (HAS.call(fn, n) && is_callable(fn[n]))
-                    {
-                        ret = fn[n];
-                        arg = arg || []; // support function call without ()
-                    }
-                    else
-                    {
-                        ret = n;
-                    }
-                }
-                if (is_callable(ret))
-                {
-                    // function
-                    e = expr(ret, arg);
-                }
-                else
-                {
-                    // variable
-                    e = expr('v', variable(e.arg[2], ret, arg && arg.length ? arg : null, e.arg[3]));
-                }
-            }
+            e = await v_or_f(e, v, $$, vf2v);
         }
         if ('' === e.op)
         {
             // value
             return e.arg;
+        }
+        else if ('fh' === e.op)
+        {
+            // function handle
+            n = e.arg;
+            if ($$ && $$["@fn"] && HAS.call($$["@fn"], n) && is_callable($$["@fn"][n]))
+            {
+                return $$["@fn"][n];
+            }
+            else if (HAS.call($["@fn"], n) && is_callable($["@fn"][n]))
+            {
+                return $["@fn"][n];
+            }
+            else if (HAS.call(fn, n) && is_callable(fn[n]))
+            {
+                return fn[n];
+            }
+            throw '"'+n+'" is not a defined function' + (e.ln ? "\nat: " + e.ln : "");
         }
         else if ('v' === e.op)
         {
@@ -1962,21 +2017,39 @@ async function evaluate(e, v, $$, vf2v)
             {
                 if ($$.ctx) argout.new_ctx($$.ctx);
             }
-            if ((2 === e.arg.length) && ('v' === e.arg[1].op))
+            tmpe = e.arg[1];
+            if ((2 === e.arg.length) && ('v_or_f' === tmpe.op))
             {
-                // A = B, A = B(:,:), ..
-                // make sure a copy is set and not by reference
-                arg = [argout, /*(e.arg[0].arg.v === e.arg[1].arg.v) ||*/ e.arg[1].arg.isByRef() ? copy(await evaluate(e.arg[1], v, $$)) : await evaluate(e.arg[1], v, $$)];
+                tmpe = await v_or_f(tmpe, v, $$);
+            }
+            if ((2 === e.arg.length) && ('v' === tmpe.op) && !is_instance(tmpe.arg.v, expr))
+            {
+                tmp = null;
+                //arg = [argout, /*(e.arg[0].arg.v === e.arg[1].arg.v) ||*/ e.arg[1].arg.isByRef() ? copy(await evaluate(e.arg[1], v, $$)) : await evaluate(e.arg[1], v, $$)];
+                if (is_instance(argout, variable) && ((tmpe.arg.v === argout.v) || (argout.isByRef() && tmpe.arg.isByRef())))
+                {
+                    // eg A(:,[1 2])=A(:,[2 1]), or A=B
+                    // use copy when setting variable from itself, or other but without slicing
+                    arg = [argout, copy(await evaluate(tmpe, v, $$))];
+                }
+                else
+                {
+                    // eg A(:,[1 2])=B(:,[2 1])
+                    // use ref to reduce all these intermediate arrays back and forth
+                    tmp = tmpe.arg;
+                    arg = [argout, tmp.new_ctx($$ && $$.ctx)];
+                }
                 try {
                     ret = await e.op.apply(null, arg);
                 } catch (err) {
                     throw ((err.message || err) + (e.ln ? "\nat: " + e.ln : ""));
                 }
+                if (tmp) tmp.new_ctx(false);
             }
             else
             {
-                // A = other expr
-                arg = [argout].concat(await Promise.all(e.arg.slice(1).map(function(e) {return evaluate(e, v, $$);})));
+                // eg A = other expr
+                arg = [argout].concat(await Promise.all([tmpe].concat(e.arg.slice(2)).map(function(e) {return evaluate(e, v, $$);})));
                 try {
                     ret = await e.op.apply(null, arg);
                 } catch (err) {

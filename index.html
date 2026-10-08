@@ -872,7 +872,13 @@ function init($)
                 '[o1,o2]=echo(1,2,3)',
                 'arrayfun(@factorial, [1 2; 3 4])',
                 'arrayfun(fh, [1 2; 3 4])',
-                'arrayfun(f, [1 2; 3 4])'
+                'arrayfun(f, [1 2; 3 4])',
+                '% internal functions/function scope',
+                'function out=test(n)\n if 1==n\n  f=@test1;\nelse\n  f=@test2;\n end\n out=f();\n function out=test1()\n  out=test2();\n  function out=test2()\n   out="test1";\n   end\n  end\n function out=test2()\n  out="test2";\nend\nend',
+                'test(1)',
+                'test(2)',
+                'test1()',
+                'test2()'
                 ]);
             break;
         }
