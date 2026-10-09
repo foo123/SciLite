@@ -61,6 +61,7 @@ let [Ref, Pivots] = fn.rref.nargout(2)(A); // variable output
 * complete implementation of extra matrix functions, eg `cosm`, `acosm`, .. **[DONE]**
 * implement generalized `schur`/`qz` decomposition (TODO)
 * implement generalized/polynomial `eig` decomposition (TODO)
+* implement more statistical functions and distributions **[DONE PARTIALLY]**
 * implement more machine learning functions **[DONE PARTIALLY]**
 * implement some independent component/subspace analysis functions **[DONE PARTIALLY]**
 * implement some linear optimization/linear programming functions (TODO)
