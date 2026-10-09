@@ -24,7 +24,7 @@ function chi2_contingency(observed)
         }, sums[0]), scalar_pow(sum(observed, "all"), sz.length-1));
         // Pearson's chi-squared statistic
         stat = sum(dotdiv(dotpow(sub(observed, expected), 2), expected), "all");
-        p = n_sub(I, chi2cdf(stat, dof));
+        p = n_sub(I, chi2cdf(stat, dof)); // accuracy at least 1-2 decimal points
     }
     return {
         stat: stat,
