@@ -1435,6 +1435,21 @@ function parse(s, ctx, lineStart, posStart)
                     continue;
                 }
             }
+            if (eat(",", false))
+            {
+                if (expected && (-1 < expected.indexOf(',')))
+                {
+                    break;
+                }
+                else
+                {
+                    // alternative statement end
+                    eat(",");
+                    // new statement
+                    end(true);
+                    continue;
+                }
+            }
             if (eat("\n", false))
             {
                 if (expected && (-1 < expected.indexOf("\n")))
@@ -1523,7 +1538,7 @@ function parse(s, ctx, lineStart, posStart)
             }
             if (match = eat("~"))
             {
-                if (eat(/^([ \t\v\f]*)[,\]]/, 1))
+                if (eat(/^([ \t\v\f]*)[,\]\)]/, 1))
                 {
                     // dummy variable
                     terms.unshift(expr('v', variable(ctx, ''), line()));
@@ -1799,12 +1814,6 @@ function parse(s, ctx, lineStart, posStart)
                     break;
                 }
                 throw error('mismatched parentheses');
-            }
-            if (',' === c)
-            {
-                if (expected && (-1 < expected.indexOf(','))) break;
-                eat(',');
-                continue;
             }
             if (':' === c)
             {
