@@ -95,3 +95,38 @@ fn.chi2inv = function(p, nu) {
         return apply(function(p) {return chi2inv(p, nu);}, p, true);
     }
 };
+
+// t distribution
+fn.tpdf = function(x, nu) {
+    if (null == nu) nu = I;
+    if (is_array(nu))
+    {
+        return apply(function(nu) {return tpdf(x, nu);}, nu, true);
+    }
+    else
+    {
+        return apply(function(x) {return tpdf(x, nu);}, x, true);
+    }
+};
+fn.tcdf = function(x, nu) {
+    if (null == nu) nu = I;
+    if (is_array(nu))
+    {
+        return apply(function(nu) {return tcdf(x, nu);}, nu, true);
+    }
+    else
+    {
+        return apply(function(x) {return tcdf(x, nu);}, x, true);
+    }
+};
+fn.tinv = function(p, nu) {
+    if (null == nu) nu = I;
+    if (is_array(nu))
+    {
+        return apply(function(nu) {return tinv(p, nu);}, nu, true);
+    }
+    else
+    {
+        return apply(function(p) {return tinv(p, nu);}, p, true);
+    }
+};

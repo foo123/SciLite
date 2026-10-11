@@ -43,6 +43,26 @@ var PREFIX = -1,
     ANTICOMMUTATIVE = -1
 ;
 
+function type_for_array(arg)
+{
+    if (is_instance(arg, variable))
+    {
+        return 'var';
+    }
+    else if (is_string(arg))
+    {
+        return 'str';
+    }
+    else if (is_scalar(arg) || is_nan(arg))
+    {
+        return 'num';
+    }
+    else if (is_array(arg))
+    {
+        return arg.$scilitecell$ ? '' : type_for_array(arg[0]);
+    }
+    return '';
+}
 // adapted from https://github.com/foo123/Xpresion
 var OP = {
     "[]": {
@@ -53,7 +73,7 @@ var OP = {
     ,commutativity: NONCOMMUTATIVE
     ,priority     : 0
     ,fn           : function(/*args..*/) {
-                        var arr = [], row = [], cols = null;
+                        var arr = [], row = [], cols = null, type = null;
                         [].forEach.call(arguments, function(arg) {
                             if (',' === arg)
                             {
@@ -80,6 +100,15 @@ var OP = {
                             }
                             else
                             {
+                                if (null == type)
+                                {
+                                    type = type_for_array(arg);
+                                    if ('' === type) throw "array with incompatible data types";
+                                }
+                                else if (type !== type_for_array(arg))
+                                {
+                                    throw "array with incompatible data types";
+                                }
                                 if (is_instance(arg, variable))
                                 {
                                     row.push(arg);

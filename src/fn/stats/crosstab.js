@@ -1,38 +1,3 @@
-function chi2_contingency(observed)
-{
-    var sz = !is_array(observed) ? [1] : (is_1d(observed) ? [observed.length] : size(observed)),
-        dof = n_add(n_sub(prod(sz), sum(sz)), sz.length-1),
-        sums, expected = null, stat, p = null;
-    if (n_eq(dof, O))
-    {
-        stat = O;
-        p = I;
-    }
-    else
-    {
-        sums = array(sz.length, function(dim) {
-            var sumaxes = sum(
-                observed,
-                array(sz.length-1, function(axis) {
-                    return axis < dim ? (axis+1) : (axis+2);
-                })
-            );
-            return ndarray(sz.slice(), function(index) {return sumaxes[index[dim]];});
-        });
-        expected = dotdiv(sums.slice(1).reduce(function(r, s) {
-            return dotmul(r, s);
-        }, sums[0]), scalar_pow(sum(observed, "all"), sz.length-1));
-        // Pearson's chi-squared statistic
-        stat = sum(dotdiv(dotpow(sub(observed, expected), 2), expected), "all");
-        p = n_sub(I, chi2cdf(stat, dof)); // accuracy at least 1-2 decimal points
-    }
-    return {
-        stat: stat,
-        p: p,
-        dof: dof,
-        expected: expected
-    };
-}
 function crosstab(args, nargout)
 {
     nargout = nargout || 1;

@@ -2,7 +2,7 @@ fn.corr = varargout(function(nargout, X) {
     if (1 < nargout) throw "corr: only one output is supported";
     if (is_scalar(X)) X = [[X]];
     if (!is_matrix(X)) not_supported("corr");
-    var i = 2, corrfunc = pearson, Y, promises = [], ans;
+    var i = 2, corrfunc = pearson, param = null, Y, promises = [], ans;
     if ((i < arguments.length) && is_array(arguments[i]))
     {
         Y = arguments[i];
@@ -22,6 +22,10 @@ fn.corr = varargout(function(nargout, X) {
         {
             switch (arguments[i+1])
             {
+                case "CramerV":
+                param = 'correctbias' === arguments[i+2] ? 'correctbias' : null;
+                corrfunc = function(a, b) {return cramer_v(a, b, param);};
+                break;
                 case "Spearman":
                 corrfunc = spearman;
                 break;
