@@ -1,6 +1,10 @@
 function cat_horz(A, B)
 {
-    if (is_1d(A) && is_1d(B))
+    if (is_0d(A) && is_0d(B))
+    {
+        return [A, B];
+    }
+    else if (is_1d(A) && is_1d(B))
     {
         return A.concat(B);
     }
@@ -10,10 +14,15 @@ function cat_horz(A, B)
             return Ai.concat(B[i]);
         });
     }
+    throw "incompatible array dimensions";
 }
 function cat_vert(A, B)
 {
-    if (is_1d(A) && is_1d(B))
+    if (is_0d(A) && is_0d(B))
+    {
+        return [[A], [B]];
+    }
+    else if (is_1d(A) && is_1d(B))
     {
         return A.concat(B);
     }
@@ -21,6 +30,7 @@ function cat_vert(A, B)
     {
         return A.concat(B);
     }
+    throw "incompatible array dimensions";
 }
 function cat(dim, A, B)
 {

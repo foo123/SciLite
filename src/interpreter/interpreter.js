@@ -43,7 +43,7 @@ var PREFIX = -1,
     ANTICOMMUTATIVE = -1
 ;
 
-function type_for_array(arg)
+function dtype_for_array(arg)
 {
     if (is_instance(arg, variable))
     {
@@ -59,7 +59,8 @@ function type_for_array(arg)
     }
     else if (is_array(arg))
     {
-        return arg.$scilitecell$ ? '' : type_for_array(arg[0]);
+        if (arg.$scilitecell$) return '';
+        return dtype_for_array(arg[0]);
     }
     return '';
 }
@@ -73,7 +74,7 @@ var OP = {
     ,commutativity: NONCOMMUTATIVE
     ,priority     : 0
     ,fn           : function(/*args..*/) {
-                        var arr = [], row = [], cols = null, type = null;
+                        var arr = [], row = [], cols = null, dtype = null;
                         [].forEach.call(arguments, function(arg) {
                             if (',' === arg)
                             {
@@ -100,12 +101,12 @@ var OP = {
                             }
                             else
                             {
-                                if (null == type)
+                                if (null == dtype)
                                 {
-                                    type = type_for_array(arg);
-                                    if ('' === type) throw "array with incompatible data types";
+                                    dtype = dtype_for_array(arg);
+                                    if ('' === dtype) throw "array with incompatible data types";
                                 }
-                                else if (type !== type_for_array(arg))
+                                else if (dtype !== dtype_for_array(arg))
                                 {
                                     throw "array with incompatible data types";
                                 }
