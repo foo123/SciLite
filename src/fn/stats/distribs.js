@@ -13,120 +13,45 @@ fn.erfc = function(x) {
 fn.normpdf = function(x, mu, sigma) {
     if (null == sigma) sigma = I;
     if (null == mu) mu = O;
-    if (is_array(sigma))
-    {
-        return apply(function(sigma) {return normpdf(x, mu, sigma);}, sigma, true);
-    }
-    else if (is_array(mu))
-    {
-        return apply(function(mu) {return normpdf(x, mu, sigma);}, mu, true);
-    }
-    else
-    {
-        return apply(function(x) {return normpdf(x, mu, sigma);}, x, true);
-    }
+    return apply_(normpdf, [x, mu, sigma]);
 };
 fn.normcdf = varargout(function(nargout, x, mu, sigma) {
     if (1 < nargout) throw "normcdf: only 1 output is supported";
     if (null == sigma) sigma = I;
     if (null == mu) mu = O;
-    if (is_array(sigma))
-    {
-        return apply(function(sigma) {return normcdf(x, mu, sigma);}, sigma, true);
-    }
-    else if (is_array(mu))
-    {
-        return apply(function(mu) {return normcdf(x, mu, sigma);}, mu, true);
-    }
-    else
-    {
-        return apply(function(x) {return normcdf(x, mu, sigma);}, x, true);
-    }
+    return apply_(normcdf, [x, mu, sigma]);
 });
 fn.norminv = varargout(function(nargout, p, mu, sigma) {
     if (1 < nargout) throw "norminv: only 1 output is supported";
     if (null == sigma) sigma = I;
     if (null == mu) mu = O;
-    if (is_array(sigma))
-    {
-        return apply(function(sigma) {return norminv(p, mu, sigma);}, sigma, true);
-    }
-    else if (is_array(mu))
-    {
-        return apply(function(mu) {return norminv(p, mu, sigma);}, mu, true);
-    }
-    else
-    {
-        return apply(function(p) {return norminv(p, mu, sigma);}, p, true);
-    }
+    return apply_(norminv, [p, mu, sigma]);
 });
 
 // chi2 distribution
 fn.chi2pdf = function(x, nu) {
     if (null == nu) nu = I;
-    if (is_array(nu))
-    {
-        return apply(function(nu) {return chi2pdf(x, nu);}, nu, true);
-    }
-    else
-    {
-        return apply(function(x) {return chi2pdf(x, nu);}, x, true);
-    }
+    return apply_(chi2pdf, [x, nu]);
 };
 fn.chi2cdf = function(x, nu) {
     if (null == nu) nu = I;
-    if (is_array(nu))
-    {
-        return apply(function(nu) {return chi2cdf(x, nu);}, nu, true);
-    }
-    else
-    {
-        return apply(function(x) {return chi2cdf(x, nu);}, x, true);
-    }
+    return apply_(chi2cdf, [x, nu]);
 };
 fn.chi2inv = function(p, nu) {
     if (null == nu) nu = I;
-    if (is_array(nu))
-    {
-        return apply(function(nu) {return chi2inv(p, nu);}, nu, true);
-    }
-    else
-    {
-        return apply(function(p) {return chi2inv(p, nu);}, p, true);
-    }
+    return apply_(chi2inv, [p, nu]);
 };
 
 // t distribution
 fn.tpdf = function(x, nu) {
     if (null == nu) nu = I;
-    if (is_array(nu))
-    {
-        return apply(function(nu) {return tpdf(x, nu);}, nu, true);
-    }
-    else
-    {
-        return apply(function(x) {return tpdf(x, nu);}, x, true);
-    }
+    return apply_(tpdf, [x, nu]);
 };
 fn.tcdf = function(x, nu) {
     if (null == nu) nu = I;
-    if (is_array(nu))
-    {
-        return apply(function(nu) {return tcdf(x, nu);}, nu, true);
-    }
-    else
-    {
-        return apply(function(x) {return tcdf(x, nu);}, x, true);
-    }
+    return apply_(tcdf, [x, nu]);
 };
 fn.tinv = function(p, nu) {
     if (null == nu) nu = I;
-    if (is_array(nu))
-    {
-        return apply(function(nu) {return tinv(p, nu);}, nu, true);
-    }
-    else
-    {
-        return apply(function(p) {return tinv(p, nu);}, p, true);
-    }
+    return apply_(tinv, [p, nu]);
 };

@@ -1,4 +1,4 @@
-function kmeans(X, k, C, D, max_iter, speedup)
+async function kmeans(X, k, C, D, max_iter, speedup)
 {
     // https://en.wikipedia.org/wiki/K-means_clustering
     // Lloyd's algorithm with triangle speedup heuristic
@@ -6,7 +6,7 @@ function kmeans(X, k, C, D, max_iter, speedup)
     var n = ROWS(X), p = COLS(X), iter,
         i, ci, idx, centroids_changed;
 
-    idx = X.map(function(Xi) {return closest_cluster(Xi, C, D, speedup)[0];});
+    idx = await Promise.all(X.map(function(Xi) {return closest_cluster(Xi, C, D, speedup);})).then(function(c) {return c[0];});
     C = compute_centroids(X, k, idx);
 
     for (iter=1; iter<=max_iter; ++iter)
@@ -15,7 +15,7 @@ function kmeans(X, k, C, D, max_iter, speedup)
         centroids_changed = 0;
         for (i=0; i<n; ++i)
         {
-            ci = closest_cluster(X[i], C, D, speedup)[0];
+            ci = (await closest_cluster(X[i], C, D, speedup))[0];
             if (idx[i] !== ci) ++centroids_changed;
             idx[i] = ci;
         }
@@ -33,13 +33,13 @@ function kmeans(X, k, C, D, max_iter, speedup)
     }
     return [idx, C];
 }
-function closest_cluster(x, C, D, speedup)
+async function closest_cluster(x, C, D, speedup)
 {
     var k = C.length, i, d, idx = 0, min = inf;
     for (i=0; i<k; ++i)
     {
         if (!C[i] || !C[i].length) continue;
-        d = D(x, C[i]);
+        d = await D(x, C[i]);
         if (n_lt(d, min))
         {
             min = d;
@@ -79,7 +79,7 @@ function kmeans_init_random_partition(X, k, dist, speedup)
         return clusters;
     }, []).map(compute_centroid);
 }
-function kmeans_init_plusplus(X, k, dist, speedup)
+async function kmeans_init_plusplus(X, k, dist, speedup)
 {
     // https://en.wikipedia.org/wiki/K-means%2B%2B
     // Initialize list of centroids with one randomly selected point
@@ -94,7 +94,7 @@ function kmeans_init_plusplus(X, k, dist, speedup)
         total = O;
         for (i=0; i<n; ++i)
         {
-            d = closest_cluster(X[i], centroids, dist, speedup)[1];
+            d = (await closest_cluster(X[i], centroids, dist, speedup))[1];
             D2[i] = scalar_abs(scalar_mul(d, scalar_conj(d)));
             total = n_add(total, D2[i]);
         }
@@ -114,8 +114,8 @@ function kmeans_init_plusplus(X, k, dist, speedup)
     }
     return centroids;
 }
-fn.kmeans = varargout(function(nargout, X, k) {
-    var i = 3,
+fn.kmeans = varargout(async function(nargout, X, k) {
+    var i = 3, j, n, m,
         init = kmeans_init_plusplus,
         dist = d_sqeuclidean,
         max_iter = 100,
@@ -154,27 +154,34 @@ fn.kmeans = varargout(function(nargout, X, k) {
         }
         else if ("Distance" === arguments[i])
         {
-            switch (arguments[i+1])
+            if (is_callable(arguments[i+1]))
             {
-                case "hamming":
-                dist = d_hamming;
-                break;
-                case "correlation":
-                dist = d_correlation;
-                break;
-                case "cosine":
-                dist = d_cosine;
-                break;
-                case "cityblock":
-                dist = d_cityblock;
-                break;
-                case "euclidean":
-                dist = d_euclidean;
-                break;
-                case "sqeuclidean":
-                default:
-                dist = d_sqeuclidean;
-                break;
+                dist = arguments[i+1];
+            }
+            else
+            {
+                switch (arguments[i+1])
+                {
+                    case "hamming":
+                    dist = d_hamming;
+                    break;
+                    case "correlation":
+                    dist = d_correlation;
+                    break;
+                    case "cosine":
+                    dist = d_cosine;
+                    break;
+                    case "cityblock":
+                    dist = d_cityblock;
+                    break;
+                    case "euclidean":
+                    dist = d_euclidean;
+                    break;
+                    case "sqeuclidean":
+                    default:
+                    dist = d_sqeuclidean;
+                    break;
+                }
             }
         }
         else if ("MaxIter" === arguments[i])
@@ -183,7 +190,7 @@ fn.kmeans = varargout(function(nargout, X, k) {
         }
         i += 2;
     }
-    ans = kmeans(X, k, is_matrix(init) ? init : init(X, k, dist, speedup), dist, max_iter, speedup);
+    ans = await kmeans(X, k, is_matrix(init) ? init : await init(X, k, dist, speedup), dist, max_iter, speedup);
     ans[0] = ans[0].map(function(idx) {return idx+1;});
     if (1 === nargout)
     {
@@ -192,18 +199,32 @@ fn.kmeans = varargout(function(nargout, X, k) {
     else if (2 < nargout)
     {
         // sumd
-        ans.push(array(k, function(cluster) {
-            return idx.reduce(function(s, index, i) {
-                if (index === cluster) s = scalar_add(s, dist(X[i], C[cluster]));
-                return s;
-            }, O);
-        }));
+        n = idx.length;
+        m = array(k, O);
+        ans.push(m);
+        for (j=0; j<k; ++j)
+        {
+            for (i=0; i<n; ++i)
+            {
+                if (idx[i] === j)
+                {
+                    m[j] = scalar_add(m[j], await dist(X[i], C[j]));
+                }
+            }
+        }
         if (3 < nargout)
         {
             // D
-            ans.push(matrix(ROWS(X), k, function(i, j) {
-                return dist(X[i], C[j]);
-            }));
+            n = ROWS(X);
+            m = matrix(n, k, O);
+            ans.push(m);
+            for (i=0; i<n; ++i)
+            {
+                for (j=0; j<k; ++j)
+                {
+                    m[i][j] = await dist(X[i], C[j]);
+                }
+            }
         }
     }
     return ans;

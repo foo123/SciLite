@@ -1541,12 +1541,12 @@ function set(mat /*, ..slices, val*/)
     {
         slices = slices.map(function(slice) {return is_array(slice) ? vec(slice) : slice;});
         slices.forEach(function(slice, dim) {
-            if (!(((dim < szv.length) && (':' === slice)) || ((dim === slices.length-1) && (2 === _(slice))) || ((dim >= szv.length) && (dim < slices.length-1) && (1 === _(slice)))))
+            if (!(((dim < sz/*v*/.length) && (':' === slice)) || ((dim === slices.length-1) && (2 === _(slice))) || ((dim >= sz/*v*/.length) && (dim < slices.length-1) && (1 === _(slice)))))
             {
                 throw "set: invalid range";
             }
         });
-        mat = tensorview(mat, {shape: sz.concat(array(slices.length-sz.length, 1))}).concat(is_view ? val.reshape(szv.concat(array(slices.length-szv.length, 1))) : tensorview(val, {shape: szv.concat(array(slices.length-szv.length, 1))}), slices.length-1);
+        mat = tensorview(mat, {shape: sz.concat(array(slices.length-sz.length, 1))}).concat(is_view ? val.reshape(sz/*v*/.concat(array(slices.length-sz/*v*/.length, 1))) : tensorview(val, {shape: sz/*v*/.concat(array(slices.length-sz/*v*/.length, 1))}), slices.length-1);
         if (iscell)
         {
             mat = cellarray(mat.toNDArray(), mat.shape());

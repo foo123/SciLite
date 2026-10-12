@@ -215,6 +215,27 @@ function is_nd(x)
     if ((null != x) && x.$scilitecell$) return x.$scilitecell$.length > 2;
     return is_array(x) && is_array(x[0]) && is_array(x[0][0]);
 }
+function data_type(x)
+{
+    if (variable && is_instance(x, variable))
+    {
+        return 'var';
+    }
+    else if (is_string(x))
+    {
+        return 'str';
+    }
+    else if (is_scalar(x) || is_nan(x))
+    {
+        return 'num';
+    }
+    else if (is_array(x))
+    {
+        if (x.$scilitecell$) return '';
+        return x.length ? data_type(x[0]) : '';
+    }
+    return '';
+}
 function array(n, v)
 {
     n = stdMath.max(0, stdMath.round(n));
@@ -458,6 +479,23 @@ function apply2(f, x, y, iscomplex)
     return nan;
 }
 $_.apply2 = apply2;
+function apply_(f, x)
+{
+    for (var i=0,n=x.length; i<n; ++i)
+    {
+        if (is_array(x[i]))
+        {
+            return x[i].map(function(xij, j) {
+                return apply_(f, x.map(function(x, k) {
+                    return k === i ? xij : (is_array(x) ? x[j] : x);
+                }));
+            });
+        }
+    }
+    // every x is scalar, apply f
+    return f.apply(f, x);
+}
+$_.apply_ = apply_;
 function group_apply(type, f, f0, ferr, x, dim, dir)
 {
     dir = "reverse" === dir ? "reverse" : "forward";

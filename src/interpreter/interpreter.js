@@ -43,27 +43,6 @@ var PREFIX = -1,
     ANTICOMMUTATIVE = -1
 ;
 
-function dtype_for_array(arg)
-{
-    if (is_instance(arg, variable))
-    {
-        return 'var';
-    }
-    else if (is_string(arg))
-    {
-        return 'str';
-    }
-    else if (is_scalar(arg) || is_nan(arg))
-    {
-        return 'num';
-    }
-    else if (is_array(arg))
-    {
-        if (arg.$scilitecell$) return '';
-        return dtype_for_array(arg[0]);
-    }
-    return '';
-}
 // adapted from https://github.com/foo123/Xpresion
 var OP = {
     "[]": {
@@ -103,10 +82,10 @@ var OP = {
                             {
                                 if (null == dtype)
                                 {
-                                    dtype = dtype_for_array(arg);
+                                    dtype = data_type(arg);
                                     if ('' === dtype) throw "array with incompatible data types";
                                 }
-                                else if (dtype !== dtype_for_array(arg))
+                                else if (dtype !== data_type(arg))
                                 {
                                     throw "array with incompatible data types";
                                 }
@@ -116,7 +95,8 @@ var OP = {
                                 }
                                 else if (is_array(arg))
                                 {
-                                    row = row.length ? cat_horz(row, arg) : arg;
+                                    // pass array by value
+                                    row = row.length ? cat_horz(row, copy(arg)) : copy(arg);
                                 }
                                 else
                                 {
@@ -770,7 +750,7 @@ variable.prototype = {
         return val;
     },
     set: async function(value) {
-        var self = this, val, s, i;
+        var self = this, val, s, i, iscell, dtype, dtypev;
         if ('' === self.v)
         {
             return self; // dummy variable, ignored
@@ -802,10 +782,20 @@ variable.prototype = {
             }
             if (is_array(val))
             {
+                iscell = is_cell(val);
                 i = await Promise.all(self.i.map(function(ind, i) {
                     return vale(ind, {end:1 === self.i.length ? prod(s) : s[i]}, {ctx:self.ctx});
                 }));
-                val = set.apply(set, [val, !s[0] || is_cell(val) ? self.b : '()'].concat(i).concat([value]));
+                if (!iscell && val.length && !i.filter(function(i) {return ':' !== i;}).length)
+                {
+                    dtype = data_type(val);
+                    dtypev = data_type(value);
+                    if (('' === dtypev) || (dtype !== dtypev))
+                    {
+                        throw ('incompatible array data type ("'+dtype+'") with value' + ('' !== dtypev ? ' ("'+dtypev+'")' : ''));
+                    }
+                }
+                val = set.apply(set, [val, !s[0] || iscell ? self.b : '()'].concat(i).concat([value]));
             }
             else
             {
