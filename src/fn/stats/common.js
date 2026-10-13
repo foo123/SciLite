@@ -299,8 +299,6 @@ function normpdf(x, mu, sigma)
 {
     // pdf of Normal distribution
     // https://en.wikipedia.org/wiki/Normal_distribution
-    if (null == sigma) sigma = I;
-    if (null == mu) mu = O;
     x = n_div(n_sub(x, mu), sigma); // normalize
     return n_div(realMath.exp(n_neg(n_div(n_mul(x, x), constant['2']))), n_mul(sigma, n_mul(sqrt2, __sqrt_pi)));
 }
@@ -308,8 +306,6 @@ function normcdf(x, mu, sigma)
 {
     // cdf of Normal distribution, via erf
     // https://en.wikipedia.org/wiki/Normal_distribution
-    if (null == sigma) sigma = I;
-    if (null == mu) mu = O;
     x = n_div(n_sub(x, mu), sigma); // normalize
     return n_mul(constant['1/2'], n_add(I, erf(n_div(x, sqrt2))));
 }
@@ -317,8 +313,6 @@ function norminv(p, mu, sigma)
 {
     // icdf of Normal distribution
     // https://en.wikipedia.org/wiki/Normal_distribution
-    if (null == sigma) sigma = I;
-    if (null == mu) mu = O;
     var limit = n_mul(sigma, 100); // 100 x sigma
     return icdf(function(x) {return normcdf(x, mu, sigma);}, p, n_sub(mu, limit), n_add(mu, limit));
 }
@@ -327,7 +321,6 @@ function chi2pdf(x, nu)
 {
     // pdf of Chi-squared distribution with nu degrees of freedom
     // https://en.wikipedia.org/wiki/Chi-squared_distribution
-    if (null == nu) nu = I;
     if (n_lt(nu, O) || n_lt(x, O)) return nan;
     else if (n_eq(nu, O)) return O;
     // "A normal approximation for the chi-square distribution", Luisa Canal, 2005
@@ -350,7 +343,6 @@ function chi2cdf(x, nu)
 {
     // cdf of Chi-squared distribution with nu degrees of freedom
     // https://en.wikipedia.org/wiki/Chi-squared_distribution
-    if (null == nu) nu = I;
     if (n_lt(nu, O) || n_lt(x, O)) return nan;
     else if (n_eq(nu, O)) return O;
     // "A normal approximation for the chi-square distribution", Luisa Canal, 2005
@@ -381,7 +373,6 @@ function chi2inv(p, nu)
 {
     // icdf of Chi-squared distribution with nu degrees of freedom
     // https://en.wikipedia.org/wiki/Chi-squared_distribution
-    if (null == nu) nu = I;
     if (n_lt(nu, O)) return nan;
     // "A normal approximation for the chi-square distribution", Luisa Canal, 2005
     // accuracy at least within 2-3 decimal places
@@ -391,7 +382,7 @@ function chi2inv(p, nu)
         var nu2 = n_mul(nu, nu), nu3 = n_mul(nu2, nu);
         chi2inv.limit = n_mul(realMath.sqrt(n_add(n_add(n_div(1/18, nu), n_div(1/162, nu2)), n_div(-37/11664, nu3))), 100);
     }
-    return icdf(function(x) {return chi2cdf(x, nu);}, p, O, chi2inv.limit);
+    return icdf(function(x) {return chi2cdf(x, nu);}, p, O, chi2inv.limit, O, inf);
     /*
     // Wilson-Hilferty Transformation to approximately a Normal
     // accuracy at least within 1-2 decimal places
@@ -410,7 +401,6 @@ function tpdf(x, nu)
 {
     // pdf of t distribution with nu degrees of freedom
     // https://en.wikipedia.org/wiki/Student%27s_t-distribution
-    if (null == nu) nu = I;
     if (n_le(nu, O)) return nan;
     var tpdfx = O;
     if (n_eq(nu, I))
@@ -470,7 +460,6 @@ function tcdf(x, nu)
 {
     // cdf of t distribution with nu degrees of freedom
     // https://en.wikipedia.org/wiki/Student%27s_t-distribution
-    if (null == nu) nu = I;
     if (n_le(nu, O)) return nan;
     var tcdfx = O, z, z2, z3, z5;
     if (n_eq(nu, I))
@@ -538,7 +527,6 @@ function tinv(p, nu)
     // icdf of t distribution with nu degrees of freedom
     // https://en.wikipedia.org/wiki/Student%27s_t-distribution
     // accuracy at least within 2-3 decimal places
-    if (null == nu) nu = I;
     if (n_le(nu, O)) return nan;
     var limit = n_gt(nu, constant['2']) ? n_mul(n_div(nu, n_sub(nu, constant['2'])), 100) : __(1e7);
     return icdf(function(x) {return tcdf(x, nu);}, p, n_neg(limit), limit);

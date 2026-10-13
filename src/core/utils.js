@@ -479,21 +479,21 @@ function apply2(f, x, y, iscomplex)
     return nan;
 }
 $_.apply2 = apply2;
-function apply_(f, x)
+function apply_(f, x, m)
 {
     for (var i=0,n=x.length; i<n; ++i)
     {
         if (is_array(x[i]))
         {
             return x[i].map(function(xij, j) {
-                return apply_(f, x.map(function(x, k) {
-                    return k === i ? xij : (is_array(x) ? x[j] : x);
-                }));
+                return apply_(f, x.map(function(xk, k) {
+                    return k === i ? xij : (is_array(xk) ? xk[j] : xk);
+                }), m);
             });
         }
     }
     // every x is scalar, apply f
-    return f.apply(f, x);
+    return f.apply(f, m ? x.map(function(xi) {return m(xi);}) : x);
 }
 $_.apply_ = apply_;
 function group_apply(type, f, f0, ferr, x, dim, dir)
