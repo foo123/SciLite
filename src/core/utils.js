@@ -219,15 +219,15 @@ function data_type(x)
 {
     if (variable && is_instance(x, variable))
     {
-        return 'var';
+        return 'variable';
     }
     else if (is_string(x))
     {
-        return 'str';
+        return 'string';
     }
     else if (is_scalar(x) || is_nan(x))
     {
-        return 'num';
+        return 'numeric';
     }
     else if (is_array(x))
     {
@@ -487,7 +487,13 @@ function apply_(f, x, m)
         {
             return x[i].map(function(xij, j) {
                 return apply_(f, x.map(function(xk, k) {
-                    return k === i ? xij : (is_array(xk) ? xk[j] : xk);
+                    if (k === i) return xij;
+                    else if (is_array(xk))
+                    {
+                        if (j >= xk.length) throw "arguments not of same size";
+                        return xk[j];
+                    }
+                    return xk;
                 }), m);
             });
         }
@@ -812,14 +818,14 @@ function texify(x)
     {
         // 2d or nd array
         tex = x.$scilitecell$ ? function(x) {
-            return '\\{' + (is_array(x) ? (x.$scilitecell$ ? '\\text{cell }' : '') + size(x).join(' \\times ') : texify(x)) + '\\}';
+            return '\\{' + (is_array(x) ? (x.$scilitecell$ ? '\\text{cell }' : (x.length ? '\\text{'+data_type(x)+' }' : '')) + size(x).join(' \\times ') : texify(x)) + '\\}';
         } : texify;
-        x = tensorview.stringify('tex', x, size(x), tex, $_.MAXPRINTSIZE, 1, true, x.$scilitecell$ ? '\\text{cell }' : '');
+        x = tensorview.stringify('tex', x, size(x), tex, $_.MAXPRINTSIZE, 1, true, x.$scilitecell$ ? '\\text{cell }' : (x.length ? '\\text{'+data_type(x)+' }' : ''));
     }
     else if (is_array(x))
     {
         tex = x.$scilitecell$ ? function(x) {
-            return '\\{' + (is_array(x) ? (x.$scilitecell$ ? '\\text{cell }' : '') + size(x).join(' \\times ') : texify(x)) + '\\}';
+            return '\\{' + (is_array(x) ? (x.$scilitecell$ ? '\\text{cell }' : (x.length ? '\\text{'+data_type(x)+' }' : '')) + size(x).join(' \\times ') : texify(x)) + '\\}';
         } : texify;
         if (x.length > $_.MAXPRINTSIZE)
         {
@@ -854,7 +860,7 @@ $_.tex = function(x) {
             else
             {
                 var tex = x.$scilitecell$ ? function(x) {
-                    return '\\{' + (is_array(x) ? (x.$scilitecell$ ? '\\text{cell }' : '') + size(x).join(' \\times ') : texify(x)) + '\\}';
+                    return '\\{' + (is_array(x) ? (x.$scilitecell$ ? '\\text{cell }' : (x.length ? '\\text{'+data_type(x)+' }' : '')) + size(x).join(' \\times ') : texify(x)) + '\\}';
                 } : texify;
                 if (x.length > $_.MAXPRINTSIZE)
                 {
@@ -909,14 +915,14 @@ function stringify(x)
     {
         // 2d or nd array
         str = x.$scilitecell$ ? function(x) {
-            return '{' + (is_array(x) ? (x.$scilitecell$ ? 'cell ' : '') + size(x).join("\u00D7") : stringify(x)) + '}';
+            return '{' + (is_array(x) ? (x.$scilitecell$ ? 'cell ' : (x.length ? data_type(x)+' ' : '')) + size(x).join("\u00D7") : stringify(x)) + '}';
         } : stringify;
-        x = tensorview.stringify('str', x, size(x), str, $_.MAXPRINTSIZE, 1, true, x.$scilitecell$ ? 'cell ' : '');
+        x = tensorview.stringify('str', x, size(x), str, $_.MAXPRINTSIZE, 1, true, x.$scilitecell$ ? 'cell ' : (x.length ? data_type(x)+' ' : ''));
     }
     else if (is_array(x))
     {
         str = x.$scilitecell$ ? function(x) {
-            return '{' + (is_array(x) ? (x.$scilitecell$ ? 'cell ' : '') + size(x).join("\u00D7") : stringify(x)) + '}';
+            return '{' + (is_array(x) ? (x.$scilitecell$ ? 'cell ' : (x.length ? data_type(x)+' ' : '')) + size(x).join("\u00D7") : stringify(x)) + '}';
         } : stringify;
         if (x.length > $_.MAXPRINTSIZE)
         {
@@ -951,7 +957,7 @@ $_.str = function(x) {
             else
             {
                 var str = x.$scilitecell$ ? function(x) {
-                    return '{' + (is_array(x) ? (x.$scilitecell$ ? 'cell ' : '') + size(x).join("\u00D7") : stringify(x)) + '}';
+                    return '{' + (is_array(x) ? (x.$scilitecell$ ? 'cell ' : (x.length ? data_type(x)+' ' : '')) + size(x).join("\u00D7") : stringify(x)) + '}';
                 } : stringify;
                 if (x.length > $_.MAXPRINTSIZE)
                 {

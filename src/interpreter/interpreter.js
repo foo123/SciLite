@@ -789,10 +789,10 @@ variable.prototype = {
                 if (!iscell && val.length && !i.filter(function(i) {return ':' !== i;}).length)
                 {
                     dtype = data_type(val);
-                    dtypev = data_type(value);
+                    dtypev = data_type(is_instance(value, tensorview) ? (is_cell(value.data) ? value.data[0] : value.data) : (is_cell(value) ? value[0] : value));
                     if (('' === dtypev) || (dtype !== dtypev))
                     {
-                        throw ('incompatible array data type ("'+dtype+'") with value' + ('' !== dtypev ? ' ("'+dtypev+'")' : ''));
+                        throw ('incompatible array data type ("'+dtype+'") with value data type' + (dtypev.length ? ' ("'+dtypev+'")' : ''));
                     }
                 }
                 val = set.apply(set, [val, !s[0] || iscell ? self.b : '()'].concat(i).concat([value]));

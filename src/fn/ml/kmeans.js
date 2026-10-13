@@ -156,7 +156,7 @@ fn.kmeans = varargout(async function(nargout, X, k) {
         {
             if (is_callable(arguments[i+1]))
             {
-                dist = arguments[i+1];
+                dist = arguments[i+1]; // possibly async if user-defined
             }
             else
             {

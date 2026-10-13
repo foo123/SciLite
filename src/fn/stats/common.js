@@ -25,8 +25,8 @@ function tiedrank(x, symmetric)
 function pearson(a, b)
 {
     // https://en.wikipedia.org/wiki/Pearson_correlation_coefficient
-    var N = a.length;
-    return 1 < N ? scalar_div(sum(dotmul(dotdiv(sub(a, mean(a)), std(a)), dotdiv(sub(b, mean(b)), std(b)))), __(N-1)) : I;
+    var n = a.length;
+    return 1 < n ? scalar_div(sum(dotmul(dotdiv(sub(a, mean(a)), std(a)), dotdiv(sub(b, mean(b)), std(b)))), n-1) : I;
 }
 function spearman(a, b)
 {
@@ -112,6 +112,7 @@ function cramer_v(a, b, correctbias)
 function cdf(pdf, min_x, max_x, n)
 {
     // compute cdf from pdf between min_x and max_x
+    // via numerical approximation of integral of pdf
     n = n || 100;
     var cum = O, eps = n_div(n_sub(max_x, min_x), n), x;
     for (x=min_x;n_le(x, max_x);x=n_add(x, eps))
@@ -123,15 +124,17 @@ function cdf(pdf, min_x, max_x, n)
 function pdf(cdf, x, eps)
 {
     // compute pdf from cdf at x
+    // via numerical approximation of derivative of cdf
     eps = __(eps || 1e-12);
     return n_div(n_sub(cdf(n_add(x, eps)), cdf(n_sub(x, eps))), n_mul(constant['2'], eps));
 }
-function icdf(cdf, y, min_x, max_x, lim_0, lim_1, eps)
+function icdf(cdf, p, min_x, max_x, lim_0, lim_1, eps)
 {
-    // find icdf quantile x s.t cdf(x) <= y by bisection between min_x and max_x
-    if (is_nan(y)) return nan;
-    else if (n_le(y, O)) return null == lim_0 ? -inf : lim_0;
-    else if (n_ge(y, I)) return null == lim_1 ? inf : lim_1;
+    // find icdf quantile x s.t cdf(x) <= p
+    // using binary search between min_x and max_x
+    if (is_nan(p)) return nan;
+    else if (n_le(p, O)) return null == lim_0 ? -inf : lim_0;
+    else if (n_ge(p, I)) return null == lim_1 ? inf : lim_1;
 
     eps = __(eps || 1e-12);
     var two = constant['2'], x, cdfx;
@@ -139,13 +142,13 @@ function icdf(cdf, y, min_x, max_x, lim_0, lim_1, eps)
     {
         x = n_div(n_add(min_x, max_x), two);
         cdfx = cdf(x);
-        if (n_gt(cdfx, y))
+        if (n_gt(cdfx, p))
         {
             max_x = x;
         }
-        else if (n_lt(cdfx, y))
+        else if (n_lt(cdfx, p))
         {
-            if (n_le(n_sub(y, cdfx), eps) || n_le(n_sub(max_x, min_x), eps)) break;
+            if (n_le(n_sub(p, cdfx), eps) || n_le(n_sub(max_x, min_x), eps)) break;
             min_x = x;
         }
         else
@@ -313,6 +316,7 @@ function norminv(p, mu, sigma)
 {
     // icdf of Normal distribution
     // https://en.wikipedia.org/wiki/Normal_distribution
+    if (n_lt(p, O)) return nan;
     var limit = n_mul(sigma, 100); // 100 x sigma
     return icdf(function(x) {return normcdf(x, mu, sigma);}, p, n_sub(mu, limit), n_add(mu, limit));
 }
@@ -322,7 +326,7 @@ function chi2pdf(x, nu)
     // pdf of Chi-squared distribution with nu degrees of freedom
     // https://en.wikipedia.org/wiki/Chi-squared_distribution
     if (n_lt(nu, O) || n_lt(x, O)) return nan;
-    else if (n_eq(nu, O)) return O;
+    else if (n_eq(nu, O)) return n_eq(x, O) ? O : nan;
     // "A normal approximation for the chi-square distribution", Luisa Canal, 2005
     // accuracy at least within 2-3 decimal places
     return pdf(function(x) {return chi2cdf(x, nu);}, x);
@@ -344,7 +348,7 @@ function chi2cdf(x, nu)
     // cdf of Chi-squared distribution with nu degrees of freedom
     // https://en.wikipedia.org/wiki/Chi-squared_distribution
     if (n_lt(nu, O) || n_lt(x, O)) return nan;
-    else if (n_eq(nu, O)) return O;
+    else if (n_eq(nu, O)) return n_eq(x, O) ? O : nan;
     // "A normal approximation for the chi-square distribution", Luisa Canal, 2005
     // accuracy at least within 2-3 decimal places
     if ((null == chi2cdf.nu) || !n_eq(chi2cdf.nu, nu))
@@ -373,7 +377,7 @@ function chi2inv(p, nu)
 {
     // icdf of Chi-squared distribution with nu degrees of freedom
     // https://en.wikipedia.org/wiki/Chi-squared_distribution
-    if (n_lt(nu, O)) return nan;
+    if (n_lt(nu, O) || n_lt(p, O)) return nan;
     // "A normal approximation for the chi-square distribution", Luisa Canal, 2005
     // accuracy at least within 2-3 decimal places
     if ((null == chi2inv.nu) || !n_eq(chi2inv.nu, nu))
@@ -527,7 +531,7 @@ function tinv(p, nu)
     // icdf of t distribution with nu degrees of freedom
     // https://en.wikipedia.org/wiki/Student%27s_t-distribution
     // accuracy at least within 2-3 decimal places
-    if (n_le(nu, O)) return nan;
+    if (n_le(nu, O) || n_lt(p, O)) return nan;
     var limit = n_gt(nu, constant['2']) ? n_mul(n_div(nu, n_sub(nu, constant['2'])), 100) : __(1e7);
     return icdf(function(x) {return tcdf(x, nu);}, p, n_neg(limit), limit);
 }
