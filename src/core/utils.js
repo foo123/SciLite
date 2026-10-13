@@ -786,6 +786,22 @@ function num2str(x)
 }
 $_.num2str = num2str;
 $_.MAXPRINTSIZE = inf;
+function celltexify(x)
+{
+    if (is_array(x))
+    {
+        x = (x.$scilitecell$ ? '\\text{cell }' : (x.length ? '\\text{'+data_type(x)+' }' : '')) + size(x).join(' \\times ');
+    }
+    else if (is_callable(x))
+    {
+        x = '\\text{function()}';
+    }
+    else
+    {
+        x = texify(x);
+    }
+    return '\\{' +  x + '\\}';
+}
 function texify(x)
 {
     var tex;
@@ -817,16 +833,11 @@ function texify(x)
     else if (is_2d(x))
     {
         // 2d or nd array
-        tex = x.$scilitecell$ ? function(x) {
-            return '\\{' + (is_array(x) ? (x.$scilitecell$ ? '\\text{cell }' : (x.length ? '\\text{'+data_type(x)+' }' : '')) + size(x).join(' \\times ') : texify(x)) + '\\}';
-        } : texify;
-        x = tensorview.stringify('tex', x, size(x), tex, $_.MAXPRINTSIZE, 1, true, x.$scilitecell$ ? '\\text{cell }' : (x.length ? '\\text{'+data_type(x)+' }' : ''));
+        x = tensorview.stringify('tex', x, size(x), x.$scilitecell$ ? celltexify : texify, $_.MAXPRINTSIZE, 1, true, x.$scilitecell$ ? '\\text{cell }' : (x.length ? '\\text{'+data_type(x)+' }' : ''));
     }
     else if (is_array(x))
     {
-        tex = x.$scilitecell$ ? function(x) {
-            return '\\{' + (is_array(x) ? (x.$scilitecell$ ? '\\text{cell }' : (x.length ? '\\text{'+data_type(x)+' }' : '')) + size(x).join(' \\times ') : texify(x)) + '\\}';
-        } : texify;
+        tex = x.$scilitecell$ ? celltexify : texify;
         if (x.length > $_.MAXPRINTSIZE)
         {
             x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat(tensorview.cdots).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
@@ -859,9 +870,7 @@ $_.tex = function(x) {
             }
             else
             {
-                var tex = x.$scilitecell$ ? function(x) {
-                    return '\\{' + (is_array(x) ? (x.$scilitecell$ ? '\\text{cell }' : (x.length ? '\\text{'+data_type(x)+' }' : '')) + size(x).join(' \\times ') : texify(x)) + '\\}';
-                } : texify;
+                var tex = x.$scilitecell$ ? celltexify : texify;
                 if (x.length > $_.MAXPRINTSIZE)
                 {
                     x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat(tensorview.vdots).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
@@ -882,6 +891,22 @@ $_.tex = function(x) {
     }
     return x;
 };
+function cellstringify(x)
+{
+    if (is_array(x))
+    {
+        x = (x.$scilitecell$ ? 'cell ' : (x.length ? data_type(x)+' ' : '')) + size(x).join("\u00D7");
+    }
+    else if (is_callable(x))
+    {
+        x = 'function()';
+    }
+    else
+    {
+        x = stringify(x);
+    }
+    return '{' +  x + '}';
+}
 function stringify(x)
 {
     var str;
@@ -914,16 +939,11 @@ function stringify(x)
     else if (is_2d(x))
     {
         // 2d or nd array
-        str = x.$scilitecell$ ? function(x) {
-            return '{' + (is_array(x) ? (x.$scilitecell$ ? 'cell ' : (x.length ? data_type(x)+' ' : '')) + size(x).join("\u00D7") : stringify(x)) + '}';
-        } : stringify;
-        x = tensorview.stringify('str', x, size(x), str, $_.MAXPRINTSIZE, 1, true, x.$scilitecell$ ? 'cell ' : (x.length ? data_type(x)+' ' : ''));
+        x = tensorview.stringify('str', x, size(x), x.$scilitecell$ ? cellstringify : stringify, $_.MAXPRINTSIZE, 1, true, x.$scilitecell$ ? 'cell ' : (x.length ? data_type(x)+' ' : ''));
     }
     else if (is_array(x))
     {
-        str = x.$scilitecell$ ? function(x) {
-            return '{' + (is_array(x) ? (x.$scilitecell$ ? 'cell ' : (x.length ? data_type(x)+' ' : '')) + size(x).join("\u00D7") : stringify(x)) + '}';
-        } : stringify;
+        str = x.$scilitecell$ ? cellstringify : stringify;
         if (x.length > $_.MAXPRINTSIZE)
         {
             x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat(tensorview.cdots).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
@@ -956,9 +976,7 @@ $_.str = function(x) {
             }
             else
             {
-                var str = x.$scilitecell$ ? function(x) {
-                    return '{' + (is_array(x) ? (x.$scilitecell$ ? 'cell ' : (x.length ? data_type(x)+' ' : '')) + size(x).join("\u00D7") : stringify(x)) + '}';
-                } : stringify;
+                var str = x.$scilitecell$ ? cellstringify : stringify;
                 if (x.length > $_.MAXPRINTSIZE)
                 {
                     x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat(tensorview.vdots).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
