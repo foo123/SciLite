@@ -31,6 +31,12 @@ function size(x)
     return dims.length ? dims.map(function(dim) {return sizex[_(dim)-1];}) : sizex;
     //return [];
 }
-fn.size = function(x) {
-    return varargout(size.apply(null, [].slice.call(arguments)));
-};
+fn.size = varargout(function(nargout, x) {
+    var sz = size.apply(null, [].slice.call(arguments, 1));
+    if (1 < nargout)
+    {
+        if (sz.length < nargout) sz.push.apply(sz, array(nargout-sz.length, 1));
+        else if (sz.length > nargout) sz.length = nargout;
+    }
+    return sz;
+});

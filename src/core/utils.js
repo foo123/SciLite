@@ -192,7 +192,7 @@ function is_matrix(x, no_cell)
 $_.is_matrix = is_matrix;
 function is_cell(x)
 {
-    return !!x.$scilitecell$ && is_array(x);
+    return is_array(x) && !!x.$scilitecell$;
 }
 //$_.is_cell = is_cell;
 function is_0d(x)
@@ -235,6 +235,18 @@ function data_type(x)
         return x.length ? data_type(x[0]) : '';
     }
     return '';
+}
+function check_type(type, j, res)
+{
+   var typej = type[j];
+   if ("c" !== typej)
+   {
+       if (is_array(res)) type[j] = "c";
+       else if (is_string(res)) type[j] = "" === typej || "s" === typej ? "s" : "c";
+       else if (is_scalar(res)) type[j] = "" === typej || "n" === typej ? "n" : "c";
+       else type[j] = "c";
+   }
+   return res;
 }
 function array(n, v)
 {
@@ -287,6 +299,65 @@ ndarray.indices = function(dims, f) {
             while (d+1 < n) i[++d] = 0;
         }
     }
+};
+ndarray.project = function project(x, d, i, j, matchsize, loose) {
+    j = j || 0;
+    if (is_array(x) && (j < i.length))
+    {
+        if (':' === i[j]) return x.map(function(xj) {return project(xj, d, i, j+1, matchsize, loose);});
+
+        if ((0 === j) && ('loose' === loose))
+        {
+            if ((2 === d.length) && (1 === d[0]) && (0 === i[0]) && !is_array(x[0]))
+            {
+                // handle row-vec and vec as equivalent
+                if (('matchsize' === matchsize) && (i[j+1] >= x.length)) throw "dimensions do not match";
+                return x[i[j+1]];
+            }
+            else if ((1 === d.length) && (1 === x.length) && is_1d(x[0]))
+            {
+                // handle vec and row-vec as equivalent
+                if (('matchsize' === matchsize) && (i[j] >= x[0].length)) throw "dimensions do not match";
+                return x[0][i[j]];
+            }
+            else if ((2 === d.length) && (1 === d[1]) && !is_array(x[0]))
+            {
+                // handle col-vec and vec as equivalent
+                if (('matchsize' === matchsize) && (i[j] >= x.length)) throw "dimensions do not match";
+                return x[i[j]];
+            }
+            else if ((1 === d.length) && is_array(x[0]) && (1 === x[0].length))
+            {
+                // handle vec and col-vec as equivalent
+                if (('matchsize' === matchsize) && (i[j] >= x.length)) throw "dimensions do not match";
+                return x[i[j]][0];
+            }
+            else if ((2 === d.length) && (1 === d[0]) && (0 === i[0]) && is_array(x[0]) && (1 === x[0].length))
+            {
+                // handle row-vec and col-vec as equivalent
+                if (('matchsize' === matchsize) && (i[j+1] >= x.length)) throw "dimensions do not match";
+                return x[i[j+1]][0];
+            }
+            else if ((2 === d.length) && (1 === d[1]) && (1 === x.length) && is_1d(x[0]))
+            {
+                // handle col-vec and row-vec as equivalent
+                if (('matchsize' === matchsize) && (i[j] >= x[0].length)) throw "dimensions do not match";
+                return x[0][i[j]];
+            }
+        }
+
+        if (('matchsize' === matchsize) && ((i[j] >= x.length) || (j+1 < i.length && !is_array(x[0]))))
+        {
+            throw "dimensions do not match";
+        }
+
+        return project(x[i[j]], d, i, j+1, matchsize, loose);
+    }
+    return x;
+};
+ndarray.set = function(a, i, v) {
+    for (var j=0,n=i.length; j+1<n; ++j) a = a[i[j]];
+    a[i[j]] = v;
 };
 $_.ndarray = ndarray;
 function cellarray(array, dims)
@@ -349,7 +420,7 @@ function sca(x, real)
         var sizex = size(x);
         if (arr_eq(sizex, array(sizex.length, 1)))
         {
-            return sca(project(x, array(sizex.length, 0)), real);
+            return sca(ndarray.project(x, sizex, array(sizex.length, 0)), real);
         }
     }
     return x;
@@ -361,10 +432,16 @@ function vec(x)
     {
         return x;
     }
-    else if (is_matrix(x))
+    else if (/*is_matrix(x)*/is_2d(x) && !is_nd(x))
     {
-        if (1 === ROWS(x)) return x[0];
-        else if (1 === COLS(x)) return x.map(function(xi) {return xi[0];});
+        var xx = null;
+        if (1 === ROWS(x)) xx = x[0];
+        else if (1 === COLS(x)) xx = x.map(function(xi) {return xi[0];});
+        if (xx)
+        {
+            if (x.$scilitecell$) xx = cellarray(xx === x[0] ? xx.slice() : xx, [xx.length]);
+            return xx;
+        }
     }
     else if (is_0d(x))
     {
@@ -392,17 +469,6 @@ function COL(mat, j)
 {
     return array(mat.length, function(i) {return mat[i][j];});
 }
-function project(x, i, j)
-{
-    j = j || 0;
-    if (is_array(x) && (j < i.length))
-    {
-        return ':' === i[j] ? x.map(function(xj) {return project(xj, i, j+1);}) : project(x[i[j]], i, j+1);
-    }
-    return x;
-}
-$_.project = project;
-
 function _(x)
 {
     return ("number" === typeof x) ? x : (is_decimal(x) ? (x.$valueOf()) : (is_complex(x) ? x.valueOf() : x));
@@ -479,27 +545,61 @@ function apply2(f, x, y, iscomplex)
     return nan;
 }
 $_.apply2 = apply2;
-function apply_(f, x, m)
+function apply_(f, x, t, nargout)
 {
-    for (var i=0,n=x.length; i<n; ++i)
+    nargout = nargout || 1;
+    for (var i=0,n=x.length,xa,sz,fx,type; i<n; ++i)
     {
-        if (is_array(x[i]))
+        if (is_array(x[i]) && (!xa || (xa && !xa.$scilitecell$ && x[i].$scilitecell$)))
         {
-            return x[i].map(function(xij, j) {
-                return apply_(f, x.map(function(xk, k) {
-                    if (k === i) return xij;
-                    else if (is_array(xk))
-                    {
-                        if (j >= xk.length) throw "arguments not of same size";
-                        return xk[j];
-                    }
-                    return xk;
-                }), m);
-            });
+            xa = x[i];
+            if (xa.$scilitecell$) break;
         }
     }
-    // every x is scalar, apply f
-    return f.apply(f, m ? x.map(function(xi) {return m(xi);}) : x);
+    if (xa)
+    {
+        // some x is array
+        sz = is_1d(xa) ? [xa.length] : size(xa);
+        type = array(nargout, "");
+        if (1 === nargout)
+        {
+            fx = ndarray(sz, function(i) {
+                return check_type(type, 0, f.apply(null, x.map(function(xk) {
+                    xk = ndarray.project(xk, sz, i, 0, 'matchsize', 'loose');
+                    return t ? t(xk) : xk;
+                })));
+            });
+            if (xa.$scilitecell$ || ("c" === type[0])) fx = cellarray(fx, sz);
+        }
+        else
+        {
+            fx = array(nargout, function() {return ndarray(sz, null);});
+            ndarray.indices(sz, function(i) {
+                var res = f.apply(null, x.map(function(xk) {
+                    xk = ndarray.project(xk, sz, i, 0, 'matchsize', 'loose');
+                    return t ? t(xk) : xk;
+                }));
+                if (is_array(res))
+                {
+                    res = vec(res);
+                    fx.forEach(function(fxj, j) {
+                        if (j < res.length) ndarray.set(fxj, i, check_type(type, j, res[j]));
+                    });
+                }
+                else
+                {
+                    ndarray.set(fx[0], i, check_type(type, 0, res));
+                }
+            });
+            fx = fx.map(function(fxj, j) {return xa.$scilitecell$ || ("c" === type[j]) ? cellarray(fxj, sz.slice()) : fxj;});
+        }
+    }
+    else
+    {
+        // every x is scalar
+        fx = f.apply(null, t ? x.map(function(xk) {return t(xk);}) : x);
+    }
+    return fx;
 }
 $_.apply_ = apply_;
 function group_apply(type, f, f0, ferr, x, dim, dir)
@@ -790,11 +890,11 @@ function celltexify(x)
 {
     if (is_array(x))
     {
-        x = (x.$scilitecell$ ? '\\text{cell }' : (x.length ? '\\text{'+data_type(x)+' }' : '')) + size(x).join(' \\times ');
+        x = '\\mathbf{' + (x.$scilitecell$ ? '\\text{cell }' : (x.length ? '\\text{'+data_type(x)+' }' : '')) + size(x).join(' \\times ') + '}';
     }
     else if (is_callable(x))
     {
-        x = '\\text{function()}';
+        x = '\\mathbf{\\text{function()}}';
     }
     else
     {
@@ -816,7 +916,7 @@ function texify(x)
     }
     else if (is_string(x))
     {
-        x = '\\text{"' + x + '"}';
+        x = '\\mathsf{\\text{"' + x + '"}}';
     }
     else if (is_nan(x))
     {

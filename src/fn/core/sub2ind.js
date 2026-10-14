@@ -45,13 +45,17 @@ function sub2ind(dims/*, i, j*/)
     i = _(i); j = _(j);
     return 1 === dims.length ? i : ((i-1)+_(dims[0])*(j-1)+1);*/
 }
-fn.sub2ind = sub2ind;
 function ind2sub(dims, ind)
 {
     dims = vec(dims);
-    return varargout(_ind2sub(dims, ind));
+    return _ind2sub(dims, ind);
 
     /*ind = _(ind);
     return 1 === dims.length ? [ind, 1] : [((ind-1) % _(dims[0])) + 1, stdMath.floor((ind-1) / _(dims[0])) + 1];*/
 }
-fn.ind2sub = ind2sub;
+fn.sub2ind = function(/*args*/) {
+    return sub2ind.apply(null, [].slice.call(arguments));
+};
+fn.ind2sub = varargout(function(nargout, dims, ind) {
+    return ind2sub(dims, ind);
+});
