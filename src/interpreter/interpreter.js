@@ -458,6 +458,18 @@ var OP = {
                         return bitor(arg0, arg1);
                     }
     },
+    '(=)': {
+     name         : 'set-name-value'
+    ,arity        : 2
+    ,fixity       : INFIX
+    ,associativity: LEFT
+    ,commutativity: NONCOMMUTATIVE
+    ,priority     : 45
+    ,fn           : function(nv, name, value) {
+                        if (is_instance(nv, namevalue) && is_string(name)) nv.set(name, value);
+                        return nv;
+                    }
+    },
     '=': {
      name         : 'set'
     ,breakpoint   : 'set'
@@ -628,20 +640,56 @@ async function while_end($arg, v, $$)
 function def_fn(fn_def)
 {
     var fn = varargout(async function(nargout) {
-        var i, nargin = arguments.length-1, argout,
-            is_return = false, $$ = {ctx:{ans:null}, "@fn":merge({}, (fn_def["@fns"]||[]).concat(fn_def["@fn"]))},
+        var args = [].slice.call(arguments, 1), nargin = args.length,
+            argin = fn_def.argin, argout,
+            NameValueDefaults = fn_def.namevalue, NameValueArgs,
+            $$ = {ctx:{ans:null}, "@fn":merge({}, (fn_def["@fns"]||[]).concat(fn_def["@fn"]))},
+            is_return = false,
             ans, i, n;
-        for (i=1; i<=nargin; ++i)
-        {
-            if ('varargin' === fn_def.argin[i-1])
+
+        argin = argin.filter(function(arg) {
+            if (('varargin' !== arg) && NameValueDefaults && NameValueDefaults.has(arg))
             {
-                $$.ctx.varargin = cellarray([].slice.call(arguments, i).map(copy), [arguments.length-i]); // pass by value
+                // Name=Value default arguments
+                return false;
+            }
+            return true;
+        });
+        args = args.filter(function(arg) {
+            if (is_instance(arg, namevalue))
+            {
+                // Name=Value arguments
+                NameValueArgs = arg;
+                return false;
+            }
+            return true;
+        });
+        for (i=0; i<args.length && i<argin.length; ++i)
+        {
+            if ('varargin' === argin[i])
+            {
+                $$.ctx.varargin = args.slice(i).map(copy); // pass by value
+                $$.ctx.varargin = cellarray($$.ctx.varargin, [$$.ctx.varargin.length]);
                 break;
             }
             else
             {
-                $$.ctx[fn_def.argin[i-1]] = copy(arguments[i]); // pass by value
+                $$.ctx[argin[i]] = copy(args[i]); // pass by value
             }
+        }
+        if (NameValueDefaults)
+        {
+            // Name=Value arguments
+            await Promise.all(NameValueDefaults.all().map(async function(name) {
+                return {name:name, value:await vale(NameValueDefaults.get(name), null, {ctx:{}})};
+            })).then(function(defaults) {
+                defaults.forEach(function(defaul) {
+                    if ('varargin' !== defaul.name)
+                    {
+                        $$.ctx[defaul.name] = NameValueArgs ? copy(NameValueArgs.get(defaul.name, defaul.value)) : defaul.value;
+                    }
+                });
+            });
         }
         $$.retrn = function() {is_return = true;};
         $$.ctx.nargin = nargin;
@@ -1355,7 +1403,7 @@ function parse(s, ctx, lineStart, posStart)
             {
                 end(true);
                 eat(/^[ \t\v\f]+/);
-                arg = {argout:null, name:null, argin:null, "@fns":fns.slice().reverse(), "@fn":{}, body:[]};
+                arg = {argout:null, name:null, argin:null, namevalue:namevalue(), "@fns":fns.slice().reverse(), "@fn":{}, body:[]};
                 if (match = eat(/^([_a-z][_a-z0-9]*)[ \t\v\f]*=[ \t\v\f]*/i))
                 {
                     // single output
@@ -1371,10 +1419,38 @@ function parse(s, ctx, lineStart, posStart)
                     // no output
                     arg.argout = [];
                 }
-                if (match = eat(/^([_a-z][_a-z0-9]*)(?:[ \t\v\f]*\(([ \t\v\f]*([_a-z][_a-z0-9]*(?:[ \t\v\f]*,[ \t\v\f]*[_a-z][_a-z0-9]*)*)?[ \t\v\f]*)\))?/i))
+                //if (match = eat(/^([_a-z][_a-z0-9]*)(?:[ \t\v\f]*\(([ \t\v\f]*([_a-z][_a-z0-9]*(?:[ \t\v\f]*,[ \t\v\f]*[_a-z][_a-z0-9]*)*)?[ \t\v\f]*)\))?/i))
+                if (match = eat(/^([_a-z][_a-z0-9]*)([ \t\v\f]*\()?/i))
                 {
                     arg.name = match[1];
-                    arg.argin = match[2] ? match[2].split(',').map(function(v) {return v.trim();}) : [];
+                    //arg.argin = match[2] ? match[2].split(',').map(function(v) {return v.trim();}) : [];
+                    arg.argin = [];
+                    if (match[2])
+                    {
+                        for (;;)
+                        {
+                            eat(/^[ \t\v\f]*/);
+                            if (match = eat(/^[_a-z][_a-z0-9]*/i))
+                            {
+                                arg.argin.push(match[0]);
+                                if (eat(/^[ \t\v\f]*=/))
+                                {
+                                    // Name=Value default arg
+                                    tmp = parse_until(',)');
+                                    if (is_instance(tmp, expr)) arg.namevalue.set(match[0], tmp);
+                                    else throw error('missing or invalid Name=Value function argument');
+                                }
+                                eat(/^[ \t\v\f]*/);
+                                if (!eat(',')) break;
+                            }
+                            else
+                            {
+                                break;
+                            }
+                        }
+                    }
+                    eat(/^[ \t\v\f]*/);
+                    if (!eat(')')) throw error('missing or invalid function declaration');
                 }
                 else
                 {
@@ -1573,8 +1649,8 @@ function parse(s, ctx, lineStart, posStart)
             }
             if (match = eat('='))
             {
-                // set
-                ops.unshift(['=', i, l]);
+                // set or name=value function arg
+                ops.unshift([expected && (-1 < expected.indexOf(')')) ? '(=)' : '=', i, l]);
                 merge();
                 continue;
             }
@@ -1617,7 +1693,7 @@ function parse(s, ctx, lineStart, posStart)
                     else if (eat(/^[ \t\v\f]*\:[ \t\v\f]*\)/))
                     {
                         // variable single colon
-                        arg = '(:)';
+                        //arg = '(:)';
                         term = expr('v', variable(ctx, m, [expr(':')]), ln);
                     }
                     else
@@ -1680,7 +1756,7 @@ function parse(s, ctx, lineStart, posStart)
                 if (match = eat(/^@\(([ \t\v\f]*[_a-z][_a-z0-9]*(?:[ \t\v\f]*,[ \t\v\f]*[_a-z][_a-z0-9]*)*[ \t\v\f]*)\)/i))
                 {
                     // anonymous function
-                    arg = {argout:['*'], name:'', argin:match[1].split(',').map(function(s) {return s.trim();}), body:[]};
+                    arg = {argout:['*'], name:'', argin:match[1].split(',').map(function(s) {return s.trim();}), namevalue:null, "@fns":[], "@fn":{}, body:[]};
                     tmp = parse_until(',)]};');
                     if (tmp) arg.body = arg.body.concat(tmp);
                     terms.unshift(expr(def_fn(arg), null, ln));
@@ -2023,6 +2099,36 @@ async function evaluate(e, v, $$, vf2v)
             if ($$ && is_callable($$.retrn)) $$.retrn();
             return;
         }
+        else if (OP['(=)'].fn === e.op)
+        {
+            // Name=Value arg
+            $$ = $$ || {};
+            arg = $$.nv;
+            if (!is_instance(arg, namevalue))
+            {
+                throw 'invalid Name=Value argument' + (e.ln ? "\nat: " + e.ln : "");
+            }
+            n = await evaluate(e.arg[0], false, null, true);
+            if (is_string(n))
+            {
+                // pass
+            }
+            else if (is_instance(n, variable) && is_string(n.v))
+            {
+                n = n.v;
+            }
+            else
+            {
+                throw 'invalid Name=Value argument' + (e.ln ? "\nat: " + e.ln : "");
+            }
+            arg = [arg, n].concat(await Promise.all(e.arg.slice(1).map(function(e) {return evaluate(e, v, $$);})));
+            try {
+                ret = await e.op.apply(null, arg);
+            } catch (err) {
+                throw ((err.message || err) + (e.ln ? "\nat: " + e.ln : ""));
+            }
+            return ret;
+        }
         else if (OP['='].fn === e.op)
         {
             // set
@@ -2094,13 +2200,17 @@ async function evaluate(e, v, $$, vf2v)
         else if (is_callable(e.op))
         {
             // other operator/function
-            f = $$ && is_int($$.nargout) && is_callable(e.op.nargout) ? e.op.nargout($$.nargout) : e.op;
+            $$ = $$ || {};
+            n = $$.nv;
+            $$.nv = namevalue();
+            f = is_int($$.nargout) && is_callable(e.op.nargout) ? e.op.nargout($$.nargout) : e.op;
             arg = await Promise.all(e.arg.map(function(e) {return evaluate(e, v, $$, vf2v);}));
             try {
                 ret = await f.apply(null, arg);
             } catch (err) {
                 throw ((err.message || err) + (e.ln ? "\nat: " + e.ln : ""));
             }
+            $$.nv = n;
             return ret;
         }
     }

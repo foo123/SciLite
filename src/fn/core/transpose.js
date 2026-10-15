@@ -1,7 +1,7 @@
 function transpose(x)
 {
     var ans;
-    if (is_2d(x))
+    if (is_2d(x, true))
     {
         ans = matrix(COLS(x), ROWS(x), function(i, j) {
             return x[j][i];
@@ -18,7 +18,7 @@ fn.transpose = function(x) {
 function ctranspose(x)
 {
     var ans;
-    if (is_2d(x))
+    if (is_2d(x, true))
     {
         ans = matrix(COLS(x), ROWS(x), function(i, j) {
             return is_scalar(x[j][i]) ? scalar_conj(x[j][i]) : x[j][i];

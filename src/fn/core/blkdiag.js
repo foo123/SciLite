@@ -6,7 +6,7 @@ function blkdiag(matrices)
     matrices.forEach(function(mat, i) {
         if (is_0d(mat)) matrices[i] = mat = [[mat]];
         if (is_1d(mat)) matrices[i] = mat = diag(mat);
-        if (!is_2d(mat)) not_supported("blkdiag");
+        if (!is_2d(mat, true)) not_supported("blkdiag");
         rows += ROWS(mat);
         cols += COLS(mat);
     });

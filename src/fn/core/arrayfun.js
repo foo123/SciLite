@@ -1,10 +1,10 @@
-function arrayfun(fn, arrays, nargout)
+/*function arrayfun(fn, arrays, nargout)
 {
     nargout = nargout || 1;
     var arr = arrays.reduce(function(arr, a) {return arr ? arr : (is_array(a) ? a : arr);}, null),
-        sz = is_array(arr) /*&& !arrays[0].$scilitecell$*/ ? (is_1d(arr) ? [arr.length] : size(arr)) : [], output, promises = [], type, res;
+        sz = is_array(arr) /*&& !arrays[0].$scilitecell$* / ? (is_1d(arr) ? [arr.length] : size(arr)) : [], output, promises = [], type, res;
 
-    if (arrays.length !== arrays.filter(function(arr) {return !is_array(arr) /*&& !arr.$scilitecell$*/ || arr_eq(sz, is_1d(arr) ? [arr.length] : size(arr));}).length) not_supported("arrayfun");
+    if (arrays.length !== arrays.filter(function(arr) {return !is_array(arr) /*&& !arr.$scilitecell$* / || arr_eq(sz, is_1d(arr) ? [arr.length] : size(arr));}).length) not_supported("arrayfun");
 
     arrays = arrays.map(function(arr) {return is_array(arr) ? tensorview(arr, {shape:sz, ndarray:sz}) : arr;});
     output = array(nargout, sz.length ? function() {return tensorview(ndarray(sz, null), {shape:sz, ndarray:sz});} : null);
@@ -71,8 +71,10 @@ function arrayfun(fn, arrays, nargout)
         }
     }
     return promises.length ? Promise.all(promises).then(ret) : ret();
-}
+}*/
 fn.arrayfun = varargout(function(nargout, fn/*..arrays*/) {
     if (!is_callable(fn) || (3 > arguments.length)) not_supported("arrayfun");
-    return arrayfun(fn, [].slice.call(arguments, 2), nargout);
+    //return arrayfun(fn, [].slice.call(arguments, 2), nargout);
+    if ((1 < nargout) && is_callable(fn.nargout)) fn = fn.nargout(nargout);
+    return apply_(fn, [].slice.call(arguments, 2), null, nargout);
 });

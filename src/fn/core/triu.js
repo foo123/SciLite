@@ -1,6 +1,6 @@
 function triu(x, k)
 {
-    if (is_2d(x))
+    if (is_2d(x, true))
     {
         k = _(k || 0);
         return matrix(ROWS(x), COLS(x), function(i, j) {

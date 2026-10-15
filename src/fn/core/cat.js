@@ -8,7 +8,7 @@ function cat_horz(A, B)
     {
         return A.concat(B);
     }
-    else if (is_2d(A) && is_2d(B) && (ROWS(A) === ROWS(B)))
+    else if (is_2d(A, true) && is_2d(B, true) && (ROWS(A) === ROWS(B)))
     {
         return A.map(function(Ai, i) {
             return Ai.concat(B[i]);
@@ -26,7 +26,7 @@ function cat_vert(A, B)
     {
         return A.concat(B);
     }
-    else if (is_2d(A) && is_2d(B) && (COLS(A) === COLS(B)))
+    else if (is_2d(A, true) && is_2d(B, true) && (COLS(A) === COLS(B)))
     {
         return A.concat(B);
     }

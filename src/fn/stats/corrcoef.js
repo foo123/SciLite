@@ -19,7 +19,8 @@ function corrcoef(a, b)
         {
             return I;
         }
-        else if (is_vector(a) && is_vector(b))
+        a = vec(a); b = vec(b);
+        if (is_vector(a) && is_vector(b))
         {
             if (a.length !== b.length) throw "corrcoef: inputs not of same dimension";
             return pearson(a, b);

@@ -879,8 +879,13 @@ function init($)
                 'function out=test(n)\n if 1==n\n  f=@test1;\nelse\n  f=@test2;\n end\n out=f();\n function out=test1()\n  out=test2();\n  function out=test2()\n   out="test1";\n   end\n  end\n function out=test2()\n  out="test2";\nend\nend',
                 'test(1)',
                 'test(2)',
-                'test1()',
-                'test2()'
+                'test1() % local, not accessible',
+                'test2() % local, not accessible',
+                '% function Name=Value arguments',
+                'function s=surround(varargin,Prefix="foo",Suffix="bar") % all the default NameValues must be declared\n s=strjoin(cat(2, {Prefix}, varargin{:}, {Suffix}));\nend',
+                'surround("is","a") % use defaults',
+                'surround("is","the","best",Suffix="baz") % set only some',
+                'surround(Suffix="foo","awesome",Prefix="kung","freakin..") % any ordering'
                 ]);
             break;
         }

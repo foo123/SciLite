@@ -12,7 +12,7 @@ function diag(x, k)
             return k === i - j ? x[i] : O;
         });
     }
-    if (is_2d(x))
+    if (is_2d(x, true))
     {
         return x.reduce(function(diag, xi, i) {
             return xi.reduce(function(diag, xij, j) {
