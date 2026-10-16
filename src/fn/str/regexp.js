@@ -2,7 +2,7 @@ function create_regexp(expression, opts)
 {
     // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RegExp/RegExp
     opts = opts || {};
-    return new RegExp(expression, Object.keys(opts).reduce(function(f, o) {
+    return new RegExp(expression, KEYS(opts).reduce(function(f, o) {
         if (opts[o] && (-1 < ['g','i','m','s'].indexOf(o))) f += o;
         return f;
     }, 'd'));
@@ -29,7 +29,7 @@ function apply_regexp(str, re, opts)
                         name:   null
                     };
                 }),
-                namedTokens: Object.keys((m.indices || []).groups || {}).map(function(name) {
+                namedTokens: KEYS((m.indices || []).groups || {}).map(function(name) {
                     var ind = m.indices.groups[name];
                     return {
                         match:  str.slice(ind[0], ind[1]),

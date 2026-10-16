@@ -640,12 +640,13 @@ async function while_end($arg, v, $$)
 function def_fn(fn_def)
 {
     var fn = varargout(async function(nargout) {
-        var args = [].slice.call(arguments, 1), nargin = args.length,
-            argin = fn_def.argin, argout,
-            NameValueDefaults = fn_def.namevalue, NameValueArgs,
-            $$ = {ctx:{ans:null}, "@fn":merge({}, (fn_def["@fns"]||[]).concat(fn_def["@fn"]))},
+        var args = [].slice.call(arguments, 1),
+            nargin, argin = fn_def.argin, argout,
+            NameValueDefaults = fn_def.namevalue,
+            NameValueArgs, NameValueAltArgs,
+            $$ = {ctx:{ans:null}, "@fn":merge({}, (fn_def["@fns"]||[]).concat(fn_def["@fn"]||{}))},
             is_return = false,
-            ans, i, n;
+            ans, i, nexti, n;
 
         argin = argin.filter(function(arg) {
             if (('varargin' !== arg) && NameValueDefaults && NameValueDefaults.has(arg))
@@ -655,15 +656,42 @@ function def_fn(fn_def)
             }
             return true;
         });
-        args = args.filter(function(arg) {
-            if (is_instance(arg, namevalue))
+        nexti = -1;
+        args = args.filter(function(arg, i) {
+            if (i === nexti)
+            {
+                nexti = -1;
+                return false;
+            }
+            else if (is_instance(arg, namevalue))
             {
                 // Name=Value arguments
                 NameValueArgs = arg;
+                if (NameValueAltArgs)
+                {
+                    NameValueArgs.fill(NameValueAltArgs, 'defaults');
+                    NameValueAltArgs = null;
+                }
+                return false;
+            }
+            else if (NameValueDefaults && is_string(arg) && (i+1 < args.length) && NameValueDefaults.has(arg))
+            {
+                // older alternative "Name",Value argument pairs
+                if (NameValueArgs)
+                {
+                    NameValueArgs.set(arg, args[i+1]);
+                }
+                else
+                {
+                    if (!NameValueAltArgs) NameValueAltArgs = {};
+                    NameValueAltArgs[arg] = args[i+1];
+                }
+                nexti = i+1;
                 return false;
             }
             return true;
         });
+        nargin = args.length;
         for (i=0; i<args.length && i<argin.length; ++i)
         {
             if ('varargin' === argin[i])
@@ -680,13 +708,19 @@ function def_fn(fn_def)
         if (NameValueDefaults)
         {
             // Name=Value arguments
+            if (NameValueAltArgs)
+            {
+                if (NameValueArgs) NameValueArgs.fill(NameValueAltArgs, 'defaults');
+                else NameValueArgs = namevalue(NameValueAltArgs);
+            }
+            //if (NameValueArgs) nargin += NameValueArgs.all().length; // add them??
             await Promise.all(NameValueDefaults.all().map(async function(name) {
                 return {name:name, value:await vale(NameValueDefaults.get(name), null, {ctx:{}})};
             })).then(function(defaults) {
-                defaults.forEach(function(defaul) {
-                    if ('varargin' !== defaul.name)
+                defaults.forEach(function(arg) {
+                    if ('varargin' !== arg.name)
                     {
-                        $$.ctx[defaul.name] = NameValueArgs ? copy(NameValueArgs.get(defaul.name, defaul.value)) : defaul.value;
+                        $$.ctx[arg.name] = NameValueArgs ? copy(NameValueArgs.get(arg.name, arg.value)) : arg.value;
                     }
                 });
             });

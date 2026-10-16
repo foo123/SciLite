@@ -818,6 +818,103 @@ $_.exist = function(variable, ctx) {
     return is_obj(ctx) && is_string(variable) && HAS.call(ctx, variable) ? 1 : 0;
 };
 
+function namevalue(defaults)
+{
+    if (!is_instance(this, namevalue)) return new namevalue(defaults);
+    this._ = {};
+    if (defaults) this.fill(defaults/*, 'defaults'*/);
+}
+namevalue.prototype = {
+    constructor: namevalue,
+    _: null,
+    has: function(name) {
+        return HAS.call(this._, name);
+    },
+    get: function(name, default_value) {
+        return HAS.call(this._, name) ? this._[name] : default_value;
+    },
+    set: function(name, value) {
+        this._[name] = value;
+        return this;
+    },
+    fill: function(namevalues, mode) {
+        if (is_instance(namevalues, namevalue) || is_obj(namevalues))
+        {
+            var _ = this._, is_nv = is_instance(namevalues, namevalue);
+            KEYS(is_nv ? namevalues._ : namevalues).forEach('defaults' === mode ? function(name) {
+                if (!HAS.call(_, name)) _[name] = (is_nv ? namevalues._ : namevalues)[name];
+            } : function(name) {
+                _[name] = (is_nv ? namevalues._ : namevalues)[name];
+            });
+        }
+        return this;
+    },
+    all: function() {
+        return KEYS(this._);
+    }
+};
+$_.namevalue = namevalue;
+
+function namevalueargs(f, nv)
+{
+    return nv ? function(/*..args*/) {
+        var args = [].slice.call(arguments),
+            NameValueDefaults = namevalue(nv),
+            NameValueArgs, NameValueAltArgs,
+            nexti = -1;
+
+        args = args.filter(function(arg, i) {
+            if (i === nexti)
+            {
+                nexti = -1;
+                return false;
+            }
+            else if (is_instance(arg, namevalue))
+            {
+                // Name=Value arguments
+                NameValueArgs = arg;
+                if (NameValueAltArgs)
+                {
+                    NameValueArgs.fill(NameValueAltArgs, 'defaults');
+                    NameValueAltArgs = null;
+                }
+                return false;
+            }
+            else if (is_string(arg) && (i+1 < args.length) && NameValueDefaults.has(arg))
+            {
+                // older alternative "Name",Value argument pairs
+                if (NameValueArgs)
+                {
+                    NameValueArgs.set(arg, args[i+1]);
+                }
+                else
+                {
+                    if (!NameValueAltArgs) NameValueAltArgs = {};
+                    NameValueAltArgs[arg] = args[i+1];
+                }
+                nexti = i+1;
+                return false;
+            }
+            return true;
+        });
+
+        // Name=Value arguments
+        if (NameValueAltArgs)
+        {
+            if (NameValueArgs) NameValueArgs.fill(NameValueAltArgs, 'defaults');
+            else NameValueArgs = namevalue(NameValueAltArgs);
+        }
+        if (NameValueArgs)
+        {
+            NameValueDefaults.fill(NameValueArgs);
+        }
+        args.push(NameValueDefaults);
+
+        return f.apply(null, args);
+    } : f;
+}
+$_.namevalueargs = namevalueargs;
+
 function varargout(f, nargout_default)
 {
     if (!is_callable(f))
@@ -888,42 +985,6 @@ function $fn(name, func)
     });
 }
 $_.$fn = $fn;
-
-function namevalue(defaults)
-{
-    if (!is_instance(this, namevalue)) return new namevalue(defaults);
-    this._ = {};
-    if (defaults) this.fill(defaults, 'defaults');
-}
-namevalue.prototype = {
-    constructor: namevalue,
-    _: null,
-    has: function(name) {
-        return HAS.call(this._, name);
-    },
-    get: function(name, _default_) {
-        return HAS.call(this._, name) ? this._[name] : _default_;
-    },
-    set: function(name, value) {
-        this._[name] = value;
-        return this;
-    },
-    fill: function(namevalues, mode) {
-        if (is_instance(namevalues, namevalue) || is_obj(namevalues))
-        {
-            var _ = this._, is_namevalue = is_instance(namevalues, namevalue);
-            Object.keys(is_namevalue ? namevalues._ : namevalues).forEach('defaults' === mode ? function(name) {
-                if (!HAS.call(_, name)) _[name] = (is_namevalue ? namevalues._ : namevalues)[name];
-            } : function(name) {
-                _[name] = (is_namevalue ? namevalues._ : namevalues)[name];
-            });
-        }
-        return this;
-    },
-    all: function() {
-        return Object.keys(this._);
-    }
-};
 
 function num2str(x)
 {
