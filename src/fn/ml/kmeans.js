@@ -114,82 +114,68 @@ async function kmeans_init_plusplus(X, k, dist, speedup)
     }
     return centroids;
 }
-fn.kmeans = varargout(async function(nargout, X, k) {
-    var i = 3, j, n, m,
-        init = kmeans_init_plusplus,
-        dist = d_sqeuclidean,
-        max_iter = 100,
+fn.kmeans = varargout(namevalueargs(async function(nargout, X, k) {
+    var nv = arguments[arguments.length-1],
+        init, dist, max_iter,
         speedup = false,
-        ans;
+        i, j, n, m, ans;
     if (!is_matrix(X)) not_supported("kmeans");
-    while (i < arguments.length)
+    if (is_matrix(nv.Start))
     {
-        if ("Start" === arguments[i])
-        {
-            if (is_matrix(arguments[i+1]))
-            {
-                init = arguments[i+1];
-                if (COLS(init) !== COLS(X)) throw "kmeans: centroids and input must have same number of columns";
-                k = ROWS(init);
-            }
-            else
-            {
-                switch (arguments[i+1])
-                {
-                    case "cluster":
-                    // not used
-                    break;
-                    case "uniform":
-                    init = kmeans_init_random_partition;
-                    break;
-                    case "sample":
-                    init = kmeans_init_forgy;
-                    break;
-                    case "plus":
-                    default:
-                    init = kmeans_init_plusplus;
-                    break;
-                }
-            }
-        }
-        else if ("Distance" === arguments[i])
-        {
-            if (is_callable(arguments[i+1]))
-            {
-                dist = arguments[i+1]; // possibly async if user-defined
-            }
-            else
-            {
-                switch (arguments[i+1])
-                {
-                    case "hamming":
-                    dist = d_hamming;
-                    break;
-                    case "correlation":
-                    dist = d_correlation;
-                    break;
-                    case "cosine":
-                    dist = d_cosine;
-                    break;
-                    case "cityblock":
-                    dist = d_cityblock;
-                    break;
-                    case "euclidean":
-                    dist = d_euclidean;
-                    break;
-                    case "sqeuclidean":
-                    default:
-                    dist = d_sqeuclidean;
-                    break;
-                }
-            }
-        }
-        else if ("MaxIter" === arguments[i])
-        {
-            max_iter = stdMath.ceil(stdMath.abs(_(sca(arguments[i+1], true))));
-        }
-        i += 2;
+        init = nv.Start;
+        if (COLS(init) !== COLS(X)) throw "kmeans: centroids and input must have same number of columns";
+        k = ROWS(init);
     }
+    else
+    {
+        switch (nv.Start)
+        {
+            /*case "cluster":
+            // not used
+            break;*/
+            case "uniform":
+            init = kmeans_init_random_partition;
+            break;
+            case "sample":
+            init = kmeans_init_forgy;
+            break;
+            case "plus":
+            default:
+            init = kmeans_init_plusplus;
+            break;
+        }
+    }
+    if (is_callable(nv.Distance))
+    {
+        dist = nv.Distance; // possibly async if user-defined
+    }
+    else
+    {
+        switch (nv.Distance)
+        {
+            case "hamming":
+            dist = d_hamming;
+            break;
+            case "correlation":
+            dist = d_correlation;
+            break;
+            case "cosine":
+            dist = d_cosine;
+            break;
+            case "cityblock":
+            dist = d_cityblock;
+            break;
+            case "euclidean":
+            dist = d_euclidean;
+            break;
+            case "sqeuclidean":
+            default:
+            dist = d_sqeuclidean;
+            break;
+        }
+    }
+    max_iter = stdMath.ceil(stdMath.abs(_(sca(nv.MaxIter, true))));
+
     ans = await kmeans(X, k, is_matrix(init) ? init : await init(X, k, dist, speedup), dist, max_iter, speedup);
     ans[0] = ans[0].map(function(idx) {return idx+1;});
     if (1 === nargout)
@@ -228,4 +214,8 @@ fn.kmeans = varargout(async function(nargout, X, k) {
         }
     }
     return ans;
-});
+}, {
+   Start: "plus",
+   Distance: "sqeuclidean",
+   MaxIter: 100
+}));

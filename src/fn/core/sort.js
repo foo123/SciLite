@@ -94,33 +94,24 @@ function sort(x, dim, dir, cmp, with_indices)
     }
     not_supported("sort");
 }
-fn.sort = varargout(function(nargout, x, dim, dir/*, .. args*/) {
-    var i = 2, cmp = null;
-    while (i < arguments.length)
+fn.sort = varargout(namevalueargs(function(nargout, x, dim, dir) {
+    var nv = arguments[arguments.length-1], cmp = null;
+    if ('real' === nv.ComparisonMethod) cmp = cmp_real;
+    else if ('abs' === nv.ComparisonMethod) cmp = cmp_abs;
+    else if ('str' === nv.ComparisonMethod) cmp = cmp_str;
+    if (nv === dim)
     {
-        if ('ComparisonMethod' === arguments[i])
-        {
-            if ('real' === arguments[i+1]) cmp = cmp_real;
-            else if ('abs' === arguments[i+1]) cmp = cmp_abs;
-            else if ('str' === arguments[i+1]) cmp = cmp_str;
-            if (2 === i)
-            {
-                dim = 1;
-                dir = 'ascend';
-            }
-            else if (3 === i)
-            {
-                dir = 'ascend';
-            }
-            break;
-        }
-        else
-        {
-            i += 1;
-        }
+        dim = 1;
+        dir = 'ascend';
+    }
+    else if (nv === dir)
+    {
+        dir = 'ascend';
     }
     if (null == dir) dir = 'ascend';
     if (null == dim) dim = 1;
     dim = _(dim);
     return sort(x, dim, dir, cmp, 1 < nargout);
-});
+}, {
+    ComparisonMethod: null
+}));

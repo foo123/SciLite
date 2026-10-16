@@ -137,20 +137,13 @@ function pwcaffinity(s, damping, max_iter)
         return cluster + 1;
     });
 }
-fn.pwcaffinity = function(S) {
+fn.pwcaffinity = namevalueargs(function(S) {
     if (!is_matrix(S) || (ROWS(S) !== COLS(S))) not_supported("pwcaffinity");
-    var i = 1, damping = 0.5, max_iter = 100;
-    while (i < arguments.length)
-    {
-        if ("Damping" === arguments[i])
-        {
-            damping = stdMath.abs(_(sca(arguments[i+1], true)));
-        }
-        else if ("MaxIter" === arguments[i])
-        {
-            max_iter = stdMath.ceil(stdMath.abs(_(sca(arguments[i+1], true))));
-        }
-        i += 2;
-    }
+    var nv = arguments[arguments.length-1],
+        damping = stdMath.abs(_(sca(nv.Damping, true))),
+        max_iter = stdMath.ceil(stdMath.abs(_(sca(nv.MaxIter, true))));
     return pwcaffinity(S, damping, max_iter);
-};
+}, {
+    Damping: 0.5,
+    MaxIter: 100
+});

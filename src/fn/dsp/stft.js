@@ -72,43 +72,23 @@ function stft(inp, win, FFTLEN, OVERLAP, inv)
     }
     return out;
 }
-fn.stft = varargout(function(nargout, x) {
-    var i = 2, fs = 2*pi,
+fn.stft = varargout(namevalueargs(function(nargout, x) {
+    var nv = arguments[arguments.length-1],
         win = null, ovrl = null, nfft = null,
-        ans, f = null, t = null;
-    while (i < arguments.length)
+        fs = 2*pi, f = null, t = null, ans;
+    if ((2 < arguments.length) && is_scalar(arguments[2]))
     {
-        if ((2 === i) && is_scalar(arguments[i]))
-        {
-            fs = _(real(arguments[i]));
-            i += 1;
-        }
-        else if (("Window" === arguments[i]) && is_array(arguments[i+1]))
-        {
-            win = vec(arguments[i+1]);
-            i += 2;
-        }
-        else if (("OverlapLength" === arguments[i]) && is_scalar(arguments[i+1]))
-        {
-            ovrl = stdMath.round(_(real(arguments[i+1])));
-            i += 2;
-        }
-        else if (("FFTLength" === arguments[i]) && is_scalar(arguments[i+1]))
-        {
-            nfft = stdMath.round(_(real(arguments[i+1])));
-            i += 2;
-        }
-        else
-        {
-            i += 1;
-        }
+        fs = _(real(arguments[2]));
     }
-    if (null == win) win = vec(fn.hann(stdMath.min(x.length, 128), "periodic"));
-    if (null == nfft) nfft = stdMath.max(128, win.length);
-    if (null == ovrl) ovrl = stdMath.floor(0.75*win.length);
     x = vec(x);
     if (is_vector(x))
     {
+        win = nv.Window;
+        nfft = nv.FFTLength;
+        ovrl = nv.OverlapLength;
+        win = null == win ? vec(fn.hann(stdMath.min(x.length, 128), "periodic")) : vec(win);
+        nfft = null == nfft ? stdMath.max(128, win.length) : stdMath.round(_(real(nfft)));
+        ovrl = null == ovrl ? stdMath.floor(0.75*win.length) : stdMath.round(_(real(ovrl)));
         ans = realify(stft(complexify(x), win, nfft, ovrl, false));
         if (1 < nargout)
         {
@@ -128,49 +108,40 @@ fn.stft = varargout(function(nargout, x) {
         not_supported("stft");
     }
     return 1 < nargout ? [ans, f, t] : ans;
-});
-fn.istft = varargout(function(nargout, X) {
-    var i = 2, fs = 2*pi,
+}, {
+   Window: null,
+   FFTLength: null,
+   OverlapLength: null
+}));
+fn.istft = varargout(namevalueargs(function(nargout, X) {
+    var nv = arguments[arguments.length-1],
         win = null, ovrl = null, nfft = null,
-        ans, t = null;
-    while (i < arguments.length)
+        fs = 2*pi, t = null, ans;
+    if ((2 < arguments.length) && is_scalar(arguments[2]))
     {
-        if ((2 === i) && is_scalar(arguments[i]))
+        fs = _(real(arguments[2]));
+    }
+    if (is_matrix(X))
+    {
+        win = nv.Window;
+        nfft = nv.FFTLength;
+        ovrl = nv.OverlapLength;
+        win = null == win ? vec(fn.hann(stdMath.min(x.length, 128), "periodic")) : vec(win);
+        nfft = null == nfft ? stdMath.max(128, win.length) : stdMath.round(_(real(nfft)));
+        ovrl = null == ovrl ? stdMath.floor(0.75*win.length) : stdMath.round(_(real(ovrl)));
+        if (nfft === ROWS(X))
         {
-            fs = _(real(arguments[i]));
-            i += 1;
-        }
-        else if (("Window" === arguments[i]) && is_array(arguments[i+1]))
-        {
-            win = vec(arguments[i+1]);
-            i += 2;
-        }
-        else if (("OverlapLength" === arguments[i]) && is_scalar(arguments[i+1]))
-        {
-            ovrl = stdMath.round(_(real(arguments[i+1])));
-            i += 2;
-        }
-        else if (("FFTLength" === arguments[i]) && is_scalar(arguments[i+1]))
-        {
-            nfft = stdMath.round(_(real(arguments[i+1])));
-            i += 2;
+            ans = realify(stft(complexify(X), win, nfft, ovrl, true));
+            if (1 < nargout)
+            {
+                t = array(COLS(X), function(m) {
+                    return __(m*stdMath.max(1, win.length - ovrl + 1)/fs);
+                });
+            }
         }
         else
         {
-            i += 1;
-        }
-    }
-    if (null == win) win = vec(fn.hann(stdMath.min(X.length, 128), "periodic"));
-    if (null == nfft) nfft = stdMath.max(128, win.length);
-    if (null == ovrl) ovrl = stdMath.floor(0.75*win.length);
-    if (is_matrix(X) && (nfft === ROWS(X)))
-    {
-        ans = realify(stft(complexify(X), win, nfft, ovrl, true));
-        if (1 < nargout)
-        {
-            t = array(COLS(X), function(m) {
-                return __(m*stdMath.max(1, win.length - ovrl + 1)/fs);
-            });
+            not_supported("istft");
         }
     }
     else
@@ -178,4 +149,8 @@ fn.istft = varargout(function(nargout, X) {
         not_supported("istft");
     }
     return 1 < nargout ? [ans, t] : ans;
-});
+}, {
+   Window: null,
+   FFTLength: null,
+   OverlapLength: null
+}));

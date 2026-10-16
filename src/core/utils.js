@@ -859,10 +859,21 @@ function namevalueargs(f, nv)
 {
     return nv ? function(/*..args*/) {
         var args = [].slice.call(arguments),
-            NameValueDefaults = namevalue(nv),
+            NameValueDefaults = namevalue(KEYS(nv).reduce(function(_, name) {
+                _[name] = copy(nv[name]);
+                return _;
+            }, {})),
             NameValueArgs, NameValueAltArgs,
-            nexti = -1;
+            i, nexti = -1, n;
 
+        for (i=0,n=args.length; i<n; ++i)
+        {
+            if (is_instance(args[i], namevalue))
+            {
+                NameValueArgs = args[i]; // Name=Value args present
+                break;
+            }
+        }
         args = args.filter(function(arg, i) {
             if (i === nexti)
             {
@@ -872,26 +883,26 @@ function namevalueargs(f, nv)
             else if (is_instance(arg, namevalue))
             {
                 // Name=Value arguments
-                NameValueArgs = arg;
+                /*NameValueArgs = arg;
                 if (NameValueAltArgs)
                 {
                     NameValueArgs.fill(NameValueAltArgs, 'defaults');
                     NameValueAltArgs = null;
-                }
+                }*/
                 return false;
             }
-            else if (is_string(arg) && (i+1 < args.length) && NameValueDefaults.has(arg))
+            else if (!NameValueArgs && is_string(arg) && (i+1 < args.length) && NameValueDefaults.has(arg))
             {
                 // older alternative "Name",Value argument pairs
-                if (NameValueArgs)
+                /*if (NameValueArgs)
                 {
                     NameValueArgs.set(arg, args[i+1]);
                 }
                 else
-                {
+                {*/
                     if (!NameValueAltArgs) NameValueAltArgs = {};
                     NameValueAltArgs[arg] = args[i+1];
-                }
+                /*}*/
                 nexti = i+1;
                 return false;
             }
@@ -908,7 +919,7 @@ function namevalueargs(f, nv)
         {
             NameValueDefaults.fill(NameValueArgs);
         }
-        args.push(NameValueDefaults);
+        args.push(NameValueDefaults); // NameValue args last
 
         return f.apply(null, args);
     } : f;

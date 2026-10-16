@@ -1,48 +1,41 @@
-fn.corr = varargout(function(nargout, X) {
+fn.corr = varargout(namevalueargs(function(nargout, X) {
     if (1 < nargout) throw "corr: only one output is supported";
     if (is_scalar(X)) X = [[X]];
     if (!is_matrix(X)) not_supported("corr");
-    var i = 2, corrfunc = pearson, param = null, Y, promises = [], ans;
-    if ((i < arguments.length) && is_array(arguments[i]))
+    var nv = arguments[arguments.length-1],
+        Y = (2 < arguments.length) && is_array(arguments[2]) ? arguments[2] : X,
+        corrfunc = pearson, param = null, promises = [], ans;
+    if (!is_matrix(Y) || (ROWS(X) !== ROWS(Y))) not_supported("corr");
+    if (is_callable(nv.Type))
     {
-        Y = arguments[i];
-        ++i;
+        corrfunc = nv.Type;
     }
     else
     {
-        Y = X;
-    }
-    if ((i < arguments.length) && ("Type" === arguments[i]))
-    {
-        if (is_callable(arguments[i+1]))
+        switch (nv.Type)
         {
-            corrfunc = arguments[i+1];
-        }
-        else
-        {
-            switch (arguments[i+1])
-            {
-                case "CramerV":
-                param = 'correctbias' === arguments[i+2] ? 'correctbias' : null;
-                corrfunc = function(a, b) {return cramer_v(a, b, param);};
-                break;
-                case "Spearman":
-                corrfunc = spearman;
-                break;
-                case "Kendall":
-                corrfunc = kendall;
-                break;
-                case "Pearson":
-                default:
-                corrfunc = pearson;
-                break;
-            }
+            case "CramerV":
+            param = nv.CorrectBias ? 'correctbias' : null;
+            corrfunc = function(a, b) {return cramer_v(a, b, param);};
+            break;
+            case "Spearman":
+            corrfunc = spearman;
+            break;
+            case "Kendall":
+            corrfunc = kendall;
+            break;
+            case "Pearson":
+            default:
+            corrfunc = pearson;
+            break;
         }
     }
-    if (!is_matrix(Y) || (ROWS(X) !== ROWS(Y))) not_supported("corr");
     ans = matrix(COLS(X), COLS(Y), function(i, j) {
         var c = corrfunc(COL(X, i), COL(Y, j));
         if (is_instance(c, Promise)) promises.push(c);
     });
     return promises.length ? Promise.all(promises).then(function() {return ans;}) : ans;
-});
+}, {
+    Type: "Pearson",
+    CorrectBias: null
+}));

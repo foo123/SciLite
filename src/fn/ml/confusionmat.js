@@ -36,6 +36,9 @@ function confusionmat(actual, predicted, order, nargout)
     ;
     return 1 < nargout ? [mat, order] : mat;
 }
-fn.confusionmat = varargout(function(nargout, actual, predicted) {
-    return confusionmat(actual, predicted, "Order" === arguments[3] ? arguments[4] : null, nargout);
-});
+fn.confusionmat = varargout(namevalueargs(function(nargout, actual, predicted) {
+    var nv = arguments[arguments.length-1];
+    return confusionmat(actual, predicted, vec(nv.Order), nargout);
+}, {
+    Order: null
+}));

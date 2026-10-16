@@ -642,55 +642,65 @@ function def_fn(fn_def)
     var fn = varargout(async function(nargout) {
         var args = [].slice.call(arguments, 1),
             nargin, argin = fn_def.argin, argout,
-            NameValueDefaults = fn_def.namevalue,
+            NameValueDefaults = fn_def.nv,
             NameValueArgs, NameValueAltArgs,
             $$ = {ctx:{ans:null}, "@fn":merge({}, (fn_def["@fns"]||[]).concat(fn_def["@fn"]||{}))},
-            is_return = false,
-            ans, i, nexti, n;
+            is_return = false, ans,
+            i, nexti = -1, n;
 
-        argin = argin.filter(function(arg) {
-            if (('varargin' !== arg) && NameValueDefaults && NameValueDefaults.has(arg))
-            {
-                // Name=Value default arguments
-                return false;
-            }
-            return true;
-        });
-        nexti = -1;
-        args = args.filter(function(arg, i) {
-            if (i === nexti)
-            {
-                nexti = -1;
-                return false;
-            }
-            else if (is_instance(arg, namevalue))
-            {
-                // Name=Value arguments
-                NameValueArgs = arg;
-                if (NameValueAltArgs)
+        if (NameValueDefaults)
+        {
+            argin = argin.filter(function(arg) {
+                if (('varargin' !== arg) && NameValueDefaults.has(arg))
                 {
-                    NameValueArgs.fill(NameValueAltArgs, 'defaults');
-                    NameValueAltArgs = null;
+                    // Name=Value default arguments
+                    return false;
                 }
-                return false;
-            }
-            else if (NameValueDefaults && is_string(arg) && (i+1 < args.length) && NameValueDefaults.has(arg))
+                return true;
+            });
+            for (i=0,n=args.length; i<n; ++i)
             {
-                // older alternative "Name",Value argument pairs
-                if (NameValueArgs)
+                if (is_instance(args[i], namevalue))
                 {
-                    NameValueArgs.set(arg, args[i+1]);
+                    NameValueArgs = args[i]; // Name=Value args present
+                    break;
                 }
-                else
-                {
-                    if (!NameValueAltArgs) NameValueAltArgs = {};
-                    NameValueAltArgs[arg] = args[i+1];
-                }
-                nexti = i+1;
-                return false;
             }
-            return true;
-        });
+            args = args.filter(function(arg, i) {
+                if (i === nexti)
+                {
+                    nexti = -1;
+                    return false;
+                }
+                else if (is_instance(arg, namevalue))
+                {
+                    // Name=Value arguments
+                    /*NameValueArgs = arg;
+                    if (NameValueAltArgs)
+                    {
+                        NameValueArgs.fill(NameValueAltArgs, 'defaults');
+                        NameValueAltArgs = null;
+                    }*/
+                    return false;
+                }
+                else if (!NameValueArgs && is_string(arg) && (i+1 < args.length) && NameValueDefaults.has(arg))
+                {
+                    // older alternative "Name",Value argument pairs
+                    /*if (NameValueArgs)
+                    {
+                        NameValueArgs.set(arg, args[i+1]);
+                    }
+                    else
+                    {*/
+                        if (!NameValueAltArgs) NameValueAltArgs = {};
+                        NameValueAltArgs[arg] = args[i+1];
+                    /*}*/
+                    nexti = i+1;
+                    return false;
+                }
+                return true;
+            });
+        }
         nargin = args.length;
         for (i=0; i<args.length && i<argin.length; ++i)
         {
@@ -1437,7 +1447,7 @@ function parse(s, ctx, lineStart, posStart)
             {
                 end(true);
                 eat(/^[ \t\v\f]+/);
-                arg = {argout:null, name:null, argin:null, namevalue:namevalue(), "@fns":fns.slice().reverse(), "@fn":{}, body:[]};
+                arg = {argout:null, name:null, argin:null, nv:null, "@fns":fns.slice().reverse(), "@fn":{}, body:[]};
                 if (match = eat(/^([_a-z][_a-z0-9]*)[ \t\v\f]*=[ \t\v\f]*/i))
                 {
                     // single output
@@ -1471,7 +1481,11 @@ function parse(s, ctx, lineStart, posStart)
                                 {
                                     // Name=Value default arg
                                     tmp = parse_until(',)');
-                                    if (is_instance(tmp, expr)) arg.namevalue.set(match[0], tmp);
+                                    if (is_instance(tmp, expr))
+                                    {
+                                        if (!arg.nv) arg.nv = namevalue();
+                                        arg.nv.set(match[0], tmp);
+                                    }
                                     else throw error('missing or invalid Name=Value function argument');
                                 }
                                 eat(/^[ \t\v\f]*/);
@@ -1790,7 +1804,7 @@ function parse(s, ctx, lineStart, posStart)
                 if (match = eat(/^@\(([ \t\v\f]*[_a-z][_a-z0-9]*(?:[ \t\v\f]*,[ \t\v\f]*[_a-z][_a-z0-9]*)*[ \t\v\f]*)\)/i))
                 {
                     // anonymous function
-                    arg = {argout:['*'], name:'', argin:match[1].split(',').map(function(s) {return s.trim();}), namevalue:null, "@fns":[], "@fn":{}, body:[]};
+                    arg = {argout:['*'], name:'', argin:match[1].split(',').map(function(s) {return s.trim();}), nv:null, "@fns":[], "@fn":{}, body:[]};
                     tmp = parse_until(',)]};');
                     if (tmp) arg.body = arg.body.concat(tmp);
                     terms.unshift(expr(def_fn(arg), null, ln));

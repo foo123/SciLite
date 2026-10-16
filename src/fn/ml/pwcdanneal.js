@@ -114,21 +114,14 @@ function pwcdanneal(D, k, alpha, max_iter)
         return cluster+1;
     });
 }
-fn.pwcdanneal = function(D, k) {
+fn.pwcdanneal = namevalueargs(function(D, k) {
     k = stdMath.round(_(sca(k, true)));
     if ((0 >= k) || !is_matrix(D) || (ROWS(D) !== COLS(D))) not_supported("pwcdanneal");
-    var i = 2, alpha = 0.75, max_iter = 100;
-    while (i < arguments.length)
-    {
-        if ("Alpha" === arguments[i])
-        {
-            alpha = stdMath.abs(_(sca(arguments[i+1], true)));
-        }
-        else if ("MaxIter" === arguments[i])
-        {
-            max_iter = stdMath.ceil(stdMath.abs(_(sca(arguments[i+1], true))));
-        }
-        i += 2;
-    }
+    var nv = arguments[arguments.length-1],
+        alpha = stdMath.abs(_(sca(nv.Alpha, true))),
+        max_iter = stdMath.ceil(stdMath.abs(_(sca(nv.MaxIter, true))));
     return pwcdanneal(D, k, alpha, max_iter);
-};
+}, {
+    Alpha: 0.75,
+    MaxIter: 100
+});
