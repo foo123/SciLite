@@ -4,7 +4,7 @@ fn.corr = varargout(namevalueargs(function(nargout, X) {
     if (!is_matrix(X)) not_supported("corr");
     var nv = arguments[arguments.length-1],
         Y = (2 < arguments.length) && is_array(arguments[2]) ? arguments[2] : X,
-        corrfunc = pearson, param = null, promises = [], ans;
+        corrfunc = pearson, promises = [], ans;
     if (!is_matrix(Y) || (ROWS(X) !== ROWS(Y))) not_supported("corr");
     if (is_callable(nv.Type))
     {
@@ -15,8 +15,7 @@ fn.corr = varargout(namevalueargs(function(nargout, X) {
         switch (nv.Type)
         {
             case "CramerV":
-            param = nv.CorrectBias ? 'correctbias' : null;
-            corrfunc = function(a, b) {return cramer_v(a, b, param);};
+            corrfunc = _(nv.CorrectBias) ? function(a, b) {return cramer_v(a, b, 'correctbias');} : function(a, b) {return cramer_v(a, b);};
             break;
             case "Spearman":
             corrfunc = spearman;
@@ -37,5 +36,5 @@ fn.corr = varargout(namevalueargs(function(nargout, X) {
     return promises.length ? Promise.all(promises).then(function() {return ans;}) : ans;
 }, {
     Type: "Pearson",
-    CorrectBias: null
+    CorrectBias: 0
 }));

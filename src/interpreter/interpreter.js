@@ -643,10 +643,10 @@ function def_fn(fn_def)
         var args = [].slice.call(arguments, 1),
             nargin, argin = fn_def.argin, argout,
             NameValueDefaults = fn_def.nv,
-            NameValueArgs, NameValueAltArgs,
+            NameValueArgs, NameValueAltArgs, AltBackup,
             $$ = {ctx:{ans:null}, "@fn":merge({}, (fn_def["@fns"]||[]).concat(fn_def["@fn"]||{}))},
             is_return = false, ans,
-            i, nexti = -1, n;
+            i, nexti = -1, a, arg, n;
 
         if (NameValueDefaults)
         {
@@ -666,11 +666,15 @@ function def_fn(fn_def)
                     break;
                 }
             }
-            args = args.filter(function(arg, i) {
+            a = args;
+            args = [];
+            for (i=0,n=a.length; i<n; ++i)
+            {
+                arg = a[i];
                 if (i === nexti)
                 {
                     nexti = -1;
-                    return false;
+                    continue;
                 }
                 else if (is_instance(arg, namevalue))
                 {
@@ -681,28 +685,43 @@ function def_fn(fn_def)
                         NameValueArgs.fill(NameValueAltArgs, 'defaults');
                         NameValueAltArgs = null;
                     }*/
-                    return false;
+                    continue;
                 }
-                else if (!NameValueArgs && is_string(arg) && (i+1 < args.length) && NameValueDefaults.has(arg))
+                else if (!NameValueArgs && is_string(arg) && (i+1 < a.length) && NameValueDefaults.has(arg))
                 {
                     // older alternative "Name",Value argument pairs
                     /*if (NameValueArgs)
                     {
-                        NameValueArgs.set(arg, args[i+1]);
+                        NameValueArgs.set(arg, a[i+1]);
                     }
                     else
                     {*/
-                        if (!NameValueAltArgs) NameValueAltArgs = {};
-                        NameValueAltArgs[arg] = args[i+1];
+                        if (!NameValueAltArgs)
+                        {
+                            NameValueAltArgs = {};
+                            AltBackup = [];
+                        }
+                        NameValueAltArgs[arg] = a[i+1];
+                        AltBackup.push(arg);
+                        AltBackup.push(a[i+1]);
                     /*}*/
                     nexti = i+1;
-                    return false;
+                    continue;
                 }
-                return true;
-            });
+                if (NameValueAltArgs)
+                {
+                    // "Name",Value argument pairs are not last, push them back
+                    args.push.apply(args, AltBackup);
+                    NameValueAltArgs = null;
+                    AltBackup = null;
+                }
+                args.push(arg);
+            }
         }
+        AltBackup = null;
+        a = null;
         nargin = args.length;
-        for (i=0; i<args.length && i<argin.length; ++i)
+        for (i=0; i<argin.length; ++i)
         {
             if ('varargin' === argin[i])
             {
@@ -712,7 +731,7 @@ function def_fn(fn_def)
             }
             else
             {
-                $$.ctx[argin[i]] = copy(args[i]); // pass by value
+                $$.ctx[argin[i]] = i < args.length ? copy(args[i]) : null; // pass by value
             }
         }
         if (NameValueDefaults)
@@ -1751,7 +1770,7 @@ function parse(s, ctx, lineStart, posStart)
                         for (;;)
                         {
                             tmp = parse_until(',)');
-                            if (tmp) arg.push(tmp);
+                            if (tmp) arg.push(expr('arg', tmp));
                             if (!eat(',')) break;
                         }
                         if (!eat(')')) throw error("mismatched parentheses");
@@ -1924,7 +1943,7 @@ function parse(s, ctx, lineStart, posStart)
                         for (;;)
                         {
                             tmp = parse_until(',)');
-                            if (tmp) arg.push(tmp);
+                            if (tmp) arg.push(expr('arg', tmp));
                             if (!eat(',')) break;
                         }
                         if (!eat(')')) throw error("mismatched parentheses");
@@ -2075,9 +2094,21 @@ async function evaluate(e, v, $$, vf2v)
     var f, argout, nargout, tmp, tmpe, n, arg, ctx, ret;
     if (is_instance(e, expr))
     {
+        if ('arg' === e.op)
+        {
+            // argument, delegate
+            e = e.arg;
+            if ((OP['(=)'].fn !== e.op) && $$ && $$.nv) $$.nv = null; // reset namevalue if needed
+        }
         if ('v_or_f' === e.op)
         {
             e = await v_or_f(e, v, $$, vf2v);
+        }
+        if ('arg' === e.op)
+        {
+            // argument, delegate
+            e = e.arg;
+            if ((OP['(=)'].fn !== e.op) && $$ && $$.nv) $$.nv = null; // reset namevalue if needed
         }
         if ('' === e.op)
         {
@@ -2151,8 +2182,8 @@ async function evaluate(e, v, $$, vf2v)
         {
             // Name=Value arg
             $$ = $$ || {};
-            arg = $$.nv;
-            if (!is_instance(arg, namevalue))
+            $$.nv = $$.nv || namevalue(); // init namevalue if needed
+            if (!is_instance($$.nv, namevalue))
             {
                 throw 'invalid Name=Value argument' + (e.ln ? "\nat: " + e.ln : "");
             }
@@ -2169,7 +2200,7 @@ async function evaluate(e, v, $$, vf2v)
             {
                 throw 'invalid Name=Value argument' + (e.ln ? "\nat: " + e.ln : "");
             }
-            arg = [arg, n].concat(await Promise.all(e.arg.slice(1).map(function(e) {return evaluate(e, v, $$);})));
+            arg = [$$.nv, n].concat(await Promise.all(e.arg.slice(1).map(function(e) {return evaluate(e, v, $$);})));
             try {
                 ret = await e.op.apply(null, arg);
             } catch (err) {
@@ -2249,8 +2280,8 @@ async function evaluate(e, v, $$, vf2v)
         {
             // other operator/function
             $$ = $$ || {};
-            n = $$.nv;
-            $$.nv = namevalue();
+            //n = $$.nv;
+            //$$.nv = namevalue();
             f = is_int($$.nargout) && is_callable(e.op.nargout) ? e.op.nargout($$.nargout) : e.op;
             arg = await Promise.all(e.arg.map(function(e) {return evaluate(e, v, $$, vf2v);}));
             try {
@@ -2258,7 +2289,7 @@ async function evaluate(e, v, $$, vf2v)
             } catch (err) {
                 throw ((err.message || err) + (e.ln ? "\nat: " + e.ln : ""));
             }
-            $$.nv = n;
+            //$$.nv = n;
             return ret;
         }
     }

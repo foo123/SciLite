@@ -34,8 +34,8 @@ function stft(inp, win, FFTLEN, OVERLAP, inv)
             // win should satisfy certain conditions (COLA) for exact inverse reconstruction
             for (k=0; k<WLEN; ++k)
             {
-                if (j+k >= N) break;
-                out[j+k] = scalar_add(out[j+k], scalar_mul(real(wx[pad+k]), win[k]));
+                if (j+pad+k >= N) break;
+                out[j+pad+k] = scalar_add(out[j+pad+k], scalar_mul(wx[pad+k], win[k]));
             }
         }
     }
@@ -86,7 +86,7 @@ fn.stft = varargout(namevalueargs(function(nargout, x) {
         win = nv.Window;
         nfft = nv.FFTLength;
         ovrl = nv.OverlapLength;
-        win = null == win ? vec(fn.hann(stdMath.min(x.length, 128), "periodic")) : vec(win);
+        win = null == win ? vec(fn.hann(128, "periodic")) : vec(win);
         nfft = null == nfft ? stdMath.max(128, win.length) : stdMath.round(_(real(nfft)));
         ovrl = null == ovrl ? stdMath.floor(0.75*win.length) : stdMath.round(_(real(ovrl)));
         ans = realify(stft(complexify(x), win, nfft, ovrl, false));
@@ -126,7 +126,7 @@ fn.istft = varargout(namevalueargs(function(nargout, X) {
         win = nv.Window;
         nfft = nv.FFTLength;
         ovrl = nv.OverlapLength;
-        win = null == win ? vec(fn.hann(stdMath.min(x.length, 128), "periodic")) : vec(win);
+        win = null == win ? vec(fn.hann(128, "periodic")) : vec(win);
         nfft = null == nfft ? stdMath.max(128, win.length) : stdMath.round(_(real(nfft)));
         ovrl = null == ovrl ? stdMath.floor(0.75*win.length) : stdMath.round(_(real(ovrl)));
         if (nfft === ROWS(X))

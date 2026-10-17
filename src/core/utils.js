@@ -851,34 +851,47 @@ namevalue.prototype = {
     },
     all: function() {
         return KEYS(this._);
+    },
+    clone: function() {
+        var self = this;
+        return namevalue(self.all().reduce(function(_, name) {
+            _[name] = copy(self._[name]);
+            return _;
+        }, {}));
     }
 };
 $_.namevalue = namevalue;
 
-function namevalueargs(f, nv)
+function namevalueargs(f, nv, repeatable)
 {
+    repeatable = 'repeatable' === repeatable;
     return nv ? function(/*..args*/) {
         var args = [].slice.call(arguments),
             NameValueDefaults = namevalue(KEYS(nv).reduce(function(_, name) {
                 _[name] = copy(nv[name]);
                 return _;
-            }, {})),
-            NameValueArgs, NameValueAltArgs,
-            i, nexti = -1, n;
+            }, {})), nvs = [],
+            NameValueArgs, NameValueAltArgs, AltBackup,
+            i, nexti = -1, a, arg, n;
 
         for (i=0,n=args.length; i<n; ++i)
         {
             if (is_instance(args[i], namevalue))
             {
                 NameValueArgs = args[i]; // Name=Value args present
+                if (repeatable) nvs.push(NameValueArgs);
                 break;
             }
         }
-        args = args.filter(function(arg, i) {
+        a = args;
+        args = [];
+        for (i=0,n=a.length; i<n; ++i)
+        {
+            arg = a[i];
             if (i === nexti)
             {
                 nexti = -1;
-                return false;
+                continue;
             }
             else if (is_instance(arg, namevalue))
             {
@@ -889,37 +902,80 @@ function namevalueargs(f, nv)
                     NameValueArgs.fill(NameValueAltArgs, 'defaults');
                     NameValueAltArgs = null;
                 }*/
-                return false;
+                if (repeatable && (-1 === nvs.indexOf(arg)))
+                {
+                    nvs.push(arg);
+                }
+                continue;
             }
-            else if (!NameValueArgs && is_string(arg) && (i+1 < args.length) && NameValueDefaults.has(arg))
+            else if (!NameValueArgs && is_string(arg) && (i+1 < a.length) && NameValueDefaults.has(arg))
             {
                 // older alternative "Name",Value argument pairs
                 /*if (NameValueArgs)
                 {
-                    NameValueArgs.set(arg, args[i+1]);
+                    NameValueArgs.set(arg, a[i+1]);
                 }
                 else
                 {*/
-                    if (!NameValueAltArgs) NameValueAltArgs = {};
-                    NameValueAltArgs[arg] = args[i+1];
+                    if (!NameValueAltArgs)
+                    {
+                        NameValueAltArgs = {};
+                        AltBackup = [];
+                    }
+                    NameValueAltArgs[arg] = a[i+1];
+                    AltBackup.push(arg);
+                    AltBackup.push(a[i+1]);
                 /*}*/
                 nexti = i+1;
-                return false;
+                continue;
             }
-            return true;
-        });
-
+            if (NameValueAltArgs)
+            {
+                if (repeatable)
+                {
+                    nvs.push(namevalue(NameValueAltArgs));
+                }
+                else
+                {
+                    // "Name",Value argument pairs are not last, push them back
+                    args.push.apply(args, AltBackup);
+                }
+                NameValueAltArgs = null;
+                AltBackup = null;
+            }
+            args.push(arg);
+        }
+        AltBackup = null;
+        a = null;
         // Name=Value arguments
-        if (NameValueAltArgs)
+        if (repeatable)
         {
-            if (NameValueArgs) NameValueArgs.fill(NameValueAltArgs, 'defaults');
-            else NameValueArgs = namevalue(NameValueAltArgs);
+            if (NameValueAltArgs)
+            {
+                nvs.push(namevalue(NameValueAltArgs));
+                NameValueAltArgs = null;
+            }
+            else if (!nvs.length)
+            {
+                nvs.push(namevalue());
+            }
+            args.push(nvs.map(function(nv) {
+                return nv.fill(NameValueDefaults, 'defaults');
+            })); // NameValues args last
         }
-        if (NameValueArgs)
+        else
         {
-            NameValueDefaults.fill(NameValueArgs);
+            if (NameValueAltArgs)
+            {
+                if (NameValueArgs) NameValueArgs.fill(NameValueAltArgs, 'defaults');
+                else NameValueArgs = namevalue(NameValueAltArgs);
+            }
+            if (NameValueArgs)
+            {
+                NameValueDefaults.fill(NameValueArgs);
+            }
+            args.push(NameValueDefaults); // NameValue args last
         }
-        args.push(NameValueDefaults); // NameValue args last
 
         return f.apply(null, args);
     } : f;
