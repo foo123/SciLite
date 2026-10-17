@@ -720,18 +720,28 @@ function def_fn(fn_def)
         }
         AltBackup = null;
         a = null;
-        nargin = args.length;
+        /* The value that nargin returns does not include optional input arguments that are not included in the function call.
+        Also, nargin does not count any name-value arguments, but counts varargin args.
+        */
+        nargin = 0;
         for (i=0; i<argin.length; ++i)
         {
             if ('varargin' === argin[i])
             {
+                // must be last
                 $$.ctx.varargin = args.slice(i).map(copy); // pass by value
                 $$.ctx.varargin = cellarray($$.ctx.varargin, [$$.ctx.varargin.length]);
+                nargin += $$.ctx.varargin.length;
                 break;
+            }
+            else if (i < args.length)
+            {
+                nargin += 1;
+                $$.ctx[argin[i]] = copy(args[i]); // pass by value
             }
             else
             {
-                $$.ctx[argin[i]] = i < args.length ? copy(args[i]) : null; // pass by value
+                $$.ctx[argin[i]] = null; // not set
             }
         }
         if (NameValueDefaults)
