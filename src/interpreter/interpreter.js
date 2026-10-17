@@ -2114,12 +2114,6 @@ async function evaluate(e, v, $$, vf2v)
         {
             e = await v_or_f(e, v, $$, vf2v);
         }
-        if ('arg' === e.op)
-        {
-            // argument, delegate
-            e = e.arg;
-            if ((OP['(=)'].fn !== e.op) && $$ && $$.nv) $$.nv = null; // reset namevalue if needed
-        }
         if ('' === e.op)
         {
             // value
@@ -2210,9 +2204,8 @@ async function evaluate(e, v, $$, vf2v)
             {
                 throw 'invalid Name=Value argument' + (e.ln ? "\nat: " + e.ln : "");
             }
-            arg = [$$.nv, n].concat(await Promise.all(e.arg.slice(1).map(function(e) {return evaluate(e, v, $$);})));
             try {
-                ret = await e.op.apply(null, arg);
+                ret = await e.op.apply(null, [$$.nv, n, await evaluate(e.arg[1], v, $$)]);
             } catch (err) {
                 throw ((err.message || err) + (e.ln ? "\nat: " + e.ln : ""));
             }
@@ -2234,11 +2227,11 @@ async function evaluate(e, v, $$, vf2v)
                 if ($$.ctx) argout.new_ctx($$.ctx);
             }
             tmpe = e.arg[1];
-            if ((2 === e.arg.length) && ('v_or_f' === tmpe.op))
+            if (('v_or_f' === tmpe.op)
             {
                 tmpe = await v_or_f(tmpe, v, $$);
             }
-            if ((2 === e.arg.length) && ('v' === tmpe.op) && !is_instance(tmpe.arg.v, expr))
+            if (('v' === tmpe.op) && !is_instance(tmpe.arg.v, expr))
             {
                 tmp = null;
                 //arg = [argout, /*(e.arg[0].arg.v === e.arg[1].arg.v) ||*/ e.arg[1].arg.isByRef() ? copy(await evaluate(e.arg[1], v, $$)) : await evaluate(e.arg[1], v, $$)];
@@ -2265,9 +2258,8 @@ async function evaluate(e, v, $$, vf2v)
             else
             {
                 // eg A = other expr
-                arg = [argout].concat(await Promise.all([tmpe].concat(e.arg.slice(2)).map(function(e) {return evaluate(e, v, $$);})));
                 try {
-                    ret = await e.op.apply(null, arg);
+                    ret = await e.op.apply(null, [argout, await evaluate(tmpe, v, $$)]);
                 } catch (err) {
                     throw ((err.message || err) + (e.ln ? "\nat: " + e.ln : ""));
                 }
@@ -2289,33 +2281,28 @@ async function evaluate(e, v, $$, vf2v)
         else if (is_callable(e.op))
         {
             // other operator/function
-            $$ = $$ || {};
-            //n = $$.nv;
-            //$$.nv = namevalue();
-            f = is_int($$.nargout) && is_callable(e.op.nargout) ? e.op.nargout($$.nargout) : e.op;
-            arg = await Promise.all(e.arg.map(function(e) {return evaluate(e, v, $$, vf2v);}));
+            f = $$ && is_int($$.nargout) && is_callable(e.op.nargout) ? e.op.nargout($$.nargout) : e.op;
             try {
-                ret = await f.apply(null, arg);
+                ret = await f.apply(null, await vale(e.arg, v, $$, vf2v));
             } catch (err) {
                 throw ((err.message || err) + (e.ln ? "\nat: " + e.ln : ""));
             }
-            //$$.nv = n;
             return ret;
         }
     }
     throw "invalid expr";
 }
-async function vale(x, v, $)
+async function vale(x, v, $$, vf2v)
 {
     if (is_instance(x, expr))
     {
-        return await evaluate(x, v, $);
+        return await evaluate(x, v, $$, vf2v);
     }
     else if (is_array(x))
     {
         for (var i=0,n=x.length,y=new Array(n); i<n; ++i)
         {
-            y[i] = await vale(x[i], v, $);
+            y[i] = await vale(x[i], v, $$, vf2v);
         }
         return y;
     }

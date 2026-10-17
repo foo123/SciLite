@@ -870,8 +870,8 @@ function namevalueargs(f, nv, repeatable)
             NameValueDefaults = namevalue(KEYS(nv).reduce(function(_, name) {
                 _[name] = copy(nv[name]);
                 return _;
-            }, {})), nvs = [],
-            NameValueArgs, NameValueAltArgs, AltBackup,
+            }, {})), NameValueArgs,
+            NameValueAltArgs, AltBackup,
             i, nexti = -1, a, arg, n;
 
         for (i=0,n=args.length; i<n; ++i)
@@ -879,7 +879,6 @@ function namevalueargs(f, nv, repeatable)
             if (is_instance(args[i], namevalue))
             {
                 NameValueArgs = args[i]; // Name=Value args present
-                if (repeatable) nvs.push(NameValueArgs);
                 break;
             }
         }
@@ -902,9 +901,9 @@ function namevalueargs(f, nv, repeatable)
                     NameValueArgs.fill(NameValueAltArgs, 'defaults');
                     NameValueAltArgs = null;
                 }*/
-                if (repeatable && (-1 === nvs.indexOf(arg)))
+                if (repeatable && (!args.length || (arg !== args[args.length-1])))
                 {
-                    nvs.push(arg);
+                    args.push(arg);
                 }
                 continue;
             }
@@ -933,7 +932,7 @@ function namevalueargs(f, nv, repeatable)
             {
                 if (repeatable)
                 {
-                    nvs.push(namevalue(NameValueAltArgs));
+                    args.push(namevalue(NameValueAltArgs));
                 }
                 else
                 {
@@ -952,16 +951,17 @@ function namevalueargs(f, nv, repeatable)
         {
             if (NameValueAltArgs)
             {
-                nvs.push(namevalue(NameValueAltArgs));
+                args.push(namevalue(NameValueAltArgs));
                 NameValueAltArgs = null;
             }
-            else if (!nvs.length)
-            {
-                nvs.push(namevalue());
-            }
-            args.push(nvs.map(function(nv) {
-                return nv.fill(NameValueDefaults, 'defaults');
-            })); // NameValues args last
+            args = args.map(function(arg) {
+                if (is_instance(arg, namevalue))
+                {
+                    arg.fill(NameValueDefaults, 'defaults');
+                    return arg._;
+                }
+                return arg;
+            }); // NameValues args in-place
         }
         else
         {
@@ -974,7 +974,7 @@ function namevalueargs(f, nv, repeatable)
             {
                 NameValueDefaults.fill(NameValueArgs);
             }
-            args.push(NameValueDefaults); // NameValue args last
+            args.push(NameValueDefaults._); // NameValue args last
         }
 
         return f.apply(null, args);
