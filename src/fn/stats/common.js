@@ -128,36 +128,6 @@ function pdf(cdf, x, eps)
     eps = __(eps || 1e-12);
     return n_div(n_sub(cdf(n_add(x, eps)), cdf(n_sub(x, eps))), n_mul(constant['2'], eps));
 }
-function icdf(cdf, p, min_x, max_x, lim_0, lim_1, eps)
-{
-    // find icdf quantile x s.t cdf(x) <= p
-    // using binary search between min_x and max_x
-    if (is_nan(p)) return nan;
-    else if (n_le(p, O)) return null == lim_0 ? -inf : lim_0;
-    else if (n_ge(p, I)) return null == lim_1 ? inf : lim_1;
-
-    eps = __(eps || 1e-12);
-    var two = constant['2'], x, cdfx;
-    for (;;)
-    {
-        x = n_div(n_add(min_x, max_x), two);
-        cdfx = cdf(x);
-        if (n_gt(cdfx, p))
-        {
-            max_x = x;
-        }
-        else if (n_lt(cdfx, p))
-        {
-            if (n_le(n_sub(p, cdfx), eps) || n_le(n_sub(max_x, min_x), eps)) break;
-            min_x = x;
-        }
-        else
-        {
-            break;
-        }
-    }
-    return x;
-}
 
 // erf, erfc
 var __a1 =  0.254829592,
@@ -318,7 +288,7 @@ function norminv(p, mu, sigma)
     // https://en.wikipedia.org/wiki/Normal_distribution
     if (n_lt(p, O)) return nan;
     var limit = n_mul(sigma, 100); // 100 x sigma
-    return icdf(function(x) {return normcdf(x, mu, sigma);}, p, n_sub(mu, limit), n_add(mu, limit));
+    return monotone_inverse_bisearch(function(x) {return normcdf(x, mu, sigma);}, p, n_sub(mu, limit), n_add(mu, limit));
 }
 
 function chi2pdf(x, nu)
@@ -400,7 +370,7 @@ function chi2inv(p, nu)
         var nu2 = n_mul(nu, nu), nu3 = n_mul(nu2, nu);
         chi2inv.limit = n_mul(realMath.sqrt(n_add(n_add(n_div(1/18, nu), n_div(1/162, nu2)), n_div(-37/11664, nu3))), 100);
     }
-    return icdf(function(x) {return chi2cdf(x, nu);}, p, O, chi2inv.limit, O, inf);
+    return monotone_inverse_bisearch(function(x) {return chi2cdf(x, nu);}, p, O, chi2inv.limit, O, inf);
     /*
     // Wilson-Hilferty Transformation to approximately a Normal
     // accuracy at least within 1-2 decimal places
@@ -547,5 +517,5 @@ function tinv(p, nu)
     // accuracy at least within 2-3 decimal places
     if (n_le(nu, O) || n_lt(p, O)) return nan;
     var limit = n_gt(nu, constant['2']) ? n_mul(n_div(nu, n_sub(nu, constant['2'])), 100) : __(1e7);
-    return icdf(function(x) {return tcdf(x, nu);}, p, n_neg(limit), limit);
+    return monotone_inverse_bisearch(function(x) {return tcdf(x, nu);}, p, n_neg(limit), limit);
 }
