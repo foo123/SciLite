@@ -131,11 +131,7 @@ figure.prototype = {
         }
         else if (is_obj(style))
         {
-            if (null == style.Color)
-            {
-                style.Color = color[palette[(kth || 0) % palette.length]].slice();
-            }
-            else if (is_string(style.Color))
+            if (is_string(style.Color))
             {
                 if (HAS.call(color_, style.Color))
                 {
@@ -150,30 +146,32 @@ figure.prototype = {
                     style.Color = color[palette[(kth || 0) % palette.length]].slice();
                 }
             }
-            else if (is_vector(style.Color) && (3 === style.Color.length))
+            else if (is_array(style.Color) && is_vector(val=vec(style.Color)) && (3 === val.length))
             {
-                style.Color = tonumber(style.Color);
+                style.Color = tonumber(val);
             }
             else
             {
                 style.Color = color[palette[(kth || 0) % palette.length]].slice();
             }
-            if (null == style.LineWidth)
-            {
-                style.LineWidth = 2;
-            }
-            else if (is_num(style.LineWidth))
+
+            if (is_num(style.LineWidth))
             {
                 style.LineWidth = 2*tonumber(style.LineWidth);
             }
-            if (null == style.LineStyle)
+            else
+            {
+                style.LineWidth = 2;
+            }
+
+            if (is_string(style.LineStyle) && HAS.call(linedash, style.LineStyle))
+            {
+                style._LineStyle = linedash[style.LineStyle].slice();
+            }
+            else
             {
                 style.LineStyle = '-';
                 style._LineStyle = linedash['-'].slice();
-            }
-            else if (is_string(style.LineStyle) && HAS.call(linedash, style.LineStyle))
-            {
-                style._LineStyle = linedash[style.LineStyle].slice();
             }
         }
         else
@@ -193,8 +191,7 @@ figure.prototype = {
         {
             while (i < args.length)
             {
-                v = vec(args[i]);
-                if (is_vector(v))
+                if (is_array(args[i]) && is_vector(v=vec(args[i])))
                 {
                     fig.data.push({
                         y:tonumber(v)
@@ -208,24 +205,21 @@ figure.prototype = {
             while (i < args.length)
             {
                 x = null; y = null; z = null;
-                v = vec(args[i]);
-                if (is_vector(v))
+                if (is_array(args[i]) && is_vector(v=vec(args[i])))
                 {
                     x = v;
                 }
-                v = vec(args[i+1]);
-                if (is_vector(v))
+                if (is_array(args[i+1]) && is_vector(v=vec(args[i+1])))
                 {
                     y = v;
                 }
-                v = vec(args[i+2]);
-                if (is_vector(v))
+                if (is_array(args[i+2]) && is_vector(v=vec(args[i+2])))
                 {
                     z = v;
-                    i += 3;
                 }
                 if (x && y && z)
                 {
+                    i += 3;
                     s = get_style(args[i]);
                     if (s) i += 1;
                     else s = {};
@@ -247,12 +241,11 @@ figure.prototype = {
             while (i < args.length)
             {
                 x = null; y = null;
-                v = vec(args[i]);
-                if (is_vector(v))
+                if (is_array(args[i]) && is_vector(v=vec(args[i])))
                 {
                     x = v;
                 }
-                if (is_vector(args[i+1]) || is_matrix(args[i+1]))
+                if (is_array(args[i+1]) && (is_matrix(args[i+1]) || is_vector(vec(args[i+1]))))
                 {
                     y = vec(args[i+1]);
                     i += 2;

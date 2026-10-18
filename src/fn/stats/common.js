@@ -327,21 +327,28 @@ function chi2pdf(x, nu)
     // https://en.wikipedia.org/wiki/Chi-squared_distribution
     if (n_lt(nu, O) || n_lt(x, O)) return nan;
     else if (n_eq(nu, O)) return n_eq(x, O) ? O : nan;
-    // "A normal approximation for the chi-square distribution", Luisa Canal, 2005
-    // accuracy at least within 2-3 decimal places
-    return pdf(function(x) {return chi2cdf(x, nu);}, x);
-    /*
-    // Wilson-Hilferty Transformation to approximately a Normal
-    // accuracy at least within 1-2 decimal places
-    if ((null == chi2pdf.nu) || !n_eq(chi2pdf.nu, nu))
+    if (n_eq(constant['2'], nu))
     {
-        chi2pdf.nu = nu;
-        var sigma2 = n_div(constant['2'], n_mul(nu, 9));
-        chi2pdf.mu = n_sub(I, sigma2);
-        chi2pdf.sigma = realMath.sqrt(sigma2);
+        return n_div(realMath.exp(n_neg(n_div(x, constant['2']))), constant['2']);
     }
-    return pdf(function(x) {return normcdf(n_pow(n_div(x, nu), 1/3), chi2pdf.mu, chi2pdf.sigma);}, x);
-    */
+    else
+    {
+        // "A normal approximation for the chi-square distribution", Luisa Canal, 2005
+        // accuracy at least within 2-3 decimal places
+        return pdf(function(x) {return chi2cdf(x, nu);}, x);
+        /*
+        // Wilson-Hilferty Transformation to approximately a Normal
+        // accuracy at least within 1-2 decimal places
+        if ((null == chi2pdf.nu) || !n_eq(chi2pdf.nu, nu))
+        {
+            chi2pdf.nu = nu;
+            var sigma2 = n_div(constant['2'], n_mul(nu, 9));
+            chi2pdf.mu = n_sub(I, sigma2);
+            chi2pdf.sigma = realMath.sqrt(sigma2);
+        }
+        return pdf(function(x) {return normcdf(n_pow(n_div(x, nu), 1/3), chi2pdf.mu, chi2pdf.sigma);}, x);
+        */
+    }
 }
 function chi2cdf(x, nu)
 {
@@ -349,29 +356,36 @@ function chi2cdf(x, nu)
     // https://en.wikipedia.org/wiki/Chi-squared_distribution
     if (n_lt(nu, O) || n_lt(x, O)) return nan;
     else if (n_eq(nu, O)) return n_eq(x, O) ? O : nan;
-    // "A normal approximation for the chi-square distribution", Luisa Canal, 2005
-    // accuracy at least within 2-3 decimal places
-    if ((null == chi2cdf.nu) || !n_eq(chi2cdf.nu, nu))
+    if (n_eq(constant['2'], nu))
     {
-        chi2cdf.nu = nu;
-        var nu2 = n_mul(nu, nu), nu3 = n_mul(nu2, nu);
-        chi2cdf.mu = n_add(n_add(5/6, n_div(-1/9, nu)), n_add(n_div(-7/648, nu2), n_div(25/2187, nu3)));
-        chi2cdf.sigma = realMath.sqrt(n_add(n_add(n_div(1/18, nu), n_div(1/162, nu2)), n_div(-37/11664, nu3)));
+        return n_sub(I, realMath.exp(n_neg(n_div(x, constant['2']))));
     }
-    var xn = n_div(x, nu), L = n_add(n_sub(n_pow(xn, 1/6), n_mul(n_pow(xn, 1/3), 1/2)), n_mul(realMath.sqrt(xn), 1/3));
-    return normcdf(L, chi2cdf.mu, chi2cdf.sigma);
-    /*
-    // Wilson-Hilferty Transformation to approximately a Normal
-    // accuracy at least within 1-2 decimal places
-    if ((null == chi2cdf.nu) || !n_eq(chi2cdf.nu, nu))
+    else
     {
-        chi2cdf.nu = nu;
-        var sigma2 = n_div(constant['2'], n_mul(nu, 9));
-        chi2cdf.mu = n_sub(I, sigma2);
-        chi2cdf.sigma = realMath.sqrt(sigma2);
+        // "A normal approximation for the chi-square distribution", Luisa Canal, 2005
+        // accuracy at least within 2-3 decimal places
+        if ((null == chi2cdf.nu) || !n_eq(chi2cdf.nu, nu))
+        {
+            chi2cdf.nu = nu;
+            var nu2 = n_mul(nu, nu), nu3 = n_mul(nu2, nu);
+            chi2cdf.mu = n_add(n_add(5/6, n_div(-1/9, nu)), n_add(n_div(-7/648, nu2), n_div(25/2187, nu3)));
+            chi2cdf.sigma = realMath.sqrt(n_add(n_add(n_div(1/18, nu), n_div(1/162, nu2)), n_div(-37/11664, nu3)));
+        }
+        var xn = n_div(x, nu), L = n_add(n_sub(n_pow(xn, 1/6), n_mul(n_pow(xn, 1/3), 1/2)), n_mul(realMath.sqrt(xn), 1/3));
+        return normcdf(L, chi2cdf.mu, chi2cdf.sigma);
+        /*
+        // Wilson-Hilferty Transformation to approximately a Normal
+        // accuracy at least within 1-2 decimal places
+        if ((null == chi2cdf.nu) || !n_eq(chi2cdf.nu, nu))
+        {
+            chi2cdf.nu = nu;
+            var sigma2 = n_div(constant['2'], n_mul(nu, 9));
+            chi2cdf.mu = n_sub(I, sigma2);
+            chi2cdf.sigma = realMath.sqrt(sigma2);
+        }
+        return normcdf(n_pow(n_div(x, nu), 1/3), chi2cdf.mu, chi2cdf.sigma);
+        */
     }
-    return normcdf(n_pow(n_div(x, nu), 1/3), chi2cdf.mu, chi2cdf.sigma);
-    */
 }
 function chi2inv(p, nu)
 {
