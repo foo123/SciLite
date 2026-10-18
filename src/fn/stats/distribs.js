@@ -1,14 +1,6 @@
 // various distributions
 // TODO add more and/or improve numerical accuracy
 
-// erf, erfc
-fn.erf = function(x) {
-    return apply(erf, x, true);
-};
-fn.erfc = function(x) {
-    return apply(erfc, x, true);
-};
-
 // normal distribution
 fn.normpdf = function(x, mu, sigma) {
     if (null == sigma) sigma = I;

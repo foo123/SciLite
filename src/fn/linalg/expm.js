@@ -30,19 +30,20 @@ function expm(A, with_neg)
     {
         sgn = -sgn;
         An = dotdiv(mul(A, An), __(i));
-        if (!converged_1)
-        {
-            expA_prev = expA;
+        /*if (!converged_1)
+        {*/
+            //expA_prev = expA;
             expA = add(expA, An);
-            if (n_le(max(max(abs(sub(expA, expA_prev)))), eps)) converged_1 = true; // converged
-        }
-        if (!converged_2)
+            //if (n_le(max(max(abs(sub(expA, expA_prev)))), eps)) converged_1 = true; // converged
+        /*}*/
+        if (with_neg/*!converged_2*/)
         {
-            expA_prev = expA_neg;
+            //expA_prev = expA_neg;
             expA_neg = 0 > sgn ? sub(expA_neg, An) : add(expA_neg, An);
-            if (n_le(max(max(abs(sub(expA_neg, expA_prev)))), eps)) converged_2 = true; // converged
+            //if (n_le(max(max(abs(sub(expA_neg, expA_prev)))), eps)) converged_2 = true; // converged
         }
-        if (converged_1 && converged_2) break; // converged
+        if (n_le(max(max(abs(An))), eps)) break;
+        //if (converged_1 && converged_2) break; // converged
     }
 
     // fast squaring

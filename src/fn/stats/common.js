@@ -129,151 +129,25 @@ function pdf(cdf, x, eps)
     return n_div(n_sub(cdf(n_add(x, eps)), cdf(n_sub(x, eps))), n_mul(constant['2'], eps));
 }
 
-// erf, erfc
-var __a1 =  0.254829592,
-    __a2 = -0.284496736,
-    __a3 =  1.421413741,
-    __a4 = -1.453152027,
-    __a5 =  1.061405429,
-    __p  =  0.3275911,
-
-    __p10 = 0.56418958354775629,
-    __q10 = 2.06955023132914151,
-    __p21 = 2.71078540045147805,
-    __p20 = 5.80755613130301624,
-    __q21 = 3.47954057099518960,
-    __q20 = 12.06166887286239555,
-    __p31 = 3.47469513777439592,
-    __p30 = 12.07402036406381411,
-    __q31 = 3.72068443960225092,
-    __q30 = 8.44319781003968454,
-    __p41 = 4.00561509202259545,
-    __p40 = 9.30596659485887898,
-    __q41 = 3.90225704029924078,
-    __q40 = 6.36161630953880464,
-    __p51 = 5.16722705817812584,
-    __p50 = 9.12661617673673262,
-    __q51 = 4.03296893109262491,
-    __q50 = 5.13578530585681539,
-    __p61 = 5.95908795446633271,
-    __p60 = 9.19435612886969243,
-    __q61 = 4.11240942957450885,
-    __q60 = 4.48640329523408675,
-
-    //__A  =  1.98,
-    //__B  =  1.135,
-    __sqrt_pi = realMath.sqrt(constant.pi),
-
-    __td1 = 0.000345,
+var __td1 = 0.000345,
     __td2 = 0.069547,
     __td3 = 1.604326
+    //__sqrt_pi = realMath.sqrt(constant.pi)
 ;
 update.push(function() {
-    __a1 = __( 0.254829592);
-    __a2 = __(-0.284496736);
-    __a3 = __( 1.421413741);
-    __a4 = __(-1.453152027);
-    __a5 = __( 1.061405429);
-    __p  = __( 0.3275911);
+__td1 = __(0.000345);
+__td2 = __(0.069547);
+__td3 = __(1.604326);
 
-    __p10 = __(0.56418958354775629);
-    __q10 = __(2.06955023132914151);
-    __p21 = __(2.71078540045147805);
-    __p20 = __(5.80755613130301624);
-    __q21 = __(3.47954057099518960);
-    __q20 = __(12.06166887286239555);
-    __p31 = __(3.47469513777439592);
-    __p30 = __(12.07402036406381411);
-    __q31 = __(3.72068443960225092);
-    __q30 = __(8.44319781003968454);
-    __p41 = __(4.00561509202259545);
-    __p40 = __(9.30596659485887898);
-    __q41 = __(3.90225704029924078);
-    __q40 = __(6.36161630953880464);
-    __p51 = __(5.16722705817812584);
-    __p50 = __(9.12661617673673262);
-    __q51 = __(4.03296893109262491);
-    __q50 = __(5.13578530585681539);
-    __p61 = __(5.95908795446633271);
-    __p60 = __(9.19435612886969243);
-    __q61 = __(4.11240942957450885);
-    __q60 = __(4.48640329523408675);
-
-    //__A  = __(1.98);
-    //__B  = __(1.135);
-    __sqrt_pi = realMath.sqrt(constant.pi);
-
-    __td1 = __(0.000345);
-    __td2 = __(0.069547)
-    __td3 = __(1.604326);
+//__sqrt_pi = realMath.sqrt(constant.pi);
 });
-function erf(x)
-{
-    // https://en.wikipedia.org/wiki/Error_function#Bounds_and_numerical_approximations
-    x = real(x);
-    var sgn = n_lt(x, O) ? -1 : 1, t, erfx;
-    if (sgn < 0) x = n_neg(x);
-    t = n_inv(n_add(n_mul(__p, x), I));
-    erfx = n_mul(sgn, n_sub(
-    I, n_mul(n_add(n_mul(n_add(n_mul(n_add(n_mul(n_add(n_mul(__a5, t), __a4), t), __a3), t), __a2), t), __a1), n_mul(t, realMath.exp(n_neg(n_mul(x, x)))))));
-    return erfx;
-}
-function erfc(x)
-{
-    // https://en.wikipedia.org/wiki/Error_function#Bounds_and_numerical_approximations
-    x = real(x);
-    //return n_div(n_mul(n_sub(I, realMath.exp(n_neg(n_mul(__A, x)))), realMath.exp(n_neg(n_mul(x, x)))), n_mul(__B, n_mul(__sqrt_pi, x)));
-    // better approximation
-    var is_neg = n_lt(x, O), x2, erfcx;
-    if (is_neg) x = n_neg(x);
-    x2 = n_mul(x, x);
-    erfcx = n_mul(
-        realMath.exp(n_neg(x2)),
-        n_mul(
-        n_mul(
-        n_mul(
-        n_mul(
-        n_mul(
-            n_div(
-                __p10,
-                n_add(x, __q10)
-            ),
-            n_div(
-                n_add(x2, n_add(n_mul(__p21, x), __p20)),
-                n_add(x2, n_add(n_mul(__q21, x), __q20))
-            )
-        ),
-            n_div(
-                n_add(x2, n_add(n_mul(__p31, x), __p30)),
-                n_add(x2, n_add(n_mul(__q31, x), __q30))
-            )
-        ),
-            n_div(
-                n_add(x2, n_add(n_mul(__p41, x), __p40)),
-                n_add(x2, n_add(n_mul(__q41, x), __q40))
-            )
-        ),
-            n_div(
-                n_add(x2, n_add(n_mul(__p51, x), __p50)),
-                n_add(x2, n_add(n_mul(__q51, x), __q50))
-            )
-        ),
-            n_div(
-                n_add(x2, n_add(n_mul(__p61, x), __p60)),
-                n_add(x2, n_add(n_mul(__q61, x), __q60))
-            )
-        )
-    );
-    if (is_neg) erfcx = n_sub(constant['2'], erfcx);
-    return erfcx;
-}
 
 function normpdf(x, mu, sigma)
 {
     // pdf of Normal distribution
     // https://en.wikipedia.org/wiki/Normal_distribution
     x = n_div(n_sub(x, mu), sigma); // normalize
-    return n_div(realMath.exp(n_neg(n_div(n_mul(x, x), constant['2']))), n_mul(sigma, n_mul(sqrt2, __sqrt_pi)));
+    return n_div(realMath.exp(n_neg(n_div(n_mul(x, x), constant['2']))), n_mul(sigma, /*n_mul(sqrt2, __sqrt_pi)*/__sqrt_2pi));
 }
 function normcdf(x, mu, sigma)
 {
