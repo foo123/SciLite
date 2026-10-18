@@ -520,6 +520,10 @@ function copy(x)
     return x;
 }
 $_.copy = copy;
+function copyobj(o)
+{
+    return merge({}, [o]);
+}
 function apply(f, x, iscomplex)
 {
     if (is_num(x))
@@ -903,7 +907,7 @@ function namevalueargs(f, nv, repeatable)
                 }*/
                 if (repeatable && (!args.length || (arg !== args[args.length-1])))
                 {
-                    args.push(arg);
+                    args.push(arg); // in-place
                 }
                 continue;
             }
@@ -932,7 +936,7 @@ function namevalueargs(f, nv, repeatable)
             {
                 if (repeatable)
                 {
-                    args.push(namevalue(NameValueAltArgs));
+                    args.push(namevalue(NameValueAltArgs)); // in-place
                 }
                 else
                 {
@@ -958,7 +962,6 @@ function namevalueargs(f, nv, repeatable)
                 if (is_instance(arg, namevalue))
                 {
                     arg.fill(NameValueDefaults, 'defaults');
-                    return arg._;
                 }
                 return arg;
             }); // NameValues args in-place
@@ -974,7 +977,7 @@ function namevalueargs(f, nv, repeatable)
             {
                 NameValueDefaults.fill(NameValueArgs);
             }
-            args.push(NameValueDefaults._); // NameValue args last
+            args.push(NameValueDefaults); // NameValue args last
         }
 
         return f.apply(null, args);

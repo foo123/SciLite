@@ -768,7 +768,7 @@ function init($)
                 return run_session([
                 '% 2D plots',
                 't = 0:pi/100:2*pi;',
-                'plot(t,sin(t),"Color","m","LineStyle","--",t,cos(t),"Color","b","LineStyle","-.");',
+                'plot(t,sin(t),Color="m",LineStyle="--",t,cos(t),Color="b",LineStyle="-.");',
                 'xlabel("x");',
                 'ylabel("y");',
                 'title("plot x-y");',
@@ -787,7 +787,7 @@ function init($)
                 'title("semilogy x-y");',
                 'a = 2*(1:5)-1;',
                 'b = 1.2*(1:5)-1/2;',
-                'bar(a,"Color","b",b,"Color","r");',
+                'bar(a,Color="b",b,Color="r");',
                 'xlabel("x");',
                 'ylabel("y");',
                 'title("bar x-y");',

@@ -2227,7 +2227,7 @@ async function evaluate(e, v, $$, vf2v)
                 if ($$.ctx) argout.new_ctx($$.ctx);
             }
             tmpe = e.arg[1];
-            if (('v_or_f' === tmpe.op)
+            if ('v_or_f' === tmpe.op)
             {
                 tmpe = await v_or_f(tmpe, v, $$);
             }
@@ -2281,7 +2281,8 @@ async function evaluate(e, v, $$, vf2v)
         else if (is_callable(e.op))
         {
             // other operator/function
-            f = $$ && is_int($$.nargout) && is_callable(e.op.nargout) ? e.op.nargout($$.nargout) : e.op;
+            $$ = $$ || {};
+            f = is_int($$.nargout) && is_callable(e.op.nargout) ? e.op.nargout($$.nargout) : e.op;
             try {
                 ret = await f.apply(null, await vale(e.arg, v, $$, vf2v));
             } catch (err) {

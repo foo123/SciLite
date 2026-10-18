@@ -1,6 +1,6 @@
 fn.strsplit = varargout(namevalueargs(function(nargout, str, delim) {
     if (!is_string(str)) not_supported("strsplit");
-    var nv = nv = arguments[arguments.length-1];
+    var nv = arguments[arguments.length-1]._;
     if (null == delim)
     {
         delim = new RegExp('[ \\f\\n\\r\\t\\v]'+(_(nv.CollapseDelimiters) ? '+' : ''), 'g');

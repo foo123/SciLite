@@ -73,7 +73,7 @@ function stft(inp, win, FFTLEN, OVERLAP, inv)
     return out;
 }
 fn.stft = varargout(namevalueargs(function(nargout, x) {
-    var nv = arguments[arguments.length-1],
+    var nv = arguments[arguments.length-1]._,
         win = null, ovrl = null, nfft = null,
         fs = 2*pi, f = null, t = null, ans;
     if ((2 < arguments.length) && is_scalar(arguments[2]))
@@ -114,7 +114,7 @@ fn.stft = varargout(namevalueargs(function(nargout, x) {
    OverlapLength: null
 }));
 fn.istft = varargout(namevalueargs(function(nargout, X) {
-    var nv = arguments[arguments.length-1],
+    var nv = arguments[arguments.length-1]._,
         win = null, ovrl = null, nfft = null,
         fs = 2*pi, t = null, ans;
     if ((2 < arguments.length) && is_scalar(arguments[2]))

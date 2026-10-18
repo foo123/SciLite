@@ -2,7 +2,7 @@ fn.corr = varargout(namevalueargs(function(nargout, X) {
     if (1 < nargout) throw "corr: only one output is supported";
     if (is_scalar(X)) X = [[X]];
     if (!is_matrix(X)) not_supported("corr");
-    var nv = arguments[arguments.length-1],
+    var nv = arguments[arguments.length-1]._,
         Y = (2 < arguments.length) && is_array(arguments[2]) ? arguments[2] : X,
         corrfunc = pearson, promises = [], ans;
     if (!is_matrix(Y) || (ROWS(X) !== ROWS(Y))) not_supported("corr");

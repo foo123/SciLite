@@ -139,7 +139,7 @@ function pwcaffinity(s, damping, max_iter)
 }
 fn.pwcaffinity = namevalueargs(function(S) {
     if (!is_matrix(S) || (ROWS(S) !== COLS(S))) not_supported("pwcaffinity");
-    var nv = arguments[arguments.length-1],
+    var nv = arguments[arguments.length-1]._,
         damping = stdMath.abs(_(sca(nv.Damping, true))),
         max_iter = stdMath.ceil(stdMath.abs(_(sca(nv.MaxIter, true))));
     return pwcaffinity(S, damping, max_iter);

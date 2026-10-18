@@ -63,12 +63,12 @@ figure.prototype = {
     pl: 70,
     pr: 20,
 
-    option: function(style, args, i, kth) {
+    style: function(style, kth) {
         var linedash = {
-                "-" : [],           //Solid
-                "--": [15, 5],      //Dashed
-                ":" : [5, 5],       //Dotted
-                "-.": [15,5,5,5],   //Dash-dotted
+                "-" : [],          //Solid
+                "--": [15,5],      //Dashed
+                ":" : [5,5],       //Dotted
+                "-.": [15,5,5,5],  //Dash-dotted
             },
             color_ = {
                 "red": "r",
@@ -100,96 +100,92 @@ figure.prototype = {
                 "k",
                 "w"
             ],
-            val, k, f
+            val, k
         ;
-        if (style.Color)
+        if (is_string(style))
         {
-            return {
-                Color: color[palette[(kth || 0) % palette.length]],
-                LineWidth: style.LineWidth,
-                LineStyle: style.LineStyle,
-                _LineStyle: style._LineStyle
+            val = style;
+            style = {
+                Color: color[palette[(kth || 0) % palette.length]].slice(),
+                LineWidth: 2,
+                LineStyle: '-',
+                _LineStyle: linedash['-'].slice()
+            };
+            for (k in color)
+            {
+                if (-1 < val.indexOf(k))
+                {
+                    style.Color = color[k].slice();
+                    break;
+                }
+            }
+            for (k in linedash)
+            {
+                if (('-' !== k) && (-1 < val.indexOf(k)))
+                {
+                    style.LineStyle = k;
+                    style._LineStyle = linedash[k].slice();
+                    break;
+                }
+            }
+        }
+        else if (is_obj(style))
+        {
+            if (null == style.Color)
+            {
+                style.Color = color[palette[(kth || 0) % palette.length]].slice();
+            }
+            else if (is_string(style.Color))
+            {
+                if (HAS.call(color_, style.Color))
+                {
+                    style.Color = color[color_[style.Color]].slice();
+                }
+                else if (HAS.call(color, style.Color))
+                {
+                    style.Color = color[style.Color].slice();
+                }
+                else
+                {
+                    style.Color = color[palette[(kth || 0) % palette.length]].slice();
+                }
+            }
+            else if (is_vector(style.Color) && (3 === style.Color.length))
+            {
+                style.Color = tonumber(style.Color);
+            }
+            else
+            {
+                style.Color = color[palette[(kth || 0) % palette.length]].slice();
+            }
+            if (null == style.LineWidth)
+            {
+                style.LineWidth = 2;
+            }
+            else if (is_num(style.LineWidth))
+            {
+                style.LineWidth = 2*tonumber(style.LineWidth);
+            }
+            if (null == style.LineStyle)
+            {
+                style.LineStyle = '-';
+                style._LineStyle = linedash['-'].slice();
+            }
+            else if (is_string(style.LineStyle) && HAS.call(linedash, style.LineStyle))
+            {
+                style._LineStyle = linedash[style.LineStyle].slice();
+            }
+        }
+        else
+        {
+            style = {
+                Color: color[palette[(kth || 0) % palette.length]].slice(),
+                LineWidth: 2,
+                LineStyle: '-',
+                _LineStyle: linedash['-'].slice()
             };
         }
-        if (!style.Color) style.Color = color[palette[(kth || 0) % palette.length]];
-        if (!style.LineWidth) style.LineWidth = 1;
-        if (!style.LineStyle) style.LineStyle = linedash["-"];
-        if (!style._LineStyle) style._LineStyle = "-";
-        i = i || 0;
-        while (i < args.length)
-        {
-            if ("Color" === args[i])
-            {
-                val = args[i+1];
-                if (is_string(val))
-                {
-                    if (HAS.call(color_, val))
-                    {
-                        style.Color = color[color_[val]];
-                    }
-                    else if (HAS.call(color, val))
-                    {
-                        style.Color = color[val];
-                    }
-                }
-                else if (is_vector(val) && (3 === val.length))
-                {
-                    style.Color = tonumber(val);
-                }
-                i += 2;
-                continue;
-            }
-            else if ("LineWidth" === args[i])
-            {
-                val = args[i+1];
-                if (is_num(val))
-                {
-                    style.LineWidth = 2*tonumber(val);
-                }
-                i += 2;
-                continue;
-            }
-            else if ("LineStyle" === args[i])
-            {
-                val = args[i+1];
-                if (is_string(val) && HAS.call(linedash, val))
-                {
-                    style._LineStyle = val;
-                    style.LineStyle = linedash[val];
-                }
-                i += 2;
-                continue;
-            }
-            else if (is_string(args[i]))
-            {
-                f = false;
-                val = args[i];
-                for (k in color)
-                {
-                    if (-1 < val.indexOf(k))
-                    {
-                        style.Color = color[k];
-                        f = true;
-                    }
-                }
-                for (k in linedash)
-                {
-                    if (('-' !== k) && (-1 < val.indexOf(k)))
-                    {
-                        style._LineStyle = k;
-                        style.LineStyle = linedash[k];
-                        f = true;
-                    }
-                }
-                if (f)
-                {
-                    i += 1;
-                    continue;
-                }
-            }
-            break;
-        }
-        return i;
+        return style;
     },
     parse: function(args, type, defaultEmpty) {
         var fig = this, i = 0, j, kth = 0, n, v, x, y, z, s;
@@ -200,7 +196,9 @@ figure.prototype = {
                 v = vec(args[i]);
                 if (is_vector(v))
                 {
-                    fig.data.push({y:tonumber(v)});
+                    fig.data.push({
+                        y:tonumber(v)
+                    });
                 }
                 i += 1;
             }
@@ -228,10 +226,15 @@ figure.prototype = {
                 }
                 if (x && y && z)
                 {
-                    s = {};
-                    i = fig.option(s, args, i, kth);
-                    fig.data.push({x:tonumber(x), y:tonumber(y), z:tonumber(z), style:s});
-                    ++kth;
+                    s = get_style(args[i]);
+                    if (s) i += 1;
+                    else s = {};
+                    fig.data.push({
+                        x:tonumber(x),
+                        y:tonumber(y),
+                        z:tonumber(z),
+                        style:fig.style(s, kth++)
+                    });
                 }
                 else
                 {
@@ -263,21 +266,30 @@ figure.prototype = {
                 if (x && y)
                 {
                     x = tonumber(x);
-                    s = {};
-                    i = fig.option(s, args, i, kth);
                     if (is_matrix(y))
                     {
                         for (j=0,n=COLS(y); j<n; ++j)
                         {
-                            fig.data.push({x:x, y:tonumber(COL(y, j)), style:s});
-                            ++kth;
-                            s = fig.option(s, args, i, kth);
+                            s = get_style(args[i]);
+                            if (s) i += 1;
+                            else s = {};
+                            fig.data.push({
+                                x:x,
+                                y:tonumber(COL(y, j)),
+                                style:fig.style(copyobj(s), kth++)
+                            });
                         }
                     }
                     else
                     {
-                        fig.data.push({x:x, y:tonumber(y), style:s});
-                        ++kth;
+                        s = get_style(args[i]);
+                        if (s) i += 1;
+                        else s = {};
+                        fig.data.push({
+                            x:x,
+                            y:tonumber(y),
+                            style:fig.style(s, kth++)
+                        });
                     }
                 }
                 else
@@ -289,6 +301,10 @@ figure.prototype = {
         return fig;
     }
 };
+function get_style(arg)
+{
+    return is_instance(arg, namevalue) && arg.has('Color') ? arg._ : (is_string(arg) ? arg : null);
+}
 $_.figure = figure;
 $_.createCanvas = function(w, h) {};
 $_.currentCanvas = function() {};

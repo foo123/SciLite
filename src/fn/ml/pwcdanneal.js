@@ -117,7 +117,7 @@ function pwcdanneal(D, k, alpha, max_iter)
 fn.pwcdanneal = namevalueargs(function(D, k) {
     k = stdMath.round(_(sca(k, true)));
     if ((0 >= k) || !is_matrix(D) || (ROWS(D) !== COLS(D))) not_supported("pwcdanneal");
-    var nv = arguments[arguments.length-1],
+    var nv = arguments[arguments.length-1]._,
         alpha = stdMath.abs(_(sca(nv.Alpha, true))),
         max_iter = stdMath.ceil(stdMath.abs(_(sca(nv.MaxIter, true))));
     return pwcdanneal(D, k, alpha, max_iter);

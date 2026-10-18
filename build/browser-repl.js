@@ -237,7 +237,7 @@ $.fn.legend = function(/*..args*/) {
         return currentFig;
     }
 };
-$.fn.plot = function(/*..args*/) {
+$.fn.plot = $._.namevalueargs(function(/*..args*/) {
     const fig = $._.figure().parse(arguments);
     if (fig.data.length)
     {
@@ -252,7 +252,7 @@ $.fn.plot = function(/*..args*/) {
                 mode: 'lines',
                 line: {
                     width: data.style.LineWidth || 1,
-                    dash: (['solid','dash','dot','dashdot'])[(['-','--',':','-.']).indexOf(data.style._LineStyle || '-')],
+                    dash: (['solid','dash','dot','dashdot'])[(['-','--',':','-.']).indexOf(data.style.LineStyle || '-')],
                     color: 'rgb('+data.style.Color.map(v => stdMath.round(255*v)).join(',')+')'
                 }
             };
@@ -290,8 +290,12 @@ $.fn.plot = function(/*..args*/) {
         });
         return el;
     }
-};
-$.fn.loglog = function(/*..args*/) {
+}, {
+    Color: null,
+    LineWidth: 1,
+    LineStyle: '-'
+}, 'repeatable');
+$.fn.loglog = $._.namevalueargs(function(/*..args*/) {
     const fig = $._.figure().parse(arguments);
     if (fig.data.length)
     {
@@ -306,7 +310,7 @@ $.fn.loglog = function(/*..args*/) {
                 mode: 'lines',
                 line: {
                     width: data.style.LineWidth || 1,
-                    dash: (['solid','dash','dot','dashdot'])[(['-','--',':','-.']).indexOf(data.style._LineStyle || '-')],
+                    dash: (['solid','dash','dot','dashdot'])[(['-','--',':','-.']).indexOf(data.style.LineStyle || '-')],
                     color: 'rgb('+data.style.Color.map(v => stdMath.round(255*v)).join(',')+')'
                 }
             };
@@ -344,8 +348,12 @@ $.fn.loglog = function(/*..args*/) {
         });
         return el;
     }
-};
-$.fn.semilogx = function(/*..args*/) {
+}, {
+    Color: null,
+    LineWidth: 1,
+    LineStyle: '-'
+}, 'repeatable');
+$.fn.semilogx = $._.namevalueargs(function(/*..args*/) {
     const fig = $._.figure().parse(arguments);
     if (fig.data.length)
     {
@@ -360,7 +368,7 @@ $.fn.semilogx = function(/*..args*/) {
                 mode: 'lines',
                 line: {
                     width: data.style.LineWidth || 1,
-                    dash: (['solid','dash','dot','dashdot'])[(['-','--',':','-.']).indexOf(data.style._LineStyle || '-')],
+                    dash: (['solid','dash','dot','dashdot'])[(['-','--',':','-.']).indexOf(data.style.LineStyle || '-')],
                     color: 'rgb('+data.style.Color.map(v => stdMath.round(255*v)).join(',')+')'
                 }
             };
@@ -398,8 +406,12 @@ $.fn.semilogx = function(/*..args*/) {
         });
         return el;
     }
-};
-$.fn.semilogy = function(/*..args*/) {
+}, {
+    Color: null,
+    LineWidth: 1,
+    LineStyle: '-'
+}, 'repeatable');
+$.fn.semilogy = $._.namevalueargs(function(/*..args*/) {
     const fig = $._.figure().parse(arguments);
     if (fig.data.length)
     {
@@ -414,7 +426,7 @@ $.fn.semilogy = function(/*..args*/) {
                 mode: 'lines',
                 line: {
                     width: data.style.LineWidth || 1,
-                    dash: (['solid','dash','dot','dashdot'])[(['-','--',':','-.']).indexOf(data.style._LineStyle || '-')],
+                    dash: (['solid','dash','dot','dashdot'])[(['-','--',':','-.']).indexOf(data.style.LineStyle || '-')],
                     color: 'rgb('+data.style.Color.map(v => stdMath.round(255*v)).join(',')+')'
                 }
             };
@@ -452,8 +464,12 @@ $.fn.semilogy = function(/*..args*/) {
         });
         return el;
     }
-};
-$.fn.scatter = function(/*..args*/) {
+}, {
+    Color: null,
+    LineWidth: 1,
+    LineStyle: '-'
+}, 'repeatable');
+$.fn.scatter = $._.namevalueargs(function(/*..args*/) {
     const fig = $._.figure().parse(arguments);
     if (fig.data.length)
     {
@@ -506,8 +522,12 @@ $.fn.scatter = function(/*..args*/) {
         });
         return el;
     }
-};
-$.fn.bar = function(/*..args*/) {
+}, {
+    Color: null,
+    LineWidth: 1,
+    LineStyle: '-'
+}, 'repeatable');
+$.fn.bar = $._.namevalueargs(function(/*..args*/) {
     const fig = $._.figure().parse(arguments);
     if (fig.data.length)
     {
@@ -559,8 +579,12 @@ $.fn.bar = function(/*..args*/) {
         });
         return el;
     }
-};
-$.fn.barh = function(/*..args*/) {
+}, {
+    Color: null,
+    LineWidth: 1,
+    LineStyle: '-'
+}, 'repeatable');
+$.fn.barh = $._.namevalueargs(function(/*..args*/) {
     const fig = $._.figure().parse(arguments);
     if (fig.data.length)
     {
@@ -613,7 +637,11 @@ $.fn.barh = function(/*..args*/) {
         });
         return el;
     }
-};
+}, {
+    Color: null,
+    LineWidth: 1,
+    LineStyle: '-'
+}, 'repeatable');
 $.fn.piechart = function(/*..args*/) {
     const fig = $._.figure().parse(arguments, 'pie');
     if (fig.data.length)
@@ -807,7 +835,7 @@ $.fn.contour = function(x, y, z, v) {
     }
     return el;
 };
-$.fn.plot3 = function(/*..args*/) {
+$.fn.plot3 = $._.namevalueargs(function(/*..args*/) {
     const fig = $._.figure().parse(arguments, 'plot3');
     if (fig.data.length)
     {
@@ -824,7 +852,7 @@ $.fn.plot3 = function(/*..args*/) {
                 name: 'input '+String(i+1),
                 line: {
                     width: data.style.LineWidth || 1,
-                    dash: (['solid','dash','dot','dashdot'])[(['-','--',':','-.']).indexOf(data.style._LineStyle || '-')],
+                    dash: (['solid','dash','dot','dashdot'])[(['-','--',':','-.']).indexOf(data.style.LineStyle || '-')],
                     color: 'rgb('+data.style.Color.map(v => stdMath.round(255*v)).join(',')+')',
                     reversescale: false
                 }
@@ -840,8 +868,12 @@ $.fn.plot3 = function(/*..args*/) {
         });
         return el;
     }
-};
-$.fn.scatter3 = function(/*..args*/) {
+}, {
+    Color: null,
+    LineWidth: 1,
+    LineStyle: '-'
+}, 'repeatable');
+$.fn.scatter3 = $._.namevalueargs(function(/*..args*/) {
     const fig = $._.figure().parse(arguments, 'plot3');
     if (fig.data.length)
     {
@@ -858,7 +890,7 @@ $.fn.scatter3 = function(/*..args*/) {
                 name: 'input '+String(i+1),
                 marker: {
                     size: 2*(data.style.LineWidth || 1),
-                    //dash: (['solid','dash','dot','dashdot'])[(['-','--',':','-.']).indexOf(data.style._LineStyle || '-')],
+                    //dash: (['solid','dash','dot','dashdot'])[(['-','--',':','-.']).indexOf(data.style.LineStyle || '-')],
                     color: 'rgb('+data.style.Color.map(v => stdMath.round(255*v)).join(',')+')',
                     reversescale: false
                 }
@@ -874,7 +906,11 @@ $.fn.scatter3 = function(/*..args*/) {
         });
         return el;
     }
-};
+}, {
+    Color: null,
+    LineWidth: 1,
+    LineStyle: '-'
+}, 'repeatable');
 $.fn.mesh = function(x, y, z) {
     const el = document.createElement('div');
     el.className = 'fig3d';

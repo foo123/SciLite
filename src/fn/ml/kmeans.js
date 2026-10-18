@@ -115,7 +115,7 @@ async function kmeans_init_plusplus(X, k, dist, speedup)
     return centroids;
 }
 fn.kmeans = varargout(namevalueargs(async function(nargout, X, k) {
-    var nv = arguments[arguments.length-1],
+    var nv = arguments[arguments.length-1]._,
         init, dist, max_iter,
         speedup = false,
         i, j, n, m, ans;

@@ -95,7 +95,7 @@ function sort(x, dim, dir, cmp, with_indices)
     not_supported("sort");
 }
 fn.sort = varargout(namevalueargs(function(nargout, x, dim, dir) {
-    var nv = arguments[arguments.length-1], cmp = null;
+    var nv = arguments[arguments.length-1]._, cmp = null;
     if ('real' === nv.ComparisonMethod) cmp = cmp_real;
     else if ('abs' === nv.ComparisonMethod) cmp = cmp_abs;
     else if ('str' === nv.ComparisonMethod) cmp = cmp_str;
