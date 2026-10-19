@@ -49,7 +49,9 @@ var __a1 =  0.254829592,
 
     __sqrt_2pi = realMath.sqrt(n_mul(constant['2'], constant.pi)),
     __log_sqrt_2pi = n_mul(constant['1/2'], realMath.log(n_mul(constant['2'], constant.pi))),
-    __12 = 12
+    __log_pi = realMath.log(constant.pi),
+    __12 = 12,
+    __eps = 1e-15
 ;
 update.push(function() {
 __a1 = __( 0.254829592);
@@ -100,20 +102,22 @@ __gP = [
 
 __sqrt_2pi = realMath.sqrt(n_mul(constant['2'], constant.pi));
 __log_sqrt_2pi = n_mul(constant['1/2'], realMath.log(n_mul(constant['2'], constant.pi)));
+__log_pi = realMath.log(constant.pi);
 
 __12 = __(12);
+__eps = __(1e-15);
 });
 
-function monotone_inverse_bisearch(f, y, min_x, max_x, lim_0, lim_1, dir, eps)
+// utils
+function monotone_inverse_bisearch(f, y, min_x, max_x, lim_0, lim_1, dir)
 {
-    // find inverse x s.t f(x) <= y, f() is monotone
+    // find inverse x s.t f(x) <= y, f(.) is monotone
     // using binary search between min_x and max_x
-    if (is_nan(y)) return nan;
-    else if (n_le(y, O)) return null == lim_0 ? -inf : lim_0;
-    else if (n_ge(y, I)) return null == lim_1 ? inf : lim_1;
-
-    eps = __(eps || 1e-12);
     dir = -1 === dir ? -1 : 1; // increasing or decreasing
+    if (is_nan(y)) return nan;
+    else if (n_le(y, O)) return 0 > dir ? (null == lim_1 ? inf : lim_1) : (null == lim_0 ? -inf : lim_0);
+    else if (n_ge(y, I)) return 0 > dir ? (null == lim_0 ? -inf : lim_0) : (null == lim_1 ? inf : lim_1);
+
     var two = constant['2'], x, fx;
     for (;;)
     {
@@ -132,7 +136,7 @@ function monotone_inverse_bisearch(f, y, min_x, max_x, lim_0, lim_1, dir, eps)
         }
         else if (n_lt(fx, y))
         {
-            if (n_le(n_sub(y, fx), eps) || n_lt(n_sub(max_x, min_x), eps)) break;
+            if (n_le(n_sub(y, fx), __eps) || n_lt(n_sub(max_x, min_x), __eps)) break;
             if (0 > dir)
             {
                 max_x = x;
@@ -149,6 +153,80 @@ function monotone_inverse_bisearch(f, y, min_x, max_x, lim_0, lim_1, dir, eps)
     }
     return x;
 }
+/*function series_sum(terms, n, eps)
+{
+    var gen = terms, k, ak, s = O;
+    // terms must be function or array
+    if (is_array(terms))
+    {
+        gen = function(k) {return terms[k];};
+        n = terms.length-1;
+    }
+    else if (null == n)
+    {
+        n = inf;
+        eps = eps || __eps;
+    }
+    for (k=0; k<=n; ++k)
+    {
+        ak = gen(k);
+        s = scalar_add(s, ak);
+        if ((null != eps) && n_le(scalar_abs(ak), eps)) break;
+    }
+    return s;
+}*/
+/*function continued_fraction(terms, n, eps)
+{
+    /*
+    https://en.wikipedia.org/wiki/Continued_fraction#Formulation
+    x=b_{0}+{\cfrac {a_{1}}{b_{1}+{\cfrac {a_{2}}{b_{2}+{\cfrac {a_{3}}{b_{3}+{\cfrac {a_{4}}{b_{4}+\ddots \,}}}}}}}}
+
+    nth convergents p/q for n >= 1 are (recursively):
+    p = b_n*p0 + a_n*p1,
+    q = b_n*q0 + a_n*q1,
+
+    with initial values:
+    p1 = 1, p0 = b_0,
+    q1 = 0, q0 = 1
+    * /
+    var gen = terms,
+        p, q, p1, p0,
+        q1, q0, r0, r,
+        k, abk, ak, bk
+    ;
+    // terms must be function or array
+    if (is_array(terms))
+    {
+        gen = function(k) {return terms[k];};
+        n = terms.length-1;
+    }
+    else if (null == n)
+    {
+        n = inf;
+        eps = eps || __eps;
+    }
+    abk = gen(0);
+    p1 = I;
+    p0 = abk.b;
+    q1 = O;
+    q0 = I;
+    for (k=1; k<=n; ++k)
+    {
+        abk = gen(k);
+        ak = abk.a;
+        bk = abk.b;
+        p = scalar_add(scalar_mul(bk, p0), scalar_mul(ak, p1));
+        q = scalar_add(scalar_mul(bk, q0), scalar_mul(ak, q1));
+        r = scalar_div(p, q);
+
+        if ((null != eps) && (5 < k) && n_le(scalar_abs(scalar_sub(r, r0)), eps)) break;
+
+        p1 = p0; p0 = p;
+        q1 = q0; q0 = q;
+        r0 = r;
+    }
+    return r;
+}*/
 
 // erf
 function erf(x)
@@ -319,7 +397,7 @@ function gammaln(z)
     if (n_lt(z, constant['1/2']))
     {
         // Lanczos is not valid for this real(z). Use reflection formula.
-        return scalar_sub(scalar_sub(realMath.log(constant.pi), realMath.log(fn.sin(scalar_mul(constant.pi, z)))), gammaln(scalar_sub(I, z)));
+        return scalar_sub(scalar_sub(__log_pi, fn.log(fn.sin(scalar_mul(constant.pi, z)))), gammaln(scalar_sub(I, z)));
     }
     else
     {
@@ -370,12 +448,12 @@ function gammainc(x, a, type)
     if (n_lt(a, O)) return nan;
     var Ga = 'scaledlower' === type || 'scaledupper' === type ? a : n_mul(n_div(n_pow(x, a), gamma(a)), realMath.exp(n_neg(x))),
         t = n_eq(Ga, a) ? I : n_div(Ga, a),
-        g = t, eps = __(1e-15);
+        g = t;
     for (var k=1,N=25; k<=N; ++k) // power series up to N terms
     {
         t = n_mul(t, n_div(x, n_add(a, k)));
         g = n_add(g, t);
-        if ((k > 5) && n_le(scalar_abs(t), eps)) break;
+        if ((k > 5) && n_le(scalar_abs(t), __eps)) break;
     }
     return 'scaledupper' === type ? n_sub(n_mul(gamma(n_add(a, I)), n_div(realMath.exp(x), n_pow(x, a))), g) : ('upper' === type ? n_sub(I, g) : g);
 }
@@ -398,7 +476,7 @@ function beta(z, w)
     z = real(z); w = real(w);
     if (n_lt(z, O) || n_lt(w, O)) return nan;
     if (n_eq(z, O) || n_eq(w, O)) return n_eq(z, w) ? nan : inf;
-    return scalar_div(scalar_mul(gamma(z), gamma(w)), gamma(scalar_add(z, w)));
+    return scalar_mul(scalar_div(gamma(z), gamma(scalar_add(z, w))), gamma(w));
 }
 function betaln(z, w)
 {
@@ -407,72 +485,133 @@ function betaln(z, w)
     if (!is_real(z) || !is_real(w)) return nan;
     z = real(z); w = real(w);
     if (n_lt(z, O) || n_lt(w, O)) return nan;
-    return scalar_sub(scalar_add(gammaln(z), gammaln(w)), gammaln(scalar_add(z, w)));
+    return scalar_add(scalar_sub(gammaln(z), gammaln(scalar_add(z, w))), gammaln(w));
 }
-function betainc(x, z, w, tail)
+function _betainc_cont_frac(x, z, w)
 {
-    // incomplete beta(x, z, w) function
-    // https://en.wikipedia.org/wiki/Beta_function
-    // NEEDS FIX
-    if (!is_real(x) || !is_real(z) || !is_real(w)) return nan;
-    x = real(x); z = real(z); w = real(w);
-    if (n_lt(x, O) || n_gt(x, I) || n_lt(z, O) || n_lt(w, O)) return nan;
-    if (
-    n_gt(x, n_div(n_add(z, I), n_add(n_add(z, w), constant['2']))) ||
-    n_lt(n_sub(I, x), n_div(n_add(w, I), n_add(n_add(z, w), constant['2'])))
-    )
-    {
-        // use symmetric relation, more efficient
-        return n_sub(I, n_mul(n_div(beta(w, z), beta(z, w)), betainc(n_sub(I, x), w, z, tail)));
-    }
-    var a1 = n_mul(n_div(n_pow(x, z), z), n_pow(n_sub(I, x), w)),
-        p, q,
-        p_1 = I, p_0 = O,
-        q_1 = O, q_0 = I,
-        r0, r,
-        dm, am, bm, m,
-        eps = __(1e-15)
+    var p, q, p1, p0,
+        q1, q0, r0, r,
+        k, ak, bk, m
     ;
-
-    // continued fraction expansion evaluation
-    // converges rapidly for the range of interest
-    /*
-    x=b_{0}+{\cfrac {a_{1}}{b_{1}+{\cfrac {a_{2}}{b_{2}+{\cfrac {a_{3}}{b_{3}+{\cfrac {a_{4}}{b_{4}+\ddots \,}}}}}}}}
-    nth convergents p/q for n >= 1
-    p = b_n*p_0 + a_n*p_1,
-    q = b_n*q_0 + a_n*q_1,
-    with initial values
-    p_1 = 1, p_0 = b_0,
-    q_1 = 0, q_0 = 1
-    */
-    for (m=0;;++m)
+    p1 = I;
+    p0 = O;
+    q1 = O;
+    q0 = I;
+    bk = I;
+    for (k=1;;++k)
     {
-        bm = I;
-        if (0 === m)
+        if (1 === k)
         {
-            dm = a1;
-        }
-        else if (m & 1)
-        {
-            dm = n_neg(n_div(n_mul(n_mul(x, n_add(z, m)), n_add(n_add(z, w), m)), n_mul(n_add(z, 2*m), n_add(z, 2*m+1))));
+            ak = n_div(
+                n_mul(n_div(n_pow(x, z), z), n_pow(n_sub(I, x), w)),
+                beta(z, w)
+            );
         }
         else
         {
-            dm = n_div(n_mul(x, n_mul(n_sub(w, m), m)), n_mul(n_add(z, 2*m), n_add(z, 2*m-1)));
+            m = k-1;
+            if (m & 1)
+            {
+                m = (m-1) >> 1;
+                ak = n_neg(n_div(n_mul(n_mul(x, n_add(z, m)), n_add(n_add(z, w), m)), n_mul(n_add(z, 2*m), n_add(z, 2*m+1))));
+            }
+            else
+            {
+                m = m >> 1;
+                ak = n_div(n_mul(x, n_mul(n_sub(w, m), m)), n_mul(n_add(z, 2*m), n_add(z, 2*m-1)));
+            }
         }
-        am = dm;
-        p = n_add(n_mul(bm, p_0), n_mul(am, p_1));
-        q = n_add(n_mul(bm, q_0), n_mul(am, q_1));
+        p = n_add(n_mul(bk, p0), n_mul(ak, p1));
+        q = n_add(n_mul(bk, q0), n_mul(ak, q1));
         r = n_div(p, q);
 
-        if ((8 < m) && n_le(scalar_abs(n_sub(r, r0)), eps)) break;
+        if ((5 < k) && n_le(scalar_abs(n_sub(r, r0)), __eps)) break;
 
-        p_1 = p_0; p_0 = p;
-        q_1 = q_0; q_0 = q;
+        p1 = p0; p0 = p;
+        q1 = q0; q0 = q;
         r0 = r;
     }
-    r = n_div(r, beta(z, w));
-    return 'upper' === tail ? n_sub(I, r) : r;
+    return r;
+}
+/*function _betainc_series_10(x, z, w)
+{
+}
+function _betainc_series_11(x, z, w)
+{
+}
+function _betainc_erfc(x, z, w)
+{
+}*/
+function betainc(x, z, w, tail)
+{
+    // regularized incomplete beta(x, z, w) function
+    // https://en.wikipedia.org/wiki/Beta_function
+
+    if (!is_real(x) || !is_real(z) || !is_real(w)) return nan;
+    x = real(x); z = real(z); w = real(w);
+
+    if (n_lt(x, O) || n_gt(x, I) || n_lt(z, O) || n_lt(w, O)) return nan;
+
+    if (n_eq(x, O)) return 'upper' === tail ? I : O;
+    else if (n_eq(x, I)) return 'upper' === tail ? O : I;
+
+    var xt = n_div(z, n_add(z, w)), b;
+    /*
+    // "Computation of the regularized incomplete Beta function",
+    // Vera Egorova, Amparo Gil, Javier Segura, Nico M. Temme, 2023
+    if (n_gt(z, 50) && n_gt(w, 50) && n_gt(n_add(z, w), 700) && n_lt(scalar_abs(n_sub(x, xt)), 0.2))
+    {
+        //Use the error function approximation in Section 2.3.1.
+        b = _betainc_erfc(x, z, w);
+    }
+    else if (n_gt(z, 100) && n_lt(w, 10))
+    {
+        if (n_lt(x, 0.85))
+        {
+            //Use the series expansion (10).
+            b = _betainc_series_10(x, z, w);
+        }
+        else
+        {
+            //Use the continued fraction (5).
+            b = _betainc_cont_frac(x, z, w);
+        }
+    }
+    else
+    {
+        if (n_gt(w, n_div(n_mul(n_sub(I, x), z), x)))
+        {
+            //Use the continued fraction (5).
+            b = _betainc_cont_frac(x, z, w);
+        }
+        else
+        {
+            //Use the series expansion (11).
+            b = _betainc_series_11(x, z, w);
+        }
+    }
+    */
+    if (n_ge(x, xt))
+    {
+        // use reflection, more efficient
+        b = n_sub(I, _betainc_cont_frac(n_sub(I, x), w, z));
+    }
+    else
+    {
+        b = _betainc_cont_frac(x, z, w);
+    }
+    return 'upper' === tail ? n_sub(I, b) : b;
+}
+function betaincinv(y, z, w, tail)
+{
+    // betaincinv(y,z,w) inverse regularized incomplete beta function
+    // https://en.wikipedia.org/wiki/Beta_function
+    // NEEDS FIX
+    if (!is_real(y) || !is_real(z) || !is_real(w)) return nan;
+    y = real(y); z = real(z); w = real(w);
+
+    if (n_lt(y, O) || n_gt(y, I) || n_lt(z, O) || n_lt(w, O)) return nan;
+    return monotone_inverse_bisearch(function(x) {return betainc(x, z, w, tail);}, y, O, I, O, I, 'upper' === tail ? -1 : 1);
 }
 
 // add them
@@ -508,4 +647,7 @@ fn.betaln = function(z, w) {
 };
 fn.betainc = function(x, z, w, tail) {
     return apply_(function(x, z, w) {return betainc(x, z, w, tail);}, [x, z, w]);
+};
+fn.betaincinv = function(y, z, w, tail) {
+    return apply_(function(y, z, w) {return betaincinv(y, z, w, tail);}, [y, z, w]);
 };
