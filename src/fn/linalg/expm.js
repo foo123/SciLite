@@ -10,7 +10,7 @@ function expm(A, with_neg)
     with_neg = 'with_neg' === with_neg;
 
     var n = ROWS(A),
-        eps = __(1e-12),
+        eps = __(1e-15),
         i, N = 25, sgn = -1,
         In = eye(n), An,
         expA, expA_neg, expA_prev,
@@ -42,7 +42,7 @@ function expm(A, with_neg)
             expA_neg = 0 > sgn ? sub(expA_neg, An) : add(expA_neg, An);
             //if (n_le(max(max(abs(sub(expA_neg, expA_prev)))), eps)) converged_2 = true; // converged
         }
-        if (n_le(max(max(abs(An))), eps)) break;
+        if (i > 5 && n_le(max(max(abs(An))), eps)) break;
         //if (converged_1 && converged_2) break; // converged
     }
 
