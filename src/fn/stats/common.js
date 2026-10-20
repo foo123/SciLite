@@ -271,14 +271,13 @@ function chi2inv(p, nu)
     // https://en.wikipedia.org/wiki/Chi-squared_distribution
     if (n_lt(nu, O) || n_lt(p, O)) return nan;
     /*
-    // FAILS
-    return monotone_inverse_bisearch(
+    // may fail because chi2cdf may return nan or inf if precision is exceeded
+    return monotone_inverse_newton(
         function(x) {return chi2cdf(x, nu);},
-        //function(x) {return chi2pdf(x, nu);},
-        p, O, __(1e6), O, inf
+        function(x) {return chi2pdf(x, nu);},
+        p, O, __(1e6), O, I, O, inf
     );
     */
-
     // Wilson-Hilferty Transformation to approximately a Normal
     // accuracy at least within 1-2 decimal places
     if ((null == chi2inv.nu) || !n_eq(chi2inv.nu, nu))
@@ -289,7 +288,6 @@ function chi2inv(p, nu)
         chi2inv.sigma = realMath.sqrt(sigma2);
     }
     return max([O, n_mul(n_pow(norminv(p, chi2inv.mu, chi2inv.sigma), 3), nu)]);
-
 }
 
 function tpdf(x, nu)
@@ -411,7 +409,7 @@ function tcdf(x, nu, tail)
             )
         );
     }
-    else if (n_gt(nu, 50))
+    else if (n_gt(nu, 30))
     {
         p = normcdf(x, O, I); // has become almost precisely normal
     }

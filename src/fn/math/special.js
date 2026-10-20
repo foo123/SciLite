@@ -110,20 +110,27 @@ __eps = __(1e-15);
 });
 
 // utils
-function monotone_inverse_bisearch(f, y, min_x, max_x, lim_0, lim_1, dir)
+function monotone_inverse_bisearch(f, y, min_x, max_x, min_f, max_f, lim_0, lim_1, dir)
 {
     // find inverse x s.t f(x) <= y, f(.) is monotone
     // using binary search between min_x and max_x
     dir = -1 === dir ? -1 : 1; // increasing or decreasing
+    if (null == min_f) min_f = O;
+    if (null == max_f) max_f = I;
     if (is_nan(y)) return nan;
-    else if (n_le(y, O)) return 0 > dir ? (null == lim_1 ? inf : lim_1) : (null == lim_0 ? -inf : lim_0);
-    else if (n_ge(y, I)) return 0 > dir ? (null == lim_0 ? -inf : lim_0) : (null == lim_1 ? inf : lim_1);
+    else if (n_le(y, min_f)) return 0 > dir ? (null == lim_1 ? inf : lim_1) : (null == lim_0 ? -inf : lim_0);
+    else if (n_ge(y, max_f)) return 0 > dir ? (null == lim_0 ? -inf : lim_0) : (null == lim_1 ? inf : lim_1);
 
     var two = constant['2'], x, fx;
     for (;;)
     {
         x = n_div(n_add(min_x, max_x), two);
         fx = f(x);
+        if (is_nan(fx))
+        {
+            x = nan;
+            break; // fails
+        }
         if (n_gt(fx, y))
         {
             if (0 > dir)
@@ -154,19 +161,32 @@ function monotone_inverse_bisearch(f, y, min_x, max_x, lim_0, lim_1, dir)
     }
     return x;
 }
-function monotone_inverse_newton(f, df, y, min_x, max_x, lim_0, lim_1, dir)
+function monotone_inverse_newton(f, df, y, min_x, max_x, min_f, max_f, lim_0, lim_1, dir)
 {
     // find inverse x s.t f(x) ~ y, f(.) is monotone
     // using Newton's method between min_x and max_x
     dir = -1 === dir ? -1 : 1; // increasing or decreasing
+    if (null == min_f) min_f = O;
+    if (null == max_f) max_f = I;
     if (is_nan(y)) return nan;
-    else if (n_le(y, O)) return 0 > dir ? (null == lim_1 ? inf : lim_1) : (null == lim_0 ? -inf : lim_0);
-    else if (n_ge(y, I)) return 0 > dir ? (null == lim_0 ? -inf : lim_0) : (null == lim_1 ? inf : lim_1);
+    else if (n_le(y, min_f)) return 0 > dir ? (null == lim_1 ? inf : lim_1) : (null == lim_0 ? -inf : lim_0);
+    else if (n_ge(y, max_f)) return 0 > dir ? (null == lim_0 ? -inf : lim_0) : (null == lim_1 ? inf : lim_1);
 
-    var x = n_div(n_add(min_x, max_x), constant['2']), fx, dfx, max_iter = 100;
+    var x = n_div(n_add(min_x, max_x), constant['2']), fx, dfx, max_iter = 100, tries;
     for (;max_iter;max_iter--)
     {
         fx = n_sub(f(x), y);
+        tries = 10;
+        while ((is_nan(fx) || is_inf(fx)) && (tries--))
+        {
+            x = n_add(min_x, n_mul(n_sub(max_x, min_x), __(stdMath.random())));
+            fx = n_sub(f(x), y);
+        }
+        if (is_nan(fx) || is_inf(fx))
+        {
+            if (is_nan(fx)) x = nan;
+            break; // fails
+        }
         if (n_lt(scalar_abs(fx), __eps)) break;
         x = n_sub(x, n_div(fx, n_add(df(x), __eps)));
     }
@@ -309,6 +329,28 @@ function erfc(x)
     );
     if (is_neg) erfcx = n_sub(constant['2'], erfcx);
     return erfcx;
+}
+
+// erfinv
+function erfinv(x)
+{
+    x = real(x);
+    if (n_lt(x, J) || n_gt(x, I)) return nan;
+    return monotone_inverse_bisearch(
+        erf,
+        x, __(-100), __(100), J, I
+    );
+}
+
+// erfcinv
+function erfcinv(x)
+{
+    x = real(x);
+    if (n_lt(x, O) || n_gt(x, constant['2'])) return nan;
+    return monotone_inverse_bisearch(
+        erfc,
+        x, __(-100), __(100), O, constant['2'], -inf, inf, -1
+    );
 }
 
 function factorial(n)
@@ -488,7 +530,7 @@ function gammaincinv(y, a, type)
     return monotone_inverse_newton(
         function(x) {return gammainc(x, a, type);},
         function(x) {return n_neg(n_div(n_mul(n_pow(x, n_sub(a, I)), realMath.exp(n_neg(x))), g));},
-        y, O, __(1e6), O, inf, s
+        y, O, __(1e6), O, I, O, inf, s
     );
 }
 
@@ -638,7 +680,7 @@ function betaincinv(y, z, w, tail)
     return monotone_inverse_newton(
         function(x) {return betainc(x, z, w, tail);},
         function(x) {return n_div(n_mul(n_pow(x, n_sub(z, I)), n_pow(n_sub(I, x), n_sub(w, I))), b);},
-        y, O, I, O, I, s
+        y, O, I, O, I, O, I, s
     );
 }
 
@@ -648,6 +690,12 @@ fn.erf = function(x) {
 };
 fn.erfc = function(x) {
     return apply(erfc, x, true);
+};
+fn.erfinv = function(x) {
+    return apply(erfinv, x, true);
+};
+fn.erfcinv = function(x) {
+    return apply(erfcinv, x, true);
 };
 fn.factorial = function(n) {
     return apply(factorial, n, false);
