@@ -1,5 +1,6 @@
-// some special functions, eg erf, erfc, gamma, gammaln, gammainc, beta, betaln, betainc, ..
-// TODO add more and/or improve accuracy if needed
+// some special functions,
+// eg erf, erfc, gamma, gammaln, gammainc, beta, betaln, betainc, ..
+// TODO add more and/or improve speed and/or accuracy if needed
 var __a1 =  0.254829592,
     __a2 = -0.284496736,
     __a3 =  1.421413741,
@@ -136,7 +137,7 @@ function monotone_inverse_bisearch(f, y, min_x, max_x, lim_0, lim_1, dir)
         }
         else if (n_lt(fx, y))
         {
-            if (n_le(n_sub(y, fx), __eps) || n_lt(n_sub(max_x, min_x), __eps)) break;
+            if (n_lt(n_sub(y, fx), __eps) || n_lt(n_sub(max_x, min_x), __eps)) break;
             if (0 > dir)
             {
                 max_x = x;
@@ -150,6 +151,24 @@ function monotone_inverse_bisearch(f, y, min_x, max_x, lim_0, lim_1, dir)
         {
             break;
         }
+    }
+    return x;
+}
+function monotone_inverse_newton(f, df, y, min_x, max_x, lim_0, lim_1, dir)
+{
+    // find inverse x s.t f(x) ~ y, f(.) is monotone
+    // using Newton's method between min_x and max_x
+    dir = -1 === dir ? -1 : 1; // increasing or decreasing
+    if (is_nan(y)) return nan;
+    else if (n_le(y, O)) return 0 > dir ? (null == lim_1 ? inf : lim_1) : (null == lim_0 ? -inf : lim_0);
+    else if (n_ge(y, I)) return 0 > dir ? (null == lim_0 ? -inf : lim_0) : (null == lim_1 ? inf : lim_1);
+
+    var x = n_div(n_add(min_x, max_x), constant['2']), fx, dfx, max_iter = 100;
+    for (;max_iter;max_iter--)
+    {
+        fx = n_sub(f(x), y);
+        if (n_lt(scalar_abs(fx), __eps)) break;
+        x = n_sub(x, n_div(fx, n_add(df(x), __eps)));
     }
     return x;
 }
@@ -453,7 +472,7 @@ function gammainc(x, a, type)
     {
         t = n_mul(t, n_div(x, n_add(a, k)));
         g = n_add(g, t);
-        if ((k > 5) && n_le(scalar_abs(t), __eps)) break;
+        if ((5 < k) && n_lt(scalar_abs(t), __eps)) break;
     }
     return 'scaledupper' === type ? n_sub(n_mul(gamma(n_add(a, I)), n_div(realMath.exp(x), n_pow(x, a))), g) : ('upper' === type ? n_sub(I, g) : g);
 }
@@ -461,11 +480,16 @@ function gammaincinv(y, a, type)
 {
     // gammaincinv(y,a) inverse regularized incomplete gamma function
     // https://en.wikipedia.org/wiki/Incomplete_gamma_function
-    // NEEDS FIX
     if (!is_real(y) || !is_real(a)) return nan;
     y = real(y); a = real(a);
     if (n_lt(a, O) || n_lt(y, O) || n_gt(y, I)) return nan;
-    return monotone_inverse_bisearch(function(x) {return gammainc(x, a, type);}, y, O, __(1e6), O, inf, 'upper' === type ? -1 : 1);
+    var s = 'scaledupper' === type || 'upper' === type ? -1 : 1,
+        g = n_mul(gamma(a), s);
+    return monotone_inverse_newton(
+        function(x) {return gammainc(x, a, type);},
+        function(x) {return n_neg(n_div(n_mul(n_pow(x, n_sub(a, I)), realMath.exp(n_neg(x))), g));},
+        y, O, __(1e6), O, inf, s
+    );
 }
 
 function beta(z, w)
@@ -487,7 +511,7 @@ function betaln(z, w)
     if (n_lt(z, O) || n_lt(w, O)) return nan;
     return scalar_add(scalar_sub(gammaln(z), gammaln(scalar_add(z, w))), gammaln(w));
 }
-function _betainc_cont_frac(x, z, w)
+function _betainc_cont_frac(x, z, w, regularized)
 {
     var p, q, p1, p0,
         q1, q0, r0, r,
@@ -498,34 +522,33 @@ function _betainc_cont_frac(x, z, w)
     q1 = O;
     q0 = I;
     bk = I;
+    ak = n_div(
+        n_mul(n_div(n_pow(x, z), z), n_pow(n_sub(I, x), w)),
+        'regularized' === regularized ? beta(z, w) : I
+    );
+    p = ak;
+    q = I;
+    r = ak;
+    p1 = p0; p0 = p;
+    q1 = q0; q0 = q;
+    r0 = r;
     for (k=1;;++k)
     {
-        if (1 === k)
+        if (k & 1)
         {
-            ak = n_div(
-                n_mul(n_div(n_pow(x, z), z), n_pow(n_sub(I, x), w)),
-                beta(z, w)
-            );
+            m = (k-1) >> 1;
+            ak = n_neg(n_div(n_mul(n_mul(x, n_add(z, m)), n_add(n_add(z, w), m)), n_mul(n_add(z, 2*m), n_add(z, 2*m+1))));
         }
         else
         {
-            m = k-1;
-            if (m & 1)
-            {
-                m = (m-1) >> 1;
-                ak = n_neg(n_div(n_mul(n_mul(x, n_add(z, m)), n_add(n_add(z, w), m)), n_mul(n_add(z, 2*m), n_add(z, 2*m+1))));
-            }
-            else
-            {
-                m = m >> 1;
-                ak = n_div(n_mul(x, n_mul(n_sub(w, m), m)), n_mul(n_add(z, 2*m), n_add(z, 2*m-1)));
-            }
+            m = k >> 1;
+            ak = n_div(n_mul(x, n_mul(n_sub(w, m), m)), n_mul(n_add(z, 2*m), n_add(z, 2*m-1)));
         }
         p = n_add(n_mul(bk, p0), n_mul(ak, p1));
         q = n_add(n_mul(bk, q0), n_mul(ak, q1));
         r = n_div(p, q);
 
-        if ((5 < k) && n_le(scalar_abs(n_sub(r, r0)), __eps)) break;
+        if ((5 < k) && n_lt(scalar_abs(n_sub(r, r0)), __eps)) break;
 
         p1 = p0; p0 = p;
         q1 = q0; q0 = q;
@@ -574,7 +597,7 @@ function betainc(x, z, w, tail)
         else
         {
             //Use the continued fraction (5).
-            b = _betainc_cont_frac(x, z, w);
+            b = _betainc_cont_frac(x, z, w, 'regularized');
         }
     }
     else
@@ -582,7 +605,7 @@ function betainc(x, z, w, tail)
         if (n_gt(w, n_div(n_mul(n_sub(I, x), z), x)))
         {
             //Use the continued fraction (5).
-            b = _betainc_cont_frac(x, z, w);
+            b = _betainc_cont_frac(x, z, w, 'regularized');
         }
         else
         {
@@ -594,11 +617,12 @@ function betainc(x, z, w, tail)
     if (n_ge(x, xt))
     {
         // use reflection, more efficient
-        b = n_sub(I, _betainc_cont_frac(n_sub(I, x), w, z));
+        b = n_sub(I, _betainc_cont_frac(n_sub(I, x), w, z, 'regularized'));
     }
     else
     {
-        b = _betainc_cont_frac(x, z, w);
+        // converges rapidly for x < xt
+        b = _betainc_cont_frac(x, z, w, 'regularized');
     }
     return 'upper' === tail ? n_sub(I, b) : b;
 }
@@ -606,12 +630,16 @@ function betaincinv(y, z, w, tail)
 {
     // betaincinv(y,z,w) inverse regularized incomplete beta function
     // https://en.wikipedia.org/wiki/Beta_function
-    // NEEDS FIX
     if (!is_real(y) || !is_real(z) || !is_real(w)) return nan;
     y = real(y); z = real(z); w = real(w);
 
     if (n_lt(y, O) || n_gt(y, I) || n_lt(z, O) || n_lt(w, O)) return nan;
-    return monotone_inverse_bisearch(function(x) {return betainc(x, z, w, tail);}, y, O, I, O, I, 'upper' === tail ? -1 : 1);
+    var s = 'upper' === tail ? -1 : 1, b = n_mul(beta(z, w), s);
+    return monotone_inverse_newton(
+        function(x) {return betainc(x, z, w, tail);},
+        function(x) {return n_div(n_mul(n_pow(x, n_sub(z, I)), n_pow(n_sub(I, x), n_sub(w, I))), b);},
+        y, O, I, O, I, s
+    );
 }
 
 // add them

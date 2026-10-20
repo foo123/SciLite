@@ -78,7 +78,7 @@ function chi2_contingency(observed)
         }, sums[0]), scalar_pow(sum(observed, "all"), sz.length-1));
         // Pearson's chi-squared statistic
         stat = sum(dotdiv(dotpow(sub(observed, expected), 2), expected), "all");
-        p = n_sub(I, chi2cdf(stat, dof)); // accuracy at least 2-3 decimal places
+        p = chi2cdf(stat, dof, 'upper');
     }
     return {
         stat: stat,
@@ -142,19 +142,43 @@ __td3 = __(1.604326);
 //__sqrt_pi = realMath.sqrt(constant.pi);
 });
 
+function unifpdf(x, a, b)
+{
+    // pdf of Uniform distribution
+    // https://en.wikipedia.org/wiki/Continuous_uniform_distribution
+    if (n_gt(a, b)) return nan;
+    return n_lt(x, a) || n_gt(x, b) ? O : n_div(I, n_sub(b, a));
+}
+function unifcdf(x, a, b, tail)
+{
+    // cdf of Uniform distribution
+    // https://en.wikipedia.org/wiki/Continuous_uniform_distribution
+    if (n_gt(a, b)) return nan;
+    var p = n_le(x, a) ? O : (n_ge(x, b) ? I : n_div(n_sub(x, a), n_sub(b, a)));
+    return 'upper' === tail ? n_sub(I, p) : p;
+}
+function unifinv(p, a, b)
+{
+    // icdf of Uniform distribution
+    // https://en.wikipedia.org/wiki/Continuous_uniform_distribution
+    if (n_gt(a, b)) return nan;
+    return n_le(p, O) ? a : (n_ge(p, I) ? b : n_add(a, n_mul(p, n_sub(b, a))));
+}
+
 function normpdf(x, mu, sigma)
 {
     // pdf of Normal distribution
     // https://en.wikipedia.org/wiki/Normal_distribution
     x = n_div(n_sub(x, mu), sigma); // normalize
-    return n_div(realMath.exp(n_neg(n_div(n_mul(x, x), constant['2']))), n_mul(sigma, /*n_mul(sqrt2, __sqrt_pi)*/__sqrt_2pi));
+    return n_div(realMath.exp(n_neg(n_div(n_mul(x, x), constant['2']))), n_mul(sigma, __sqrt_2pi));
 }
-function normcdf(x, mu, sigma)
+function normcdf(x, mu, sigma, tail)
 {
     // cdf of Normal distribution, via erf
     // https://en.wikipedia.org/wiki/Normal_distribution
     x = n_div(n_sub(x, mu), sigma); // normalize
-    return n_mul(constant['1/2'], n_add(I, erf(n_div(x, sqrt2))));
+    var p = n_mul(constant['1/2'], n_add(I, erf(n_div(x, sqrt2))));
+    return 'upper' === tail ? n_sub(I, p) : p;
 }
 function norminv(p, mu, sigma)
 {
@@ -162,25 +186,32 @@ function norminv(p, mu, sigma)
     // https://en.wikipedia.org/wiki/Normal_distribution
     if (n_lt(p, O)) return nan;
     var limit = n_mul(sigma, 100); // 100 x sigma
-    return monotone_inverse_bisearch(function(x) {return normcdf(x, mu, sigma);}, p, n_sub(mu, limit), n_add(mu, limit));
+    return monotone_inverse_newton(
+        function(x) {return normcdf(x, mu, sigma);},
+        function(x) {return normpdf(x, mu, sigma);},
+        p, n_sub(mu, limit), n_add(mu, limit)
+    );
 }
 
 function chi2pdf(x, nu)
 {
     // pdf of Chi-squared distribution with nu degrees of freedom
     // https://en.wikipedia.org/wiki/Chi-squared_distribution
-    if (n_lt(nu, O) || n_lt(x, O)) return nan;
+    if (n_lt(nu, O)) return nan;
     else if (n_eq(nu, O)) return n_eq(x, O) ? O : nan;
+    else if (n_lt(x, O)) return O;
     if (n_eq(constant['2'], nu))
     {
         return n_div(realMath.exp(n_neg(n_div(x, constant['2']))), constant['2']);
     }
     else
     {
+        nu = n_div(nu, constant['2']);
+        return n_div(n_mul(n_pow(x, n_sub(nu, I)), realMath.exp(n_neg(n_div(x, constant['2'])))), n_mul(n_pow(constant['2'], nu), gamma(nu)));
+        /*
         // "A normal approximation for the chi-square distribution", Luisa Canal, 2005
         // accuracy at least within 2-3 decimal places
         return pdf(function(x) {return chi2cdf(x, nu);}, x);
-        /*
         // Wilson-Hilferty Transformation to approximately a Normal
         // accuracy at least within 1-2 decimal places
         if ((null == chi2pdf.nu) || !n_eq(chi2pdf.nu, nu))
@@ -194,18 +225,21 @@ function chi2pdf(x, nu)
         */
     }
 }
-function chi2cdf(x, nu)
+function chi2cdf(x, nu, tail)
 {
     // cdf of Chi-squared distribution with nu degrees of freedom
     // https://en.wikipedia.org/wiki/Chi-squared_distribution
     if (n_lt(nu, O) || n_lt(x, O)) return nan;
     else if (n_eq(nu, O)) return n_eq(x, O) ? O : nan;
+    var p = O;
     if (n_eq(constant['2'], nu))
     {
-        return n_sub(I, realMath.exp(n_neg(n_div(x, constant['2']))));
+        p = n_sub(I, realMath.exp(n_neg(n_div(x, constant['2']))));
     }
     else
     {
+        p = gammainc(n_div(x, constant['2']), n_div(nu, constant['2']));
+        /*
         // "A normal approximation for the chi-square distribution", Luisa Canal, 2005
         // accuracy at least within 2-3 decimal places
         if ((null == chi2cdf.nu) || !n_eq(chi2cdf.nu, nu))
@@ -216,8 +250,7 @@ function chi2cdf(x, nu)
             chi2cdf.sigma = realMath.sqrt(n_add(n_add(n_div(1/18, nu), n_div(1/162, nu2)), n_div(-37/11664, nu3)));
         }
         var xn = n_div(x, nu), L = n_add(n_sub(n_pow(xn, 1/6), n_mul(n_pow(xn, 1/3), 1/2)), n_mul(realMath.sqrt(xn), 1/3));
-        return normcdf(L, chi2cdf.mu, chi2cdf.sigma);
-        /*
+        p = normcdf(L, chi2cdf.mu, chi2cdf.sigma);
         // Wilson-Hilferty Transformation to approximately a Normal
         // accuracy at least within 1-2 decimal places
         if ((null == chi2cdf.nu) || !n_eq(chi2cdf.nu, nu))
@@ -227,25 +260,25 @@ function chi2cdf(x, nu)
             chi2cdf.mu = n_sub(I, sigma2);
             chi2cdf.sigma = realMath.sqrt(sigma2);
         }
-        return normcdf(n_pow(n_div(x, nu), 1/3), chi2cdf.mu, chi2cdf.sigma);
+        p = normcdf(n_pow(n_div(x, nu), 1/3), chi2cdf.mu, chi2cdf.sigma);
         */
     }
+    return 'upper' === tail ? n_sub(I, p) : p;
 }
 function chi2inv(p, nu)
 {
     // icdf of Chi-squared distribution with nu degrees of freedom
     // https://en.wikipedia.org/wiki/Chi-squared_distribution
     if (n_lt(nu, O) || n_lt(p, O)) return nan;
-    // "A normal approximation for the chi-square distribution", Luisa Canal, 2005
-    // accuracy at least within 2-3 decimal places
-    if ((null == chi2inv.nu) || !n_eq(chi2inv.nu, nu))
-    {
-        chi2inv.nu = nu;
-        var nu2 = n_mul(nu, nu), nu3 = n_mul(nu2, nu);
-        chi2inv.limit = n_mul(realMath.sqrt(n_add(n_add(n_div(1/18, nu), n_div(1/162, nu2)), n_div(-37/11664, nu3))), 100);
-    }
-    return monotone_inverse_bisearch(function(x) {return chi2cdf(x, nu);}, p, O, chi2inv.limit, O, inf);
     /*
+    // FAILS
+    return monotone_inverse_bisearch(
+        function(x) {return chi2cdf(x, nu);},
+        //function(x) {return chi2pdf(x, nu);},
+        p, O, __(1e6), O, inf
+    );
+    */
+
     // Wilson-Hilferty Transformation to approximately a Normal
     // accuracy at least within 1-2 decimal places
     if ((null == chi2inv.nu) || !n_eq(chi2inv.nu, nu))
@@ -256,7 +289,7 @@ function chi2inv(p, nu)
         chi2inv.sigma = realMath.sqrt(sigma2);
     }
     return max([O, n_mul(n_pow(norminv(p, chi2inv.mu, chi2inv.sigma), 3), nu)]);
-    */
+
 }
 
 function tpdf(x, nu)
@@ -313,27 +346,37 @@ function tpdf(x, nu)
     }
     else
     {
+        tpdfx = n_mul(
+            n_div(
+                gamma(n_div(n_add(nu, I), constant['2'])),
+                n_mul(realMath.sqrt(n_mul(constant.pi, nu)), gamma(n_div(nu, constant['2'])))
+            ),
+            n_pow(
+                n_add(I, n_div(n_mul(x, x), nu)),
+                n_neg(n_div(n_add(nu, I), constant['2']))
+            )
+        );
         // approximation
-        tpdfx = pdf(function(x) {return tcdf(x, nu);}, x);
+        //tpdfx = pdf(function(x) {return tcdf(x, nu);}, x);
     }
     return tpdfx;
 }
-function tcdf(x, nu)
+function tcdf(x, nu, tail)
 {
     // cdf of t distribution with nu degrees of freedom
     // https://en.wikipedia.org/wiki/Student%27s_t-distribution
     if (n_le(nu, O)) return nan;
-    var tcdfx = O, z, z2, z3, z5;
+    var p = O, z, z2, z3, z5;
     if (n_eq(nu, I))
     {
-        tcdfx = n_add(
+        p = n_add(
             constant['1/2'],
             n_div(realMath.atan(x), constant.pi)
         );
     }
     else if (n_eq(nu, constant['2']))
     {
-        tcdfx = n_add(
+        p = n_add(
             constant['1/2'],
             n_div(
                 x,
@@ -345,7 +388,7 @@ function tcdf(x, nu)
     {
         z2 = n_div(n_mul(x, x), 3);
         z = realMath.sqrt(z2);
-        tcdfx = n_add(
+        p = n_add(
             constant['1/2'],
             n_div(
                 n_add(n_div(z, n_add(I, z2)), realMath.atan(z)),
@@ -357,7 +400,7 @@ function tcdf(x, nu)
     {
         z = n_div(x, constant['2']);
         z2 = n_mul(z, z);
-        tcdfx = n_add(
+        p = n_add(
             constant['1/2'],
             n_mul(
                 n_mul(
@@ -367,6 +410,10 @@ function tcdf(x, nu)
                 3
             )
         );
+    }
+    else if (n_gt(nu, 50))
+    {
+        p = normcdf(x, O, I); // has become almost precisely normal
     }
     else
     {
@@ -380,9 +427,9 @@ function tcdf(x, nu)
         z2 = n_mul(z, z);
         z3 = n_mul(z2, z);
         z5 = n_mul(z3, z2);
-        tcdfx = n_div(I, n_add(I, realMath.exp(n_sub(n_sub(n_mul(z5, __td1), n_mul(z3, __td2)), n_mul(z, __td3)))));
+        p = n_div(I, n_add(I, realMath.exp(n_sub(n_sub(n_mul(z5, __td1), n_mul(z3, __td2)), n_mul(z, __td3)))));
     }
-    return tcdfx;
+    return 'upper' === tail ? n_sub(I, p) : p;
 }
 function tinv(p, nu)
 {
@@ -391,5 +438,9 @@ function tinv(p, nu)
     // accuracy at least within 2-3 decimal places
     if (n_le(nu, O) || n_lt(p, O)) return nan;
     var limit = n_gt(nu, constant['2']) ? n_mul(n_div(nu, n_sub(nu, constant['2'])), 100) : __(1e7);
-    return monotone_inverse_bisearch(function(x) {return tcdf(x, nu);}, p, n_neg(limit), limit);
+    return monotone_inverse_newton(
+        function(x) {return tcdf(x, nu);},
+        function(x) {return tpdf(x, nu);},
+        p, n_neg(limit), limit
+    );
 }
