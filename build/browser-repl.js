@@ -4,7 +4,7 @@
 const document = window.document;
 const stdMath = Math;
 
-let ctx = null;
+let ctx = null, warnings = [];
 let cnt = 0;
 let printCompleted = Promise.resolve();
 const CM = {};
@@ -73,13 +73,13 @@ function print_fig(output, el, Plotly)
     }
     output.appendChild(el);
 }
-function print_err(output, err)
+function print_err(output, err, type)
 {
     if (!output) return;
     if (!err) return;
     const error = document.createElement('div');
     error.id = 'err-' + String(cnt);
-    error.className = 'err';
+    error.className = 'err' + (type ? ' ' + type : '');
     error.innerHTML = esc_html(err.toString());
     output.appendChild(error);
 }
@@ -157,6 +157,13 @@ async function repl(code, output, $, CodeMirror, MathJax, Plotly)
     // print
     ++cnt;
     print_code(output, code, CodeMirror);
+    if (warnings.length)
+    {
+        warnings.forEach(function(warning) {
+            print_err(output, warning, 'warn');
+        });
+        warnings = [];
+    }
     if (err)
     {
         print_err(output, err);
@@ -188,6 +195,9 @@ $.fn.exist = function(variable) {
 $.fn.clear = function() {
     if (arguments.length && ('all' === arguments[0])) $["@fn"] = {}; // clear user-defined functions
     ctx = null;
+};
+$.fn.warning = function(msg) {
+    if (msg.length) warnings.push('Warning: '+ (1 < arguments.length ? $.fn.sprintf.apply(null, [].slice.call(arguments)) : msg));
 };
 $.fn.eval = async function(code) {
     if (null == ctx) ctx = $._.createContext();
@@ -234,6 +244,26 @@ $.fn.legend = function(/*..args*/) {
         {
             Plotly.update(currentFig, {name: names.map(name => String(name))}, {}, names.map((_, i) => i));
         }
+        return currentFig;
+    }
+};
+$.fn.grid = function(enable) {
+    if (currentFig)
+    {
+        Plotly.relayout(currentFig, {
+            xaxis: {
+                showgrid: "on" === enable,
+                gridcolor: '#eee',
+                griddash: 'solid',
+                gridwidth: 2
+            },
+            yaxis: {
+                showgrid: "on" === enable,
+                gridcolor: '#eee',
+                griddash: 'solid',
+                gridwidth: 2
+            }
+        });
         return currentFig;
     }
 };

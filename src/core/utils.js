@@ -842,13 +842,14 @@ namevalue.prototype = {
         return this;
     },
     fill: function(namevalues, mode) {
-        if (is_instance(namevalues, namevalue) || is_obj(namevalues))
+        var nv = is_instance(namevalues, namevalue) ? namevalues._ : namevalues;
+        if (is_obj(nv))
         {
-            var _ = this._, is_nv = is_instance(namevalues, namevalue);
-            KEYS(is_nv ? namevalues._ : namevalues).forEach('defaults' === mode ? function(name) {
-                if (!HAS.call(_, name)) _[name] = (is_nv ? namevalues._ : namevalues)[name];
+            var _ = this._;
+            KEYS(nv).forEach('defaults' === mode ? function(name) {
+                if (!HAS.call(_, name)) _[name] = nv[name];
             } : function(name) {
-                _[name] = (is_nv ? namevalues._ : namevalues)[name];
+                _[name] = nv[name];
             });
         }
         return this;

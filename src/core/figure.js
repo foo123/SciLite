@@ -269,7 +269,7 @@ figure.prototype = {
                             fig.data.push({
                                 x:x,
                                 y:tonumber(COL(y, j)),
-                                style:fig.style(copyobj(s), kth++)
+                                style:fig.style(s, kth++)
                             });
                         }
                     }

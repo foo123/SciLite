@@ -466,7 +466,12 @@ var OP = {
     ,commutativity: NONCOMMUTATIVE
     ,priority     : 45
     ,fn           : function(nv, name, value) {
-                        if (is_instance(nv, namevalue) && is_string(name)) nv.set(name, value);
+                        if (is_instance(nv, namevalue) && is_string(name))
+                        {
+                            // if nv already has name, create new one
+                            if (nv.has(name)) nv = namevalue();
+                            nv.set(name, value);
+                        }
                         return nv;
                     }
     },
@@ -752,15 +757,14 @@ function def_fn(fn_def)
                 if (NameValueArgs) NameValueArgs.fill(NameValueAltArgs, 'defaults');
                 else NameValueArgs = namevalue(NameValueAltArgs);
             }
-            //if (NameValueArgs) nargin += NameValueArgs.all().length; // add them??
-            await Promise.all(NameValueDefaults.all().map(async function(name) {
+            await Promise.all(NameValueDefaults.all(
+            ).filter(function(name) {
+                return -1 === ['varargin','varargout','nargin','nargout'].indexOf(name);
+            }).map(async function(name) {
                 return {name:name, value:await vale(NameValueDefaults.get(name), null, {ctx:{}})};
             })).then(function(defaults) {
                 defaults.forEach(function(arg) {
-                    if ('varargin' !== arg.name)
-                    {
-                        $$.ctx[arg.name] = NameValueArgs ? copy(NameValueArgs.get(arg.name, arg.value)) : arg.value;
-                    }
+                    $$.ctx[arg.name] = NameValueArgs ? copy(NameValueArgs.get(arg.name, arg.value)) : arg.value;
                 });
             });
         }
@@ -2209,6 +2213,7 @@ async function evaluate(e, v, $$, vf2v)
             } catch (err) {
                 throw ((err.message || err) + (e.ln ? "\nat: " + e.ln : ""));
             }
+            $$.nv = ret;
             return ret;
         }
         else if (OP['='].fn === e.op)
