@@ -600,7 +600,7 @@ async function for_end($arg, v, $$)
             {
                 res = await vale(statements[i], v, $$);
                 if (is_break || is_continue) break;
-                if (null != res) ans.push(res);
+                if ((null != res) && (!ans.length || ans[ans.length-1] !== res)) ans.push(res);
             }
             if (is_break) break;
             else if (is_continue) continue;
@@ -632,7 +632,7 @@ async function while_end($arg, v, $$)
         {
             res = await vale(statements[i], v, $$);
             if (is_break || is_continue) break;
-            if (null != res) ans.push(res);
+            if ((null != res) && (!ans.length || ans[ans.length-1] !== res)) ans.push(res);
         }
         if (is_break) break;
         else if (is_continue) continue;

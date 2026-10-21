@@ -926,6 +926,13 @@ function namevalueargs(f, nv, repeatable)
                         NameValueAltArgs = {};
                         AltBackup = [];
                     }
+                    else if (repeatable && HAS.call(NameValueAltArgs, arg))
+                    {
+                        args.push(namevalue(NameValueAltArgs)); // in-place
+                        // assume new namevalue args
+                        NameValueAltArgs = {};
+                        AltBackup = [];
+                    }
                     NameValueAltArgs[arg] = a[i+1];
                     AltBackup.push(arg);
                     AltBackup.push(a[i+1]);

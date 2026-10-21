@@ -355,8 +355,9 @@ function erfcinv(x)
 
 function factorial(n)
 {
+    // https://en.wikipedia.org/wiki/Factorial
     // simple factorial
-    if (n_ge(n, O))
+    if (is_int(n) && n_ge(n, O))
     {
         n = realMath.floor(n);
         var f;
@@ -371,12 +372,13 @@ function factorial(n)
         }
         return f;
     }
-    return nan;
+    return gamma(scalar_add(n, I));
 }
 function logfactorial(n)
 {
+    // https://en.wikipedia.org/wiki/Factorial
     // simple log factorial
-    if (n_ge(n, O))
+    if (is_int(n) && n_ge(n, O))
     {
         n = realMath.floor(n);
         var f;
@@ -391,7 +393,84 @@ function logfactorial(n)
         }
         return f;
     }
-    return nan;
+    return gammaln(scalar_add(n, I));
+}
+function binom(n, k, inverse)
+{
+    // https://en.wikipedia.org/wiki/Binomial_coefficient
+    // binomial = B(n,m) = B(n-1,m-1)+B(n-1,m) = n!/m!(n-m)! = Gamma(n+1)/Gamma(k+1)Gamma(n-k+1)
+    var Bnk, i;
+    if (is_int(n) && is_int(k) && n_le(O, k) && n_le(k, n))
+    {
+        if (n_eq(n, k) || n_eq(k, O))
+        {
+            Bnk = I;
+        }
+        else
+        {
+            // this is faster and will not overflow unnecesarily for default arithmetic
+            n = n_sub(n, k);
+            k = _(k);
+            if ('inverse' === inverse)
+            {
+                for (Bnk=n_div(I, n_add(n, I)),i=2; i<=k; ++i)
+                {
+                    //Bnk /= (n+i)/i;
+                    Bnk = n_div(Bnk, n_add(I, n_div(n, i)));
+                }
+            }
+            else
+            {
+                for (Bnk=n_add(n, I),i=2; i<=k; ++i)
+                {
+                    //Bnk *= (n+i)/i;
+                    Bnk = n_mul(Bnk, n_add(I, n_div(n, i)));
+                }
+                Bnk = realMath.round(Bnk);
+            }
+        }
+    }
+    else
+    {
+        if ('inverse' === inverse)
+        {
+            Bnk = scalar_mul(scalar_div(gamma(scalar_add(scalar_sub(n, k), I)), gamma(scalar_add(n, I))), gamma(scalar_add(k, I)));
+        }
+        else
+        {
+            Bnk = scalar_div(scalar_div(gamma(scalar_add(n, I)), gamma(scalar_add(k, I))), gamma(scalar_add(scalar_sub(n, k), I)));
+        }
+    }
+    return Bnk;
+}
+function logbinom(n, k, inverse)
+{
+    // https://en.wikipedia.org/wiki/Binomial_coefficient
+    // log binomial = log(B(n,m)) = log(n!)-log(m!)-log((n-m)!) = LogGamma(n+1)-LogGamma(k+1)-LogGamma(n-k+1)
+    var Bnk, i;
+    if (is_int(n) && is_int(k) && n_le(O, k) && n_le(k, n))
+    {
+        if (n_eq(n, k) || n_eq(k, O))
+        {
+            Bnk = O;
+        }
+        else
+        {
+            // this is faster and will not overflow unnecesarily for default arithmetic
+            n = n_sub(n, k);
+            k = _(k);
+            for (Bnk=realMath.log(n_add(n, I)),i=2; i<=k; ++i)
+            {
+                //Bnk *= (n+i)/i;
+                Bnk = n_add(Bnk, realMath.log(n_add(I, n_div(n, i))));
+            }
+        }
+    }
+    else
+    {
+        Bnk = scalar_sub(scalar_sub(gammaln(scalar_add(n, I)), gammaln(scalar_add(k, I))), gammaln(scalar_add(scalar_sub(n, k), I)));
+    }
+    return 'inverse' === inverse ? scalar_neg(Bnk) : Bnk;
 }
 
 function gamma(z)
@@ -542,6 +621,11 @@ function beta(z, w)
     z = real(z); w = real(w);
     if (n_lt(z, O) || n_lt(w, O)) return nan;
     if (n_eq(z, O) || n_eq(w, O)) return n_eq(z, w) ? nan : inf;
+    if (is_int(z) && is_int(w))
+    {
+        // reduces to inverse binomial coeff
+        return n_mul(n_add(z, w), n_div(binom(n_add(z, w), w, 'inverse'), n_mul(z, w)));
+    }
     return scalar_mul(scalar_div(gamma(z), gamma(scalar_add(z, w))), gamma(w));
 }
 function betaln(z, w)
@@ -551,6 +635,11 @@ function betaln(z, w)
     if (!is_real(z) || !is_real(w)) return nan;
     z = real(z); w = real(w);
     if (n_lt(z, O) || n_lt(w, O)) return nan;
+    if (is_int(z) && is_int(w))
+    {
+        // reduces to inverse log-binomial coeff
+        return n_add(realMath.log(n_add(z, w)), n_sub(logbinom(n_add(z, w), w, 'inverse'), realMath.log(n_mul(z, w))));
+    }
     return scalar_add(scalar_sub(gammaln(z), gammaln(scalar_add(z, w))), gammaln(w));
 }
 function _betainc_cont_frac(x, z, w, regularized)
