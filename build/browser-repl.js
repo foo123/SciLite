@@ -197,7 +197,12 @@ $.fn.clear = function() {
     ctx = null;
 };
 $.fn.warning = function(msg) {
-    if (msg.length) warnings.push('Warning: '+ (1 < arguments.length ? $.fn.sprintf.apply(null, [].slice.call(arguments)) : msg));
+    if (msg.length)
+    {
+        msg = 'Warning: '+ (1 < arguments.length ? $.fn.sprintf.apply(null, [].slice.call(arguments)) : msg);
+        warnings.push(msg);
+        console.warn(msg);
+    }
 };
 $.fn.eval = async function(code) {
     if (null == ctx) ctx = $._.createContext();
