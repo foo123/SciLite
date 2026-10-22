@@ -674,17 +674,25 @@ mesh: function(el, data) {
     });
 }
 };
-(function fig(type, data, params, ispopup) {
+(function fig(type, data, params, ispopup, resize) {
+    const width = $WIDTH$, height = $HEIGHT$;
     if (!ispopup)
     {
-        const win = window.open(location.href, "figure_$FIG$", "popup", "width=600,height=450");
+        const win = window.open(location.href, "figure_$FIG$", "popup", "width="+String(width)+",height="+String(height)+"");
         setTimeout(() => self.close(), 500+(win ? 0 : 4500));
     }
     else
     {
+        if (resize)
+        {
+            window.resizeTo(
+                width + (window.outerWidth - window.innerWidth),
+                height + (window.outerHeight - window.innerHeight)
+            );
+        }
         if (!window.Plotly)
         {
-            setTimeout(() => fig(type, data, params, true), 100); // wait
+            setTimeout(() => fig(type, data, params, true, false), 100); // wait
         }
         else if (data)
         {
@@ -707,13 +715,14 @@ mesh: function(el, data) {
                             }
                             Plotly.relayout(el, params);
                         }
-                        setTimeout(update, 1000);
-                    }).catch(function(err) {});
-                }, 1000);
+                        setTimeout(update, 500);
+                    })
+                    .catch(function(err) {});
+                }, 500);
             }
         }
     }
-})($TYPE$, $DATA$, $PARAMS$, !!window.opener);
+})($TYPE$, $DATA$, $PARAMS$, !!window.opener, true);
 </script>
 <script async src="https://cdn.plot.ly/plotly-3.3.0.min.js" charset="utf-8"></script>
 </body>
@@ -808,6 +817,7 @@ $.fn[plot_type] = $._.namevalueargs(function(/*..args*/) {
     {
         ++fig_no;
         fig_type = plot_type;
+        fig_params = null;
         fig_data = JSON.stringify(fig.data);
         return figure();
     }
@@ -820,6 +830,7 @@ $.fn[plot_type] = $._.namevalueargs(function(/*..args*/) {
 $.fn.contour = function(x, y, z, v) {
     ++fig_no;
     fig_type = 'contour';
+    fig_params = null;
     if (3 <= arguments.length)
     {
         fig_data = JSON.stringify({
@@ -843,6 +854,7 @@ $.fn.contour = function(x, y, z, v) {
 $.fn.mesh = function(x, y, z) {
     ++fig_no;
     fig_type = 'mesh';
+    fig_params = null;
     fig_data = JSON.stringify({
         x: $._.tonumber($._.vec($.fn.colon(x))),
         y: $._.tonumber($._.vec($.fn.colon(y))),
@@ -872,6 +884,7 @@ function unlink(file)
 let server = null;
 async function figure()
 {
+    const width = 800, height = 600; // window size
     if (!server)
     {
         await new Promise(function(resolve, reject) {
@@ -883,6 +896,8 @@ async function figure()
                     res.end(
                     fig_html
                     .split('$FIG$').join(String(fig_no))
+                    .split('$WIDTH$').join(String(width))
+                    .split('$HEIGHT$').join(String(height))
                     .split('$TYPE$').join('"'+fig_type+'"')
                     .split('$PARAMS$').join('"./' + String(fig_no) + '.json"')
                     .split('$DATA$').join(fig_data)
@@ -916,6 +931,7 @@ async function figure()
 }
 const repl = require('repl').start({
     prompt: '>> ',
+    ignoreUndefined: true,
     writer: function(ans) {
         let out = '';
         if (warnings.length)
@@ -933,7 +949,7 @@ const repl = require('repl').start({
         code = String(code).trim();
         if (!code.length) return cb(null, null);
         if (null == ctx) ctx = $._.createContext();
-        $._.eval(code, ctx, 1, 1).then(ans => cb(null, ans)).catch(err => cb(new Error(err.message || err), ''));
+        $._.eval(code, ctx, 1, 1).then(ans => cb(null, (null == ans) && !warnings.length ? undefined : ans)).catch(err => cb(new Error(err.message || err)));
     }
 });
 repl.on('reset', function() {
