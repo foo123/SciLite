@@ -1,4 +1,4 @@
-(function(window) {
+(function(window, unset) {
 "use strict";
 
 const document = window.document;
@@ -265,28 +265,58 @@ $.fn.grid = function(on) {
 $.fn.close = function(fig) {
     // ignored
 };
-$.fn.plot = $._.namevalueargs(function(/*..args*/) {
-    const fig = $._.figure().parse(arguments);
+[
+'plot',
+'loglog',
+'semilogx',
+'semilogy',
+'scatter',
+'bar',
+'barh'
+].forEach(function(plot_type) {
+$.fn[plot_type] = $._.namevalueargs(function(/*..args*/) {
+    const fig = $._.figure().parse(arguments, 'plot');
     if (fig.data.length)
     {
         const el = document.createElement('div');
         el.className = 'fig2d';
         document.body.appendChild(el);
         Plotly.newPlot(el, fig.data.map(function(data, i) {
-            return {
-                x: data.x,
-                y: data.y,
-                name: 'input '+String(i+1),
-                mode: 'lines',
-                line: {
+            const o = {
+                x: 'barh' === plot_type ? data.y : data.x,
+                y: 'barh' === plot_type ? data.x : data.y,
+                name: 'input '+String(i+1)
+            };
+            if (-1 < ['bar','barh'].indexOf(plot_type))
+            {
+                o.type = 'bar';
+                if ('barh' === plot_type) o.orientation = 'h';
+                o.marker = {
+                    color: 'rgb('+data.style.Color.map(v => stdMath.round(255*v)).join(',')+')'
+                };
+            }
+            else if ('scatter' === plot_type)
+            {
+                o.type = 'scatter';
+                o.mode = 'markers';
+                o.marker = {
+                    width: 2*(data.style.LineWidth || 1),
+                    color: 'rgb('+data.style.Color.map(v => stdMath.round(255*v)).join(',')+')'
+                };
+            }
+            else
+            {
+                o.mode = 'lines';
+                o.line = {
                     width: data.style.LineWidth || 1,
                     dash: (['solid','dash','dot','dashdot'])[(['-','--',':','-.']).indexOf(data.style.LineStyle || '-')],
                     color: 'rgb('+data.style.Color.map(v => stdMath.round(255*v)).join(',')+')'
-                }
-            };
+                };
+            }
+            return o;
         }), {
             xaxis: {
-                type: 'linear',
+                type: -1 < ['loglog','semilogx'].indexOf(plot_type) ? 'log' : 'linear',
                 linewidth: 2,
                 showticklabels: true,
                 showgrid: false,
@@ -301,7 +331,7 @@ $.fn.plot = $._.namevalueargs(function(/*..args*/) {
                 zeroline: false
             },
             yaxis: {
-                type: 'linear',
+                type: -1 < ['loglog','semilogy'].indexOf(plot_type) ? 'log' : 'linear',
                 linewidth: 2,
                 showticklabels: true,
                 showgrid: false,
@@ -329,390 +359,12 @@ $.fn.plot = $._.namevalueargs(function(/*..args*/) {
     LineWidth: 1,
     LineStyle: '-'
 }, 'repeatable');
-$.fn.loglog = $._.namevalueargs(function(/*..args*/) {
-    const fig = $._.figure().parse(arguments);
-    if (fig.data.length)
-    {
-        const el = document.createElement('div');
-        el.className = 'fig2d';
-        document.body.appendChild(el);
-        Plotly.newPlot(el, fig.data.map(function(data, i) {
-            return {
-                x: data.x,
-                y: data.y,
-                name: 'input '+String(i+1),
-                mode: 'lines',
-                line: {
-                    width: data.style.LineWidth || 1,
-                    dash: (['solid','dash','dot','dashdot'])[(['-','--',':','-.']).indexOf(data.style.LineStyle || '-')],
-                    color: 'rgb('+data.style.Color.map(v => stdMath.round(255*v)).join(',')+')'
-                }
-            };
-        }), {
-            xaxis: {
-                type: 'log',
-                linewidth: 2,
-                showticklabels: true,
-                showgrid: false,
-                gridcolor: '#eee',
-                griddash: 'solid',
-                gridwidth: 2,
-                showline: true,
-                mirror: 'ticks',
-                ticks: 'inside',
-                tickmode: 'auto',
-                autorange: true,
-                zeroline: false
-            },
-            yaxis: {
-                type: 'log',
-                linewidth: 2,
-                showticklabels: true,
-                showgrid: false,
-                gridcolor: '#eee',
-                griddash: 'solid',
-                gridwidth: 2,
-                showline: true,
-                mirror: 'ticks',
-                ticks: 'inside',
-                tickmode: 'auto',
-                autorange: true,
-                zeroline: false
-            },
-            paper_bgcolor: '#ffffff',
-            plot_bgcolor: '#ffffff'
-        }, {
-            //staticPlot: true,
-            responsive: true,
-            displayModeBar: false
-        });
-        return el;
-    }
-}, {
-    Color: null,
-    LineWidth: 1,
-    LineStyle: '-'
-}, 'repeatable');
-$.fn.semilogx = $._.namevalueargs(function(/*..args*/) {
-    const fig = $._.figure().parse(arguments);
-    if (fig.data.length)
-    {
-        const el = document.createElement('div');
-        el.className = 'fig2d';
-        document.body.appendChild(el);
-        Plotly.newPlot(el, fig.data.map(function(data, i) {
-            return {
-                x: data.x,
-                y: data.y,
-                name: 'input '+String(i+1),
-                mode: 'lines',
-                line: {
-                    width: data.style.LineWidth || 1,
-                    dash: (['solid','dash','dot','dashdot'])[(['-','--',':','-.']).indexOf(data.style.LineStyle || '-')],
-                    color: 'rgb('+data.style.Color.map(v => stdMath.round(255*v)).join(',')+')'
-                }
-            };
-        }), {
-            xaxis: {
-                type: 'log',
-                linewidth: 2,
-                showticklabels: true,
-                showgrid: false,
-                gridcolor: '#eee',
-                griddash: 'solid',
-                gridwidth: 2,
-                showline: true,
-                mirror: 'ticks',
-                ticks: 'inside',
-                tickmode: 'auto',
-                autorange: true,
-                zeroline: false
-            },
-            yaxis: {
-                type: 'linear',
-                linewidth: 2,
-                showticklabels: true,
-                showgrid: false,
-                gridcolor: '#eee',
-                griddash: 'solid',
-                gridwidth: 2,
-                showline: true,
-                mirror: 'ticks',
-                ticks: 'inside',
-                tickmode: 'auto',
-                autorange: true,
-                zeroline: false
-            },
-            paper_bgcolor: '#ffffff',
-            plot_bgcolor: '#ffffff'
-        }, {
-            //staticPlot: true,
-            responsive: true,
-            displayModeBar: false
-        });
-        return el;
-    }
-}, {
-    Color: null,
-    LineWidth: 1,
-    LineStyle: '-'
-}, 'repeatable');
-$.fn.semilogy = $._.namevalueargs(function(/*..args*/) {
-    const fig = $._.figure().parse(arguments);
-    if (fig.data.length)
-    {
-        const el = document.createElement('div');
-        el.className = 'fig2d';
-        document.body.appendChild(el);
-        Plotly.newPlot(el, fig.data.map(function(data, i) {
-            return {
-                x: data.x,
-                y: data.y,
-                name: 'input '+String(i+1),
-                mode: 'lines',
-                line: {
-                    width: data.style.LineWidth || 1,
-                    dash: (['solid','dash','dot','dashdot'])[(['-','--',':','-.']).indexOf(data.style.LineStyle || '-')],
-                    color: 'rgb('+data.style.Color.map(v => stdMath.round(255*v)).join(',')+')'
-                }
-            };
-        }), {
-            xaxis: {
-                type: 'linear',
-                linewidth: 2,
-                showticklabels: true,
-                showgrid: false,
-                gridcolor: '#eee',
-                griddash: 'solid',
-                gridwidth: 2,
-                showline: true,
-                mirror: 'ticks',
-                ticks: 'inside',
-                tickmode: 'auto',
-                autorange: true,
-                zeroline: false
-            },
-            yaxis: {
-                type: 'log',
-                linewidth: 2,
-                showticklabels: true,
-                showgrid: false,
-                gridcolor: '#eee',
-                griddash: 'solid',
-                gridwidth: 2,
-                showline: true,
-                mirror: 'ticks',
-                ticks: 'inside',
-                tickmode: 'auto',
-                autorange: true,
-                zeroline: false
-            },
-            paper_bgcolor: '#ffffff',
-            plot_bgcolor: '#ffffff'
-        }, {
-            //staticPlot: true,
-            responsive: true,
-            displayModeBar: false
-        });
-        return el;
-    }
-}, {
-    Color: null,
-    LineWidth: 1,
-    LineStyle: '-'
-}, 'repeatable');
-$.fn.scatter = $._.namevalueargs(function(/*..args*/) {
-    const fig = $._.figure().parse(arguments);
-    if (fig.data.length)
-    {
-        const el = document.createElement('div');
-        el.className = 'fig2d';
-        document.body.appendChild(el);
-        Plotly.newPlot(el, fig.data.map(function(data, i) {
-            return {
-                x: data.x,
-                y: data.y,
-                name: 'input '+String(i+1),
-                type: 'scatter',
-                mode: 'markers',
-                marker: {
-                    width: data.style.LineWidth,
-                    color: 'rgb('+data.style.Color.map(v => stdMath.round(255*v)).join(',')+')'
-                }
-            };
-        }), {
-            xaxis: {
-                type: 'linear',
-                linewidth: 2,
-                showticklabels: true,
-                showgrid: false,
-                gridcolor: '#eee',
-                griddash: 'solid',
-                gridwidth: 2,
-                showline: true,
-                mirror: 'ticks',
-                ticks: 'inside',
-                tickmode: 'auto',
-                autorange: true,
-                zeroline: false
-            },
-            yaxis: {
-                type: 'linear',
-                linewidth: 2,
-                showticklabels: true,
-                showgrid: false,
-                gridcolor: '#eee',
-                griddash: 'solid',
-                gridwidth: 2,
-                showline: true,
-                mirror: 'ticks',
-                ticks: 'inside',
-                tickmode: 'auto',
-                autorange: true,
-                zeroline: false
-            },
-            paper_bgcolor: '#ffffff',
-            plot_bgcolor: '#ffffff'
-        }, {
-            //staticPlot: true,
-            responsive: true,
-            displayModeBar: false
-        });
-        return el;
-    }
-}, {
-    Color: null,
-    LineWidth: 1,
-    LineStyle: '-'
-}, 'repeatable');
-$.fn.bar = $._.namevalueargs(function(/*..args*/) {
-    const fig = $._.figure().parse(arguments);
-    if (fig.data.length)
-    {
-        const el = document.createElement('div');
-        el.className = 'fig2d';
-        document.body.appendChild(el);
-        Plotly.newPlot(el, fig.data.map(function(data, i) {
-            return {
-                x: data.x,
-                y: data.y,
-                name: 'input '+String(i+1),
-                type: 'bar',
-                marker: {
-                    color: 'rgb('+data.style.Color.map(v => stdMath.round(255*v)).join(',')+')'
-                }
-            };
-        }), {
-            xaxis: {
-                type: 'linear',
-                linewidth: 2,
-                showticklabels: true,
-                showgrid: false,
-                gridcolor: '#eee',
-                griddash: 'solid',
-                gridwidth: 2,
-                showline: true,
-                mirror: 'ticks',
-                ticks: 'inside',
-                tickmode: 'auto',
-                autorange: true,
-                zeroline: false
-            },
-            yaxis: {
-                type: 'linear',
-                linewidth: 2,
-                showticklabels: true,
-                showgrid: false,
-                gridcolor: '#eee',
-                griddash: 'solid',
-                gridwidth: 2,
-                showline: true,
-                mirror: 'ticks',
-                ticks: 'inside',
-                tickmode: 'auto',
-                autorange: true,
-                zeroline: false
-            },
-            barmode: 'group',
-            paper_bgcolor: '#ffffff',
-            plot_bgcolor: '#ffffff'
-        }, {
-            //staticPlot: true,
-            responsive: true,
-            displayModeBar: false
-        });
-        return el;
-    }
-}, {
-    Color: null,
-    LineWidth: 1,
-    LineStyle: '-'
-}, 'repeatable');
-$.fn.barh = $._.namevalueargs(function(/*..args*/) {
-    const fig = $._.figure().parse(arguments);
-    if (fig.data.length)
-    {
-        const el = document.createElement('div');
-        el.className = 'fig2d';
-        document.body.appendChild(el);
-        Plotly.newPlot(el, fig.data.map(function(data, i) {
-            return {
-                x: data.y,
-                y: data.x,
-                name: 'input '+String(i+1),
-                type: 'bar',
-                orientation: 'h',
-                marker: {
-                    color: 'rgb('+data.style.Color.map(v => stdMath.round(255*v)).join(',')+')'
-                }
-            };
-        }), {
-            xaxis: {
-                type: 'linear',
-                linewidth: 2,
-                showticklabels: true,
-                showgrid: false,
-                gridcolor: '#eee',
-                griddash: 'solid',
-                gridwidth: 2,
-                showline: true,
-                mirror: 'ticks',
-                ticks: 'inside',
-                tickmode: 'auto',
-                autorange: true,
-                zeroline: false
-            },
-            yaxis: {
-                type: 'linear',
-                linewidth: 2,
-                showticklabels: true,
-                showgrid: false,
-                gridcolor: '#eee',
-                griddash: 'solid',
-                gridwidth: 2,
-                showline: true,
-                mirror: 'ticks',
-                ticks: 'inside',
-                tickmode: 'auto',
-                autorange: true,
-                zeroline: false
-            },
-            barmode: 'group',
-            paper_bgcolor: '#ffffff',
-            plot_bgcolor: '#ffffff'
-        }, {
-            //staticPlot: true,
-            responsive: true,
-            displayModeBar: false
-        });
-        return el;
-    }
-}, {
-    Color: null,
-    LineWidth: 1,
-    LineStyle: '-'
-}, 'repeatable');
-$.fn.piechart = function(/*..args*/) {
+});
+[
+'piechart',
+'donutchart'
+].forEach(function(plot_type) {
+$.fn[plot_type] = function(/*..args*/) {
     const fig = $._.figure().parse(arguments, 'pie');
     if (fig.data.length)
     {
@@ -726,9 +378,10 @@ $.fn.piechart = function(/*..args*/) {
         Plotly.newPlot(el, fig.data.map(function(data, i) {
             return {
                 name: 'input '+String(i+1),
-                labels: $.fn.colon(1, data.y.length).map(j => 'label '+String(j)),
+                labels: data.y.map((_, j) => 'label '+String(j)),
                 values: data.y,
                 type: 'pie',
+                hole: 'donutchart' === plot_type ? .4 : unset,
                 direction: 'clockwise',
                 textinfo: 'percent'/*'label+percent'*/,
                 textposition: 'inside',
@@ -751,38 +404,51 @@ $.fn.piechart = function(/*..args*/) {
         return el;
     }
 };
-$.fn.donutchart = function(/*..args*/) {
-    const fig = $._.figure().parse(arguments, 'pie');
+});
+[
+'plot3',
+'scatter3'
+].forEach(function(plot_type) {
+$.fn[plot_type] = $._.namevalueargs(function(/*..args*/) {
+    const fig = $._.figure().parse(arguments, 'plot3');
     if (fig.data.length)
     {
-        let m = fig.data.length;
-        if ((1 < m) && (m & 1)) ++m;
-        const rows = stdMath.floor(stdMath.sqrt(m));
-        const cols = m/rows;
         const el = document.createElement('div');
-        el.className = 'fig2d';
+        el.className = 'fig3d';
         document.body.appendChild(el);
         Plotly.newPlot(el, fig.data.map(function(data, i) {
-            return {
-                name: 'input '+String(i+1),
-                labels: $.fn.colon(1, data.y.length).map(j => 'label '+String(j)),
-                values: data.y,
-                type: 'pie',
-                hole: .4,
-                direction: 'clockwise',
-                textinfo: 'percent'/*'label+percent'*/,
-                textposition: 'inside',
-                sort: false,
-                domain: {
-                    row: stdMath.floor(i/cols),
-                    column: i % cols
-                }
+            const o = {
+                type: 'scatter3d',
+                x: data.x,
+                y: data.y,
+                z: data.z,
+                name: 'input '+String(i+1)
             };
+            if ('scatter3' === plot_type)
+            {
+                o.mode = 'markers';
+                o.marker = {
+                    size: 2*(data.style.LineWidth || 1),
+                    //dash: (['solid','dash','dot','dashdot'])[(['-','--',':','-.']).indexOf(data.style.LineStyle || '-')],
+                    color: 'rgb('+data.style.Color.map(v => stdMath.round(255*v)).join(',')+')',
+                    reversescale: false
+                };
+            }
+            else
+            {
+                o.mode = 'lines';
+                o.line = {
+                    width: data.style.LineWidth || 1,
+                    dash: (['solid','dash','dot','dashdot'])[(['-','--',':','-.']).indexOf(data.style.LineStyle || '-')],
+                    color: 'rgb('+data.style.Color.map(v => stdMath.round(255*v)).join(',')+')',
+                    reversescale: false
+                };
+            }
+            return o;
         }), {
-            margin: {b:0, l:0, r:0},
+            margin: {t:0, b:0, l:0, r:0},
             paper_bgcolor: '#ffffff',
-            plot_bgcolor: '#ffffff',
-            grid: {rows: rows, columns: cols}
+            plot_bgcolor: '#ffffff'
         }, {
             //staticPlot: true,
             responsive: true,
@@ -790,7 +456,12 @@ $.fn.donutchart = function(/*..args*/) {
         });
         return el;
     }
-};
+}, {
+    Color: null,
+    LineWidth: 1,
+    LineStyle: '-'
+}, 'repeatable');
+});
 $.fn.contour = function(x, y, z, v) {
     const el = document.createElement('div');
     el.className = 'fig2d';
@@ -917,82 +588,6 @@ $.fn.contour = function(x, y, z, v) {
     }
     return el;
 };
-$.fn.plot3 = $._.namevalueargs(function(/*..args*/) {
-    const fig = $._.figure().parse(arguments, 'plot3');
-    if (fig.data.length)
-    {
-        const el = document.createElement('div');
-        el.className = 'fig3d';
-        document.body.appendChild(el);
-        Plotly.newPlot(el, fig.data.map(function(data, i) {
-            return {
-                type: 'scatter3d',
-                mode: 'lines',
-                x: data.x,
-                y: data.y,
-                z: data.z,
-                name: 'input '+String(i+1),
-                line: {
-                    width: data.style.LineWidth || 1,
-                    dash: (['solid','dash','dot','dashdot'])[(['-','--',':','-.']).indexOf(data.style.LineStyle || '-')],
-                    color: 'rgb('+data.style.Color.map(v => stdMath.round(255*v)).join(',')+')',
-                    reversescale: false
-                }
-            };
-        }), {
-            margin: {t:0, b:0, l:0, r:0},
-            paper_bgcolor: '#ffffff',
-            plot_bgcolor: '#ffffff'
-        }, {
-            //staticPlot: true,
-            responsive: true,
-            displayModeBar: false
-        });
-        return el;
-    }
-}, {
-    Color: null,
-    LineWidth: 1,
-    LineStyle: '-'
-}, 'repeatable');
-$.fn.scatter3 = $._.namevalueargs(function(/*..args*/) {
-    const fig = $._.figure().parse(arguments, 'plot3');
-    if (fig.data.length)
-    {
-        const el = document.createElement('div');
-        el.className = 'fig3d';
-        document.body.appendChild(el);
-        Plotly.newPlot(el, fig.data.map(function(data, i) {
-            return {
-                type: 'scatter3d',
-                mode: 'markers',
-                x: data.x,
-                y: data.y,
-                z: data.z,
-                name: 'input '+String(i+1),
-                marker: {
-                    size: 2*(data.style.LineWidth || 1),
-                    //dash: (['solid','dash','dot','dashdot'])[(['-','--',':','-.']).indexOf(data.style.LineStyle || '-')],
-                    color: 'rgb('+data.style.Color.map(v => stdMath.round(255*v)).join(',')+')',
-                    reversescale: false
-                }
-            };
-        }), {
-            margin: {t:0, b:0, l:0, r:0},
-            paper_bgcolor: '#ffffff',
-            plot_bgcolor: '#ffffff'
-        }, {
-            //staticPlot: true,
-            responsive: true,
-            displayModeBar: false
-        });
-        return el;
-    }
-}, {
-    Color: null,
-    LineWidth: 1,
-    LineStyle: '-'
-}, 'repeatable');
 $.fn.mesh = function(x, y, z) {
     const el = document.createElement('div');
     el.className = 'fig3d';
@@ -1063,7 +658,7 @@ codemirror_define_grammar_mode("scilite", {
     ,"<number>"                 : "RE::/\\d+(?:\\.\\d+)?([eE]-?\\d+)?[ij]?/"
     ,"<const>"                 : {"autocomplete":true,"tokens":["realmax","realmin","intmax","intmin","eps","pi","e","inf","Inf","nan","NaN"]}
     ,"<t>"                      : [".'","'"]
-    ,"<op>"                     : ["+","-",".'","'",".*","*","./","/","\\","&&","||","xor","==","~=",">=","<=",">","<","~","="]
+    ,"<op>"                     : ["+","-",".'","'",".*","*","./","/","\\","&&","||","&","|","xor","==","~=",">=","<=",">","<","~","=","@"]
 },
 
 // Syntax model
