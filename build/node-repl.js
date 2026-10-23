@@ -692,6 +692,11 @@ function check_closed(close)
     const width = $WIDTH$, height = $HEIGHT$;
     if (init)
     {
+        if (window.opener)
+        {
+            window.opener.close();
+            window.opener = null;
+        }
         window.resizeTo(
             width + (window.outerWidth - window.innerWidth),
             height + (window.outerHeight - window.innerHeight)
@@ -925,24 +930,31 @@ async function figure()
 <title>Opening Figure `+figno+`..</title>
 <meta http-equiv="content-type" content="text/html; charset=UTF-8">
 <meta name="viewport" content="width=device-width">
-</head>
-<body style="background:#fff;color:#343434;font-size:20px;font-family:Helvetica, sans-serif;">
-Opening Figure <b>`+figno+`</b>..
-<noscript><p style="font-weight:bold">
-JavaScript needs to be enabled for figures to work!<br>
-Enable JavaScript and re-run the code that creates the figure.<br>
-You can close this window.
-</p></noscript>
-<script>
-(function() {
-const test = 1 === `+figno+` ? window.open("", "_scilite_figure_test", "popup") : {close:function(){}};
-if (test)
-{
-    test.close();
-    window.open("`+host+`/fig/`+figno+`.html", "_scilite_figure_`+figno+`", "noopener,popup,width=`+String(width)+`,height=`+String(height)+`");
-    setTimeout(() => self.close(), 500);
+<style type="text/css">
+body {
+background:#fff;
+color:#343434;
+font-family:Helvetica, sans-serif;
+font-size:20px;
 }
-})();
+p {
+position:relative;
+margin:0;
+padding:0;
+font-weight:bold;
+}
+p#msg {
+display:none;
+}
+</style>
+</head>
+<body>
+Opening Figure <b>`+figno+`</b>..<br>
+<p id="msg">The figure popup window is probably blocked.<br>Unblock popups from <span style="font-family:monospace">`+host+`</span> to continue.<br>Then you can close this window, if it does not close automatically.</p>
+<noscript><p>JavaScript needs to be enabled for figures to work!<br>Enable JavaScript and re-run the code that creates the figure.<br>You can close this window.</p></noscript>
+<script>
+const fig = window.open("`+host+`/fig/`+figno+`.html", "_scilite_figure_`+figno+`", "popup,width=`+String(width)+`,height=`+String(height)+`");
+if (!fig || fig.closed) document.getElementById('msg').style.display = 'block';
 </script>
 </body>
 </html>
@@ -1006,7 +1018,7 @@ if (test)
         });
     }
     await new Promise(function(resolve, reject) {
-        require('child_process').exec(('darwin' === process.platform ? 'open ' : ('win32' === process.platform ? 'start ' : 'xdg-open ')) + (host+'/open_figure_'+String(fig_no)+'.html'), {windowsHide:true}, function(err) {
+        require('child_process').exec(('darwin' === process.platform ? 'open ' : ('win32' === process.platform ? 'start ' : 'xdg-open ')) + /*'msedge '+*//*'chrome '+ */(host+'/open_figure_'+String(fig_no)+'.html'), {windowsHide:true}, function(err) {
             if (err) reject(err);
             else resolve();
         });
