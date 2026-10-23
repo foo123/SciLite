@@ -9,8 +9,10 @@ $._.tensorview(require('./TensorView.js'));
 // optionally use arbitrary precision arithmetic via Decimal
 $._.decimal(require('./decimal.js'));
 
-let ctx = null, warnings = [];
-let fig_data = null, fig_params = null, fig_type = null, fig_no = 0;
+let ctx = null, warnings = [], server = null;
+let fig_data = null, fig_params = null,
+    fig_type = null, fig_no = 0,
+    fig_closed = [];
 const fig_html = `
 <!doctype html>
 <html lang="en">
@@ -674,58 +676,65 @@ mesh: function(el, data) {
     });
 }
 };
-(function fig(type, data, params, ispopup, resize) {
+function check_closed(close)
+{
+    fetch(close)
+    .then(function(res) {
+        return res.json();
+    })
+    .then(function(is_closed) {
+        if (is_closed) self.close();
+        else setTimeout(() => check_closed(close), 200);
+    })
+    .catch(function(err) {});
+}
+(function fig(type, data, params, close, init) {
     const width = $WIDTH$, height = $HEIGHT$;
-    if (!ispopup)
+    if (init)
     {
-        const win = window.open(location.href, "figure_$FIG$", "popup", "width="+String(width)+",height="+String(height)+"");
-        setTimeout(() => self.close(), 500+(win ? 0 : 4500));
+        window.resizeTo(
+            width + (window.outerWidth - window.innerWidth),
+            height + (window.outerHeight - window.innerHeight)
+        );
+        if (close) check_closed(close);
     }
-    else
+    if (!window.Plotly)
     {
-        if (resize)
+        setTimeout(() => fig(type, data, params, close, false), 100);
+    }
+    else if (data && type && ("function" === typeof graph[type]))
+    {
+        const el = document.getElementById('fig');
+        el.className = 'fig2d';
+        graph[type](el, data);
+        if (params)
         {
-            window.resizeTo(
-                width + (window.outerWidth - window.innerWidth),
-                height + (window.outerHeight - window.innerHeight)
-            );
-        }
-        if (!window.Plotly)
-        {
-            setTimeout(() => fig(type, data, params, true, false), 100); // wait
-        }
-        else if (data)
-        {
-            const el = document.getElementById('fig');
-            graph[type](el, data);
-            if (params)
-            {
-                setTimeout(function update() {
-                    fetch(params)
-                    .then(function(res) {
-                        return res.json();
-                    })
-                    .then(function(params) {
-                        if (params)
+            setTimeout(function update() {
+                fetch(params)
+                .then(function(res) {
+                    return res.json();
+                })
+                .then(function(params) {
+                    if (params)
+                    {
+                        if (params.legend)
                         {
-                            if (params.legend)
-                            {
-                                Plotly.update(el, params.legend[0], {}, params.legend[1]);
-                                delete params.legend;
-                            }
-                            Plotly.relayout(el, params);
+                            Plotly.update(el, params.legend[0], {}, params.legend[1]);
+                            delete params.legend;
                         }
-                        setTimeout(update, 500);
-                    })
-                    .catch(function(err) {});
-                }, 500);
-            }
+                        Plotly.relayout(el, params);
+                    }
+                    setTimeout(update, 500);
+                })
+                .catch(function(err) {});
+            }, 500);
         }
     }
-})($TYPE$, $DATA$, $PARAMS$, !!window.opener, true);
+})($TYPE$, $DATA$, $PARAMS$, $CLOSE$, true);
 </script>
 <script async src="https://cdn.plot.ly/plotly-3.3.0.min.js" charset="utf-8"></script>
 </body>
+</html>
 `;
 
 // extend with plugins
@@ -798,6 +807,34 @@ $.fn.grid = function(on) {
         fig_params['yaxis.showgrid'] = "on" === on;
     }
 };
+$.fn.close = function(fig) {
+    if ("all" === fig)
+    {
+        fig_closed = "all";
+    }
+    else if ("all" === fig_closed)
+    {
+        // pass
+    }
+    else
+    {
+        if (Array.isArray(fig))
+        {
+            fig = $._.tonumber($._.vec(fig));
+        }
+        else
+        {
+            fig = [$._.tonumber(fig)];
+        }
+        fig.forEach(function(fig) {
+            fig = +fig;
+            if (("number" === typeof fig) && !isNaN(fig) && (-1 === fig_closed.indexOf(fig)))
+            {
+                fig_closed.push(fig);
+            }
+        });
+    }
+};
 ([
 'plot',
 'loglog',
@@ -812,13 +849,14 @@ $.fn.grid = function(on) {
 'scatter3'
 ]).forEach(function(plot_type) {
 $.fn[plot_type] = $._.namevalueargs(function(/*..args*/) {
-    const fig = $._.figure().parse(arguments, -1 < ['piechart','donutchart'].indexOf(plot_type) ? 'pie' : (-1 < ['plot3','scatter3'].indexOf(plot_type) ? 'plot3' : null));
+    const fig = $._.figure().parse(arguments, -1 < ['piechart','donutchart'].indexOf(plot_type) ? 'pie' : (-1 < ['plot3','scatter3'].indexOf(plot_type) ? 'plot3' : 'plot'));
     if (fig.data.length)
     {
+        if ("all" === fig_closed) fig_closed = [];
         ++fig_no;
         fig_type = plot_type;
         fig_params = null;
-        fig_data = JSON.stringify(fig.data);
+        fig_data = fig.data;
         return figure();
     }
 }, {
@@ -828,82 +866,122 @@ $.fn[plot_type] = $._.namevalueargs(function(/*..args*/) {
 }, 'repeatable');
 });
 $.fn.contour = function(x, y, z, v) {
+    if ("all" === fig_closed) fig_closed = [];
     ++fig_no;
     fig_type = 'contour';
     fig_params = null;
     if (3 <= arguments.length)
     {
-        fig_data = JSON.stringify({
+        fig_data = {
             x: $._.tonumber($._.vec($.fn.colon(x))),
             y: $._.tonumber($._.vec($.fn.colon(y))),
             z: $._.tonumber($._.vec($.fn.colon(z))),
             v: $._.tonumber(Array.isArray(v) ? $._.vec(v) : v)
-        });
+        };
     }
     else
     {
         z = x;
         v = y;
-        fig_data = JSON.stringify({
+        fig_data = {
             z: $._.tonumber($._.vec($.fn.colon(z))),
             v: $._.tonumber(Array.isArray(v) ? $._.vec(v) : v)
-        });
+        };
     }
     return figure();
 };
 $.fn.mesh = function(x, y, z) {
+    if ("all" === fig_closed) fig_closed = [];
     ++fig_no;
     fig_type = 'mesh';
     fig_params = null;
-    fig_data = JSON.stringify({
+    fig_data = {
         x: $._.tonumber($._.vec($.fn.colon(x))),
         y: $._.tonumber($._.vec($.fn.colon(y))),
         z: $._.tonumber($._.vec($.fn.colon(z)))
-    });
+    };
     return figure();
 };
 $._.MAXPRINTSIZE = 10;
 
-/*function write(file, content)
-{
-    return new Promise(function(resolve, reject) {
-        require('fs').writeFile(file, content, function(err) {
-            if (err) reject(err);
-            else resolve();
-        });
-    });
-}
-function unlink(file)
-{
-    return new Promise(function(resolve, reject) {
-        require('fs').unlink(file, function(err) {
-            resolve();
-        });
-    });
-}*/
-let server = null;
 async function figure()
 {
+    const host = 'http://localhost:1173';
     const width = 800, height = 600; // window size
     if (!server)
     {
         await new Promise(function(resolve, reject) {
             server = require('http').createServer(function(req, res) {
-                if ('/fig/' + String(fig_no) + '.html' === req.url)
+                const url = new URL(host+req.url), figno = String(fig_no);
+                if ('/open_figure_'+figno+'.html' === url.pathname)
+                {
+                    // open current figure html
+                    res.writeHead(200, {'Content-Type': 'text/html'});
+                    res.end(
+`
+<!doctype html>
+<html lang="en">
+<head>
+<title>Opening Figure `+figno+`..</title>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<meta name="viewport" content="width=device-width">
+</head>
+<body style="background:#fff;color:#343434;font-size:20px;font-family:Helvetica, sans-serif;">
+Opening Figure <b>`+figno+`</b>..
+<noscript><p style="font-weight:bold">
+JavaScript needs to be enabled for figures to work!<br>
+Enable JavaScript and re-run the code that creates the figure.<br>
+You can close this window.
+</p></noscript>
+<script>
+(function() {
+const fig = window.open("`+host+`/fig/`+figno+`.html", "figure_`+figno+`", "noopener,popup,width=`+String(width)+`,height=`+String(height)+`");
+setTimeout(() => self.close(), 500+(fig ? 0 : 4500));
+})();
+</script>
+</body>
+</html>
+`
+                    );
+                }
+                else if ('/close_figure.json' === url.pathname)
+                {
+                    // is figure closed?
+                    res.writeHead(200, {'Content-Type': 'application/json'});
+                    if ("all" === fig_closed)
+                    {
+                        res.end(JSON.stringify(true));
+                    }
+                    else
+                    {
+                        const index = (fig_closed || []).indexOf(parseInt(url.searchParams.get('fig') || '') || 0);
+                        if (-1 < index)
+                        {
+                            fig_closed.splice(index, 1);
+                            res.end(JSON.stringify(true));
+                        }
+                        else
+                        {
+                            res.end(JSON.stringify(false));
+                        }
+                    }
+                }
+                else if ('/fig/'+figno+'.html' === url.pathname)
                 {
                     // serve current figure html
                     res.writeHead(200, {'Content-Type': 'text/html'});
                     res.end(
                     fig_html
-                    .split('$FIG$').join(String(fig_no))
+                    .split('$FIG$').join(figno)
                     .split('$WIDTH$').join(String(width))
                     .split('$HEIGHT$').join(String(height))
                     .split('$TYPE$').join('"'+fig_type+'"')
-                    .split('$PARAMS$').join('"./' + String(fig_no) + '.json"')
-                    .split('$DATA$').join(fig_data)
+                    .split('$PARAMS$').join('"./'+figno+'.json"')
+                    .split('$CLOSE$').join('"'+host+'/close_figure.json?fig='+figno+'"')
+                    .split('$DATA$').join(JSON.stringify(fig_data))
                     );
                 }
-                else if ('/fig/' + String(fig_no) + '.json' === req.url)
+                else if ('/fig/'+figno+'.json' === url.pathname)
                 {
                     // serve current figure (updated) params
                     res.writeHead(200, {'Content-Type': 'application/json'});
@@ -913,7 +991,7 @@ async function figure()
                 {
                     // ignore
                     res.writeHead(404, {'Content-Type': 'text/plain'});
-                    res.end('Not found');
+                    res.end('Not found!');
                 }
             });
             server.listen(1173/*lite*/, function() {
@@ -923,7 +1001,7 @@ async function figure()
         });
     }
     await new Promise(function(resolve, reject) {
-        require('child_process').exec(('darwin' === process.platform ? 'open' : ('win32' === process.platform ? 'start' : 'xdg-open')) + ' ' + 'http://localhost:1173/fig/' + String(fig_no) + '.html', {windowsHide:true}, function(err) {
+        require('child_process').exec(('darwin' === process.platform ? 'open ' : ('win32' === process.platform ? 'start ' : 'xdg-open ')) + (host+'/open_figure_'+String(fig_no)+'.html'), {windowsHide:true}, function(err) {
             if (err) reject(err);
             else resolve();
         });

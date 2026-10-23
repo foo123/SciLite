@@ -262,6 +262,9 @@ $.fn.grid = function(on) {
         return currentFig;
     }
 };
+$.fn.close = function(fig) {
+    // ignored
+};
 $.fn.plot = $._.namevalueargs(function(/*..args*/) {
     const fig = $._.figure().parse(arguments);
     if (fig.data.length)
