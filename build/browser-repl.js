@@ -378,7 +378,7 @@ $.fn[plot_type] = function(/*..args*/) {
         Plotly.newPlot(el, fig.data.map(function(data, i) {
             return {
                 name: 'input '+String(i+1),
-                labels: data.y.map((_, j) => 'label '+String(j)),
+                labels: data.y.map((_, j) => 'label '+String(j+1)),
                 values: data.y,
                 type: 'pie',
                 hole: 'donutchart' === plot_type ? .4 : unset,

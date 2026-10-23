@@ -1,15 +1,15 @@
 (function() {
 "use strict";
 
-const $ = require('./SciLite.js');
+const $ = require('./SciLite.js'),
+    TensorView = require('./TensorView.js'),
+    Decimal = require('./Decimal.js');
 
 // support nd-arrays
-$._.tensorview(require('./TensorView.js'));
+$._.tensorview(TensorView);
 
-// optionally use arbitrary precision arithmetic via Decimal
-$._.decimal(require('./decimal.js'));
-
-let ctx = null, warnings = [], server = null;
+let ctx = null, warnings = [],
+    server = null, exec = null;
 let fig_data = null, fig_params = null,
     fig_type = null, fig_no = 0,
     fig_closed = [];
@@ -70,450 +70,56 @@ body {
 <body>
 <div id="fig"></div>
 <script>
-const stdMath = Math;
-const graph = {
-plot: function(el, data) {
-    Plotly.newPlot(el, data.map(function(data, i) {
-        return {
-            x: data.x,
-            y: data.y,
-            name: 'input '+String(i+1),
-            mode: 'lines',
-            line: {
-                width: data.style.LineWidth || 1,
-                dash: (['solid','dash','dot','dashdot'])[(['-','--',':','-.']).indexOf(data.style.LineStyle || '-')],
-                color: 'rgb('+data.style.Color.map(v => stdMath.round(255*v)).join(',')+')'
-            }
-        };
-    }), {
-        xaxis: {
-            type: 'linear',
-            linewidth: 2,
-            showticklabels: true,
-            showgrid: false,
-            gridcolor: '#eee',
-            griddash: 'solid',
-            gridwidth: 2,
-            showline: true,
-            mirror: 'ticks',
-            ticks: 'inside',
-            tickmode: 'auto',
-            autorange: true,
-            zeroline: false
-        },
-        yaxis: {
-            type: 'linear',
-            linewidth: 2,
-            showticklabels: true,
-            showgrid: false,
-            gridcolor: '#eee',
-            griddash: 'solid',
-            gridwidth: 2,
-            showline: true,
-            mirror: 'ticks',
-            ticks: 'inside',
-            tickmode: 'auto',
-            autorange: true,
-            zeroline: false
-        },
-        paper_bgcolor: '#ffffff',
-        plot_bgcolor: '#ffffff'
-    }, {
-        responsive: true,
-        displayModeBar: false
-    });
-},
-loglog: function(el, data) {
-    Plotly.newPlot(el, data.map(function(data, i) {
-        return {
-            x: data.x,
-            y: data.y,
-            name: 'input '+String(i+1),
-            mode: 'lines',
-            line: {
-                width: data.style.LineWidth || 1,
-                dash: (['solid','dash','dot','dashdot'])[(['-','--',':','-.']).indexOf(data.style.LineStyle || '-')],
-                color: 'rgb('+data.style.Color.map(v => stdMath.round(255*v)).join(',')+')'
-            }
-        };
-    }), {
-        xaxis: {
-            type: 'log',
-            linewidth: 2,
-            showticklabels: true,
-            showgrid: false,
-            gridcolor: '#eee',
-            griddash: 'solid',
-            gridwidth: 2,
-            showline: true,
-            mirror: 'ticks',
-            ticks: 'inside',
-            tickmode: 'auto',
-            autorange: true,
-            zeroline: false
-        },
-        yaxis: {
-            type: 'log',
-            linewidth: 2,
-            showticklabels: true,
-            showgrid: false,
-            gridcolor: '#eee',
-            griddash: 'solid',
-            gridwidth: 2,
-            showline: true,
-            mirror: 'ticks',
-            ticks: 'inside',
-            tickmode: 'auto',
-            autorange: true,
-            zeroline: false
-        },
-        paper_bgcolor: '#ffffff',
-        plot_bgcolor: '#ffffff'
-    }, {
-        responsive: true,
-        displayModeBar: false
-    });
-},
-semilogx: function(el, data) {
-    Plotly.newPlot(el, data.map(function(data, i) {
-        return {
-            x: data.x,
-            y: data.y,
-            name: 'input '+String(i+1),
-            mode: 'lines',
-            line: {
-                width: data.style.LineWidth || 1,
-                dash: (['solid','dash','dot','dashdot'])[(['-','--',':','-.']).indexOf(data.style.LineStyle || '-')],
-                color: 'rgb('+data.style.Color.map(v => stdMath.round(255*v)).join(',')+')'
-            }
-        };
-    }), {
-        xaxis: {
-            type: 'log',
-            linewidth: 2,
-            showticklabels: true,
-            showgrid: false,
-            gridcolor: '#eee',
-            griddash: 'solid',
-            gridwidth: 2,
-            showline: true,
-            mirror: 'ticks',
-            ticks: 'inside',
-            tickmode: 'auto',
-            autorange: true,
-            zeroline: false
-        },
-        yaxis: {
-            type: 'linear',
-            linewidth: 2,
-            showticklabels: true,
-            showgrid: false,
-            gridcolor: '#eee',
-            griddash: 'solid',
-            gridwidth: 2,
-            showline: true,
-            mirror: 'ticks',
-            ticks: 'inside',
-            tickmode: 'auto',
-            autorange: true,
-            zeroline: false
-        },
-        paper_bgcolor: '#ffffff',
-        plot_bgcolor: '#ffffff'
-    }, {
-        responsive: true,
-        displayModeBar: false
-    });
-},
-semilogy: function(el, data) {
-    Plotly.newPlot(el, data.map(function(data, i) {
-        return {
-            x: data.x,
-            y: data.y,
-            name: 'input '+String(i+1),
-            mode: 'lines',
-            line: {
-                width: data.style.LineWidth || 1,
-                dash: (['solid','dash','dot','dashdot'])[(['-','--',':','-.']).indexOf(data.style.LineStyle || '-')],
-                color: 'rgb('+data.style.Color.map(v => stdMath.round(255*v)).join(',')+')'
-            }
-        };
-    }), {
-        xaxis: {
-            type: 'linear',
-            linewidth: 2,
-            showticklabels: true,
-            showgrid: false,
-            gridcolor: '#eee',
-            griddash: 'solid',
-            gridwidth: 2,
-            showline: true,
-            mirror: 'ticks',
-            ticks: 'inside',
-            tickmode: 'auto',
-            autorange: true,
-            zeroline: false
-        },
-        yaxis: {
-            type: 'log',
-            linewidth: 2,
-            showticklabels: true,
-            showgrid: false,
-            gridcolor: '#eee',
-            griddash: 'solid',
-            gridwidth: 2,
-            showline: true,
-            mirror: 'ticks',
-            ticks: 'inside',
-            tickmode: 'auto',
-            autorange: true,
-            zeroline: false
-        },
-        paper_bgcolor: '#ffffff',
-        plot_bgcolor: '#ffffff'
-    }, {
-        responsive: true,
-        displayModeBar: false
-    });
-},
-scatter: function(el, data) {
-    Plotly.newPlot(el, data.map(function(data, i) {
-        return {
-            x: data.x,
-            y: data.y,
-            name: 'input '+String(i+1),
-            type: 'scatter',
-            mode: 'markers',
-            marker: {
-                width: data.style.LineWidth,
-                color: 'rgb('+data.style.Color.map(v => stdMath.round(255*v)).join(',')+')'
-            }
-        };
-    }), {
-        xaxis: {
-            type: 'linear',
-            linewidth: 2,
-            showticklabels: true,
-            showgrid: false,
-            gridcolor: '#eee',
-            griddash: 'solid',
-            gridwidth: 2,
-            showline: true,
-            mirror: 'ticks',
-            ticks: 'inside',
-            tickmode: 'auto',
-            autorange: true,
-            zeroline: false
-        },
-        yaxis: {
-            type: 'linear',
-            linewidth: 2,
-            showticklabels: true,
-            showgrid: false,
-            gridcolor: '#eee',
-            griddash: 'solid',
-            gridwidth: 2,
-            showline: true,
-            mirror: 'ticks',
-            ticks: 'inside',
-            tickmode: 'auto',
-            autorange: true,
-            zeroline: false
-        },
-        paper_bgcolor: '#ffffff',
-        plot_bgcolor: '#ffffff'
-    }, {
-        responsive: true,
-        displayModeBar: false
-    });
-},
-bar: function(el, data) {
-    Plotly.newPlot(el, data.map(function(data, i) {
-        return {
-            x: data.x,
-            y: data.y,
-            name: 'input '+String(i+1),
-            type: 'bar',
-            marker: {
-                color: 'rgb('+data.style.Color.map(v => stdMath.round(255*v)).join(',')+')'
-            }
-        };
-    }), {
-        xaxis: {
-            type: 'linear',
-            linewidth: 2,
-            showticklabels: true,
-            showgrid: false,
-            gridcolor: '#eee',
-            griddash: 'solid',
-            gridwidth: 2,
-            showline: true,
-            mirror: 'ticks',
-            ticks: 'inside',
-            tickmode: 'auto',
-            autorange: true,
-            zeroline: false
-        },
-        yaxis: {
-            type: 'linear',
-            linewidth: 2,
-            showticklabels: true,
-            showgrid: false,
-            gridcolor: '#eee',
-            griddash: 'solid',
-            gridwidth: 2,
-            showline: true,
-            mirror: 'ticks',
-            ticks: 'inside',
-            tickmode: 'auto',
-            autorange: true,
-            zeroline: false
-        },
-        barmode: 'group',
-        paper_bgcolor: '#ffffff',
-        plot_bgcolor: '#ffffff'
-    }, {
-        responsive: true,
-        displayModeBar: false
-    });
-},
-barh: function(el, data) {
-    Plotly.newPlot(el, data.map(function(data, i) {
-        return {
-            x: data.y,
-            y: data.x,
-            name: 'input '+String(i+1),
-            type: 'bar',
-            orientation: 'h',
-            marker: {
-                color: 'rgb('+data.style.Color.map(v => stdMath.round(255*v)).join(',')+')'
-            }
-        };
-    }), {
-        xaxis: {
-            type: 'linear',
-            linewidth: 2,
-            showticklabels: true,
-            showgrid: false,
-            gridcolor: '#eee',
-            griddash: 'solid',
-            gridwidth: 2,
-            showline: true,
-            mirror: 'ticks',
-            ticks: 'inside',
-            tickmode: 'auto',
-            autorange: true,
-            zeroline: false
-        },
-        yaxis: {
-            type: 'linear',
-            linewidth: 2,
-            showticklabels: true,
-            showgrid: false,
-            gridcolor: '#eee',
-            griddash: 'solid',
-            gridwidth: 2,
-            showline: true,
-            mirror: 'ticks',
-            ticks: 'inside',
-            tickmode: 'auto',
-            autorange: true,
-            zeroline: false
-        },
-        barmode: 'group',
-        paper_bgcolor: '#ffffff',
-        plot_bgcolor: '#ffffff'
-    }, {
-        responsive: true,
-        displayModeBar: false
-    });
-},
-piechart: function(el, data) {
-    let m = data.length;
-    if ((1 < m) && (m & 1)) ++m;
-    const rows = stdMath.floor(stdMath.sqrt(m));
-    const cols = m/rows;
-    Plotly.newPlot(el, data.map(function(data, i) {
-        return {
-            name: 'input '+String(i+1),
-            labels: data.y.map((_, j) => 'label '+String(j)),
-            values: data.y,
-            type: 'pie',
-            direction: 'clockwise',
-            textinfo: 'percent'/*'label+percent'*/,
-            textposition: 'inside',
-            sort: false,
-            domain: {
-                row: stdMath.floor(i/cols),
-                column: i % cols
-            }
-        };
-    }), {
-        margin: {b:0, l:0, r:0},
-        paper_bgcolor: '#ffffff',
-        plot_bgcolor: '#ffffff',
-        grid: {rows: rows, columns: cols}
-    }, {
-        responsive: true,
-        displayModeBar: false
-    });
-},
-donutchart: function(el, data) {
-    let m = data.length;
-    if ((1 < m) && (m & 1)) ++m;
-    const rows = stdMath.floor(stdMath.sqrt(m));
-    const cols = m/rows;
-    Plotly.newPlot(el, data.map(function(data, i) {
-        return {
-            name: 'input '+String(i+1),
-            labels: data.y.map((_, j) => 'label '+String(j)),
-            values: data.y,
-            type: 'pie',
-            hole: .4,
-            direction: 'clockwise',
-            textinfo: 'percent'/*'label+percent'*/,
-            textposition: 'inside',
-            sort: false,
-            domain: {
-                row: stdMath.floor(i/cols),
-                column: i % cols
-            }
-        };
-    }), {
-        margin: {b:0, l:0, r:0},
-        paper_bgcolor: '#ffffff',
-        plot_bgcolor: '#ffffff',
-        grid: {rows: rows, columns: cols}
-    }, {
-        responsive: true,
-        displayModeBar: false
-    });
-},
-contour: function(el, data) {
-    if (data.x && data.y && data.z)
+function figure(el, type, data)
+{
+    const stdMath = Math;
+    if (-1 < [
+    'plot',
+    'loglog',
+    'semilogx',
+    'semilogy',
+    'scatter',
+    'bar',
+    'barh'
+    ].indexOf(type))
     {
-        Plotly.newPlot(el, [{
-            type: 'contour',
-            x: data.x,
-            y: data.y,
-            z: data.z,
-            autocontour: !(Array.isArray(data.v) || ('number' === typeof data.v)),
-            contours: Array.isArray(data.v) ? {
-                coloring: 'lines',
-                start: data.v[0],
-                end: data.v[data.v.length-1],
-                size: 1
-            } : ('number' === typeof data.v  ? {
-                coloring: 'lines',
-                start: data.v,
-                end: data.v,
-                size: 1
-            } : {
-                coloring: 'lines'
-            })
-        }], {
+        el.className = 'fig2d';
+        Plotly.newPlot(el, data.map(function(data, i) {
+            const o = {
+                x: 'barh' === type ? data.y : data.x,
+                y: 'barh' === type ? data.x : data.y,
+                name: 'input '+String(i+1)
+            };
+            if (-1 < ['bar','barh'].indexOf(type))
+            {
+                o.type = 'bar';
+                if ('barh' === type) o.orientation = 'h';
+                o.marker = {
+                    color: 'rgb('+data.style.Color.map(v => stdMath.round(255*v)).join(',')+')'
+                };
+            }
+            else if ('scatter' === type)
+            {
+                o.type = 'scatter';
+                o.mode = 'markers';
+                o.marker = {
+                    width: 2*(data.style.LineWidth || 1),
+                    color: 'rgb('+data.style.Color.map(v => stdMath.round(255*v)).join(',')+')'
+                };
+            }
+            else
+            {
+                o.mode = 'lines';
+                o.line = {
+                    width: data.style.LineWidth || 1,
+                    dash: (['solid','dash','dot','dashdot'])[(['-','--',':','-.']).indexOf(data.style.LineStyle || '-')],
+                    color: 'rgb('+data.style.Color.map(v => stdMath.round(255*v)).join(',')+')'
+                };
+            }
+            return o;
+        }), {
             xaxis: {
-                type: 'linear',
+                type: -1 < ['loglog','semilogx'].indexOf(type) ? 'log' : 'linear',
                 linewidth: 2,
                 showticklabels: true,
                 showgrid: false,
@@ -528,7 +134,7 @@ contour: function(el, data) {
                 zeroline: false
             },
             yaxis: {
-                type: 'linear',
+                type: -1 < ['loglog','semilogy'].indexOf(type) ? 'log' : 'linear',
                 linewidth: 2,
                 showticklabels: true,
                 showgrid: false,
@@ -549,56 +155,78 @@ contour: function(el, data) {
             displayModeBar: false
         });
     }
-    else
+    else if (-1 < [
+    'piechart',
+    'donutchart'
+    ].indexOf(type))
     {
-        Plotly.newPlot(el, [{
-            type: 'contour',
-            z: data.z,
-            autocontour: !(Array.isArray(data.v) || ('number' === typeof data.v)),
-            contours: Array.isArray(data.v) ? {
-                coloring: 'lines',
-                start: data.v[0],
-                end: data.v[data.v.length-1],
-                size: 1
-            } : ('number' === typeof data.v  ? {
-                coloring: 'lines',
-                start: data.v,
-                end: data.v,
-                size: 1
-            } : {
-                coloring: 'lines'
-            })
-        }], {
-            xaxis: {
-                type: 'linear',
-                linewidth: 2,
-                showticklabels: true,
-                showgrid: false,
-                gridcolor: '#eee',
-                griddash: 'solid',
-                gridwidth: 2,
-                showline: true,
-                mirror: 'ticks',
-                ticks: 'inside',
-                tickmode: 'auto',
-                autorange: true,
-                zeroline: false
-            },
-            yaxis: {
-                type: 'linear',
-                linewidth: 2,
-                showticklabels: true,
-                showgrid: false,
-                gridcolor: '#eee',
-                griddash: 'solid',
-                gridwidth: 2,
-                showline: true,
-                mirror: 'ticks',
-                ticks: 'inside',
-                tickmode: 'auto',
-                autorange: true,
-                zeroline: false
-            },
+        let m = data.length;
+        if ((1 < m) && (m & 1)) ++m;
+        const rows = stdMath.floor(stdMath.sqrt(m));
+        const cols = m/rows;
+        el.className = 'fig2d';
+        Plotly.newPlot(el, data.map(function(data, i) {
+            return {
+                name: 'input '+String(i+1),
+                labels: data.y.map((_, j) => 'label '+String(j+1)),
+                values: data.y,
+                type: 'pie',
+                hole: 'donutchart' === type ? .4 : undefined,
+                direction: 'clockwise',
+                textinfo: 'percent',
+                textposition: 'inside',
+                sort: false,
+                domain: {
+                    row: stdMath.floor(i/cols),
+                    column: i % cols
+                }
+            };
+        }), {
+            margin: {b:0, l:0, r:0},
+            paper_bgcolor: '#ffffff',
+            plot_bgcolor: '#ffffff',
+            grid: {rows: rows, columns: cols}
+        }, {
+            responsive: true,
+            displayModeBar: false
+        });
+    }
+    else if (-1 < [
+    'plot3',
+    'scatter3'
+    ].indexOf(type))
+    {
+        el.className = 'fig3d';
+        Plotly.newPlot(el, data.map(function(data, i) {
+            const o = {
+                type: 'scatter3d',
+                x: data.x,
+                y: data.y,
+                z: data.z,
+                name: 'input '+String(i+1)
+            };
+            if ('scatter3' === type)
+            {
+                o.mode = 'markers';
+                o.marker = {
+                    size: 2*(data.style.LineWidth || 1),
+                    color: 'rgb('+data.style.Color.map(v => stdMath.round(255*v)).join(',')+')',
+                    reversescale: false
+                };
+            }
+            else
+            {
+                o.mode = 'lines';
+                o.line = {
+                    width: data.style.LineWidth || 1,
+                    dash: (['solid','dash','dot','dashdot'])[(['-','--',':','-.']).indexOf(data.style.LineStyle || '-')],
+                    color: 'rgb('+data.style.Color.map(v => stdMath.round(255*v)).join(',')+')',
+                    reversescale: false
+                };
+            }
+            return o;
+        }), {
+            margin: {t:0, b:0, l:0, r:0},
             paper_bgcolor: '#ffffff',
             plot_bgcolor: '#ffffff'
         }, {
@@ -606,76 +234,146 @@ contour: function(el, data) {
             displayModeBar: false
         });
     }
-},
-plot3: function(el, data) {
-    el.className = 'fig3d';
-    Plotly.newPlot(el, data.map(function(data, i) {
-        return {
-            type: 'scatter3d',
-            mode: 'lines',
+    else if ('contour' === type)
+    {
+        el.className = 'fig2d';
+        if (data.x && data.y && data.z)
+        {
+            Plotly.newPlot(el, [{
+                type: 'contour',
+                x: data.x,
+                y: data.y,
+                z: data.y,
+                autocontour: !(Array.isArray(data.v) || ('number' === typeof data.v)),
+                contours: Array.isArray(data.v) ? {
+                    coloring: 'lines',
+                    start: data.v[0],
+                    end: data.v[data.v.length-1],
+                    size: 1
+                } : ('number' === typeof data.v  ? {
+                    coloring: 'lines',
+                    start: data.v,
+                    end: data.v,
+                    size: 1
+                } : {
+                    coloring: 'lines'
+                })
+            }], {
+                xaxis: {
+                    type: 'linear',
+                    linewidth: 2,
+                    showticklabels: true,
+                    showgrid: false,
+                    gridcolor: '#eee',
+                    griddash: 'solid',
+                    gridwidth: 2,
+                    showline: true,
+                    mirror: 'ticks',
+                    ticks: 'inside',
+                    tickmode: 'auto',
+                    autorange: true,
+                    zeroline: false
+                },
+                yaxis: {
+                    type: 'linear',
+                    linewidth: 2,
+                    showticklabels: true,
+                    showgrid: false,
+                    gridcolor: '#eee',
+                    griddash: 'solid',
+                    gridwidth: 2,
+                    showline: true,
+                    mirror: 'ticks',
+                    ticks: 'inside',
+                    tickmode: 'auto',
+                    autorange: true,
+                    zeroline: false
+                },
+                paper_bgcolor: '#ffffff',
+                plot_bgcolor: '#ffffff'
+            }, {
+                responsive: true,
+                displayModeBar: false
+            });
+        }
+        else
+        {
+            //data.z = data.x;
+            //data.v = data.y;
+            Plotly.newPlot(el, [{
+                type: 'contour',
+                z: data.z,
+                autocontour: !(Array.isArray(data.v) || ('number' === typeof data.v)),
+                contours: Array.isArray(data.v) ? {
+                    coloring: 'lines',
+                    start: data.v[0],
+                    end: data.v[data.v.length-1],
+                    size: 1
+                } : ('number' === typeof data.v  ? {
+                    coloring: 'lines',
+                    start: data.v,
+                    end: data.v,
+                    size: 1
+                } : {
+                    coloring: 'lines'
+                })
+            }], {
+                xaxis: {
+                    type: 'linear',
+                    linewidth: 2,
+                    showticklabels: true,
+                    showgrid: false,
+                    gridcolor: '#eee',
+                    griddash: 'solid',
+                    gridwidth: 2,
+                    showline: true,
+                    mirror: 'ticks',
+                    ticks: 'inside',
+                    tickmode: 'auto',
+                    autorange: true,
+                    zeroline: false
+                },
+                yaxis: {
+                    type: 'linear',
+                    linewidth: 2,
+                    showticklabels: true,
+                    showgrid: false,
+                    gridcolor: '#eee',
+                    griddash: 'solid',
+                    gridwidth: 2,
+                    showline: true,
+                    mirror: 'ticks',
+                    ticks: 'inside',
+                    tickmode: 'auto',
+                    autorange: true,
+                    zeroline: false
+                },
+                paper_bgcolor: '#ffffff',
+                plot_bgcolor: '#ffffff'
+            }, {
+                responsive: true,
+                displayModeBar: false
+            });
+        }
+    }
+    else if ('mesh' === type)
+    {
+        el.className = 'fig3d';
+        Plotly.newPlot(el, [{
+            type: 'mesh3d',
             x: data.x,
             y: data.y,
-            z: data.z,
-            name: 'input '+String(i+1),
-            line: {
-                width: data.style.LineWidth || 1,
-                dash: (['solid','dash','dot','dashdot'])[(['-','--',':','-.']).indexOf(data.style.LineStyle || '-')],
-                color: 'rgb('+data.style.Color.map(v => stdMath.round(255*v)).join(',')+')',
-                reversescale: false
-            }
-        };
-    }), {
-        margin: {t:0, b:0, l:0, r:0},
-        paper_bgcolor: '#ffffff',
-        plot_bgcolor: '#ffffff'
-    }, {
-        responsive: true,
-        displayModeBar: false
-    });
-},
-scatter3: function(el, data) {
-    el.className = 'fig3d';
-    Plotly.newPlot(el, data.map(function(data, i) {
-        return {
-            type: 'scatter3d',
-            mode: 'markers',
-            x: data.x,
-            y: data.y,
-            z: data.z,
-            name: 'input '+String(i+1),
-            marker: {
-                size: 2*(data.style.LineWidth || 1),
-                //dash: (['solid','dash','dot','dashdot'])[(['-','--',':','-.']).indexOf(data.style.LineStyle || '-')],
-                color: 'rgb('+data.style.Color.map(v => stdMath.round(255*v)).join(',')+')',
-                reversescale: false
-            }
-        };
-    }), {
-        margin: {t:0, b:0, l:0, r:0},
-        paper_bgcolor: '#ffffff',
-        plot_bgcolor: '#ffffff'
-    }, {
-        responsive: true,
-        displayModeBar: false
-    });
-},
-mesh: function(el, data) {
-    el.className = 'fig3d';
-    Plotly.newPlot(el, [{
-        type: 'mesh3d',
-        x: data.x,
-        y: data.y,
-        z: data.z
-    }], {
-        margin: {t:0, b:0, l:0, r:0},
-        paper_bgcolor: '#ffffff',
-        plot_bgcolor: '#ffffff'
-    }, {
-        responsive: true,
-        displayModeBar: false
-    });
+            z: data.y
+        }], {
+            margin: {t:0, b:0, l:0, r:0},
+            paper_bgcolor: '#ffffff',
+            plot_bgcolor: '#ffffff'
+        }, {
+            responsive: true,
+            displayModeBar: false
+        });
+    }
 }
-};
 function check_closed(close)
 {
     fetch(close)
@@ -707,11 +405,10 @@ function check_closed(close)
     {
         setTimeout(() => fig(type, data, params, close, false), 100);
     }
-    else if (data && type && ("function" === typeof graph[type]))
+    else if (type && data)
     {
         const el = document.getElementById('fig');
-        el.className = 'fig2d';
-        graph[type](el, data);
+        figure(el, type, data);
         if (params)
         {
             setTimeout(function update() {
@@ -734,6 +431,7 @@ function check_closed(close)
                 .catch(function(err) {});
             }, 500);
         }
+        window.focus();
     }
 })($TYPE$, $DATA$, $PARAMS$, $CLOSE$, true);
 </script>
@@ -743,6 +441,9 @@ function check_closed(close)
 `;
 
 // extend with plugins
+$.fn.arbitrary_precision = function(on) {
+    $._.decimal("on" === on ? Decimal : null);
+};
 $.fn.exist = function(variable) {
     return ctx && $._.exist(variable, ctx) ? 1 : 0;
 };
@@ -1018,12 +719,14 @@ if (!fig || fig.closed) document.getElementById('msg').style.display = 'block';
         });
     }
     await new Promise(function(resolve, reject) {
-        require('child_process').exec(('darwin' === process.platform ? 'open ' : ('win32' === process.platform ? 'start ' : 'xdg-open ')) + /*'msedge '+*//*'chrome '+ */(host+'/open_figure_'+String(fig_no)+'.html'), {windowsHide:true}, function(err) {
+        if (!exec) exec = require('child_process').exec;
+        exec(('darwin' === process.platform ? 'open ' : ('win32' === process.platform ? 'start ' : 'xdg-open ')) + /*'msedge '+*//*'chrome '+ *//*'firefox '+ */(host+'/open_figure_'+String(fig_no)+'.html'), {windowsHide:true}, function(err) {
             if (err) reject(err);
             else resolve();
         });
     });
 }
+
 const repl = require('repl').start({
     prompt: '>> ',
     ignoreUndefined: true,
