@@ -935,8 +935,13 @@ You can close this window.
 </p></noscript>
 <script>
 (function() {
-const fig = window.open("`+host+`/fig/`+figno+`.html", "figure_`+figno+`", "noopener,popup,width=`+String(width)+`,height=`+String(height)+`");
-setTimeout(() => self.close(), 500+(fig ? 0 : 4500));
+const test = 1 === `+figno+` ? window.open("", "_scilite_figure_test", "popup") : {close:function(){}};
+if (test)
+{
+    test.close();
+    window.open("`+host+`/fig/`+figno+`.html", "_scilite_figure_`+figno+`", "noopener,popup,width=`+String(width)+`,height=`+String(height)+`");
+    setTimeout(() => self.close(), 500);
+}
 })();
 </script>
 </body>
@@ -1025,7 +1030,7 @@ const repl = require('repl').start({
     },
     eval: function(code, context, replResourceName, cb) {
         code = String(code).trim();
-        if (!code.length) return cb(null, null);
+        if (!code.length) return cb();
         if (null == ctx) ctx = $._.createContext();
         $._.eval(code, ctx, 1, 1).then(ans => cb(null, (null == ans) && !warnings.length ? undefined : ans)).catch(err => cb(new Error(err.message || err)));
     }
