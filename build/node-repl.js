@@ -747,7 +747,7 @@ const repl = require('repl').start({
         code = String(code).trim();
         if (!code.length) return cb();
         if (null == ctx) ctx = $._.createContext();
-        $._.eval(code, ctx, 1, 1).then(ans => cb(null, (null == ans) && !warnings.length ? undefined : ans)).catch(err => cb(new Error(err.message || err)));
+        $._.eval(code, ctx, 1).then(ans => cb(null, (null == ans) && !warnings.length ? undefined : ans)).catch(err => cb(new Error(err.message || err)));
     }
 });
 repl.on('reset', function() {

@@ -803,16 +803,7 @@ function init($)
                 'piechart([1 2 3 4],[2 2 3 4]);',
                 'title("piechart");',
                 'legend(["1","2","3","4"],["a","b","c","d"]);',
-                'A = [0.5 1 1.5 2];',
-                'X = 0:0.05:10;',
-                'Y = zeros(length(X),4);',
-                'for i = 1:4\n Y(:,i) = gammainc(X,A(i));\nend',
-                'plot(X,Y);',
-                'grid("on");',
-                'legend("a = 0.5","a = 1","a = 1.5","a = 2");',
-                'title("Regularized lower incomplete gamma function for a = 0.5, 1, 1.5, and 2");',
-                'xlabel("x");',
-                'ylabel("P(x,a)");',
+                'A = [0.5 1 1.5 2];\nX = (0:0.05:10)\';\nY = [gammainc(X,A(1)), gammainc(X,A(2)), gammainc(X,A(3)), gammainc(X,A(4))];\nplot(X,Y);\ngrid(on);\nlegend("a = 0.5","a = 1","a = 1.5","a = 2");\ntitle("Regularized lower incomplete gamma function for a = 0.5, 1, 1.5, and 2");\nxlabel("x");\nylabel("P(x,a)");',
                 '% and more..'
                 ]);
             break;

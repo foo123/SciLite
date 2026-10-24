@@ -2319,8 +2319,9 @@ $_.createContext = function() {
     return {ans: null};
 };
 
-$_.eval = async function(code, ctx, lineStart) {
+$_.eval = async function(code, ctx, lineStart, cb) {
     ctx = ctx || $_.createContext();
+    if (!is_callable(cb)) cb = null;
     var ast = parse(String(code), ctx, null == lineStart ? 1 : lineStart, 1),
         ans = null, ans_changed = false, i, n;
     if (is_array(ast))
@@ -2330,6 +2331,7 @@ $_.eval = async function(code, ctx, lineStart) {
             if (ast[i])
             {
                 ans = await evaluate(ast[i]);
+                if ((null != ans) && cb) cb(ans);
                 ans_changed = true;
             }
         }

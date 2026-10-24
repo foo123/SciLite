@@ -146,9 +146,15 @@ async function repl(code, output, $, CodeMirror, MathJax, Plotly)
 
     // eval
     if (null == ctx) ctx = $._.createContext();
-    let ans = null, err = null;
+    let ans = null, err = null, figs = [];
     try {
-        ans = await $._.eval(code, ctx, currentLine+1, 1);
+        ans = await $._.eval(code, ctx, currentLine+1, (el) => {
+            if ((el instanceof window.Element) && !el.id)
+            {
+                el.id = 'fig-' + String(++cnt);
+                figs.push(currentFig = el);
+            }
+        });
     } catch (e) {
         err = e;
         ans = null;
@@ -164,6 +170,7 @@ async function repl(code, output, $, CodeMirror, MathJax, Plotly)
         });
         warnings = [];
     }
+    figs.forEach(el => output.appendChild(el));
     if (err)
     {
         print_err(output, err);
@@ -206,7 +213,7 @@ $.fn.warning = function(msg) {
 };
 $.fn.eval = async function(code) {
     if (null == ctx) ctx = $._.createContext();
-    return await $._.eval(code, ctx, 1, 1);
+    return await $._.eval(code, ctx, 1);
 };
 $.fn.xlabel = function(text) {
     if (currentFig)
