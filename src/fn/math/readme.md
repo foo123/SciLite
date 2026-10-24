@@ -1,3 +1,3 @@
-## Real and Complex Functions
+## Real, Complex and Special Functions
 
-eg `sin`, `cos`, `exp`, `log`, ..
+eg `sin`, `cos`, `exp`, `log`, `gamma`, ..

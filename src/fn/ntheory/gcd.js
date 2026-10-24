@@ -92,7 +92,7 @@ function n_xgcd(args)
         }
     }
 }
-function gcd(a, b, want_bezout_coeffs)
+/*function gcd(a, b, want_bezout_coeffs)
 {
     if (want_bezout_coeffs)
     {
@@ -168,7 +168,8 @@ function gcd(a, b, want_bezout_coeffs)
         }
     }
     not_supported("gcd");
-}
+}*/
 fn.gcd = varargout(function(nargout, a, b) {
-    return gcd(a, b, 1 < nargout);
+    //return gcd(a, b, 1 < nargout);
+    return apply_(1 < nargout ? function(a, b) {return n_xgcd([a, b]);} : function(a, b) {return n_gcd(a, b);}, [a, b], function(x) {return realMath.fix(real(x));}, nargout);
 });

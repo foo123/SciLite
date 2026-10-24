@@ -19,7 +19,7 @@ function n_lcm(/* args */)
     }
     return LCM;
 }
-function lcm(a, b)
+/*function lcm(a, b)
 {
     if (is_array(a))
     {
@@ -33,4 +33,7 @@ function lcm(a, b)
     }
     return a;
 }
-fn.lcm = lcm;
+fn.lcm = lcm;*/
+fn.lcm = function(a, b) {
+    return apply_(n_lcm, [a, b], function(x) {return realMath.fix(real(x));});
+};

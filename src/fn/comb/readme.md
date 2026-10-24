@@ -1,3 +1,3 @@
 ## Combinatorics
 
-eg `randperm`, `perms`
+eg `randperm`, `perms`, `nchoosek`, ..

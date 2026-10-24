@@ -1,4 +1,4 @@
-function mod(x, n)
+/*function mod(x, n)
 {
     n = sca(n || 0);
     return eq(n, 0) ? x : apply(function(x) {
@@ -11,4 +11,16 @@ function mod(x, n)
         return x;
     }, x, true);
 }
-fn.mod = mod;
+fn.mod = mod;*/
+fn.mod = function(x, n) {
+    return apply_(function(x, n) {
+        n = real(n);
+        if (!n_eq(O, n) && is_num(x))
+        {
+            var m = n_mod(x, n);
+            if (n_lt(m, O) && n_gt(n, O)) m = n_add(m, n);
+            return m;
+        }
+        return x;
+    }, [x, n || 0]);
+};

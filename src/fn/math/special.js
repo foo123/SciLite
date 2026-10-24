@@ -192,80 +192,6 @@ function monotone_inverse_newton(f, df, y, min_x, max_x, min_f, max_f, lim_0, li
     }
     return x;
 }
-/*function series_sum(terms, n, eps)
-{
-    var gen = terms, k, ak, s = O;
-    // terms must be function or array
-    if (is_array(terms))
-    {
-        gen = function(k) {return terms[k];};
-        n = terms.length-1;
-    }
-    else if (null == n)
-    {
-        n = inf;
-        eps = eps || __eps;
-    }
-    for (k=0; k<=n; ++k)
-    {
-        ak = gen(k);
-        s = scalar_add(s, ak);
-        if ((null != eps) && n_le(scalar_abs(ak), eps)) break;
-    }
-    return s;
-}*/
-/*function continued_fraction(terms, n, eps)
-{
-    /*
-    https://en.wikipedia.org/wiki/Continued_fraction#Formulation
-    x=b_{0}+{\cfrac {a_{1}}{b_{1}+{\cfrac {a_{2}}{b_{2}+{\cfrac {a_{3}}{b_{3}+{\cfrac {a_{4}}{b_{4}+\ddots \,}}}}}}}}
-
-    nth convergents p/q for n >= 1 are (recursively):
-    p = b_n*p0 + a_n*p1,
-    q = b_n*q0 + a_n*q1,
-
-    with initial values:
-    p1 = 1, p0 = b_0,
-    q1 = 0, q0 = 1
-    * /
-    var gen = terms,
-        p, q, p1, p0,
-        q1, q0, r0, r,
-        k, abk, ak, bk
-    ;
-    // terms must be function or array
-    if (is_array(terms))
-    {
-        gen = function(k) {return terms[k];};
-        n = terms.length-1;
-    }
-    else if (null == n)
-    {
-        n = inf;
-        eps = eps || __eps;
-    }
-    abk = gen(0);
-    p1 = I;
-    p0 = abk.b;
-    q1 = O;
-    q0 = I;
-    for (k=1; k<=n; ++k)
-    {
-        abk = gen(k);
-        ak = abk.a;
-        bk = abk.b;
-        p = scalar_add(scalar_mul(bk, p0), scalar_mul(ak, p1));
-        q = scalar_add(scalar_mul(bk, q0), scalar_mul(ak, q1));
-        r = scalar_div(p, q);
-
-        if ((null != eps) && (5 < k) && n_le(scalar_abs(scalar_sub(r, r0)), eps)) break;
-
-        p1 = p0; p0 = p;
-        q1 = q0; q0 = q;
-        r0 = r;
-    }
-    return r;
-}*/
 
 // erf
 function erf(x)
@@ -490,7 +416,7 @@ function gamma(z)
         z = scalar_sub(z, I);
         if (is_int(z) && n_ge(z, O))
         {
-            return factorial(z); // reduces to simple factorial
+            return factorial(z); // reduces to factorial
         }
         else
         {
@@ -544,7 +470,7 @@ function gammaln(z)
         z = scalar_sub(z, I);
         if (is_int(z) && n_ge(z, O))
         {
-            return logfactorial(z); // reduces to simple log factorial
+            return logfactorial(z); // reduces to log factorial
         }
         else
         {
@@ -646,7 +572,7 @@ function _betainc_cont_frac(x, z, w, regularized)
 {
     var p, q, p1, p0,
         q1, q0, r0, r,
-        k, ak, bk, m
+        m, k, ak, bk
     ;
     p1 = I;
     p0 = O;

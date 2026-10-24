@@ -1,3 +1,3 @@
 ## String functions
 
-eg `sprintf`, `lower`, `upper`, `bin2dec/dec2bin`, ..
+eg `sprintf`, `regexp`, `lower`, `upper`, `bin2dec/dec2bin`, ..
