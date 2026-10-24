@@ -459,7 +459,7 @@ $.fn.warning = function(msg) {
 };
 $.fn.eval = async function(code) {
     if (null == ctx) ctx = $._.createContext();
-    return await $._.eval(code, ctx, 1, 1);
+    return await $._.eval(code, ctx, 1);
 };
 $.fn.xlabel = function(text) {
     if (fig_type)
@@ -747,7 +747,7 @@ const repl = require('repl').start({
         code = String(code).trim();
         if (!code.length) return cb();
         if (null == ctx) ctx = $._.createContext();
-        $._.eval(code, ctx, 1).then(ans => cb(null, (null == ans) && !warnings.length ? undefined : ans)).catch(err => cb(new Error(err.message || err)));
+        $._.eval(code, ctx, 1).then(output => cb(null, (null == output) && !warnings.length ? undefined : output)).catch(err => cb(new Error(err.message || err)));
     }
 });
 repl.on('reset', function() {

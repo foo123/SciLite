@@ -527,16 +527,18 @@ async function set_var($var, $val)
 
 async function if_end($arg, v, $$)
 {
-    var i, j, k, n, statements, res, ans = null;
+    var i, j, k, n, statements, out = [], ans = null;
+    out.$scilitevarargout$ = true;
     if (TRUE(await vale($arg['if'].cond, v, $$)))
     {
         statements = $arg['if'].statements;
         for (i=0,n=statements.length; i<n; ++i)
         {
-            res = await vale(statements[i], v, $$);
-            if (null != res) ans = res;
+            ans = await vale(statements[i], v, $$, null, out);
+            if (/*null != ans*/ $$ && $$.ctx) $$.ctx.ans = ans;
+            if ((1 < out.length) && is_array(out[out.length-1]) && (out[out.length-1] === out[out.length-2])) out.pop();
         }
-        return ans;
+        return out;
     }
     if ($arg['elseif'].length)
     {
@@ -547,10 +549,11 @@ async function if_end($arg, v, $$)
                 statements = $arg['elseif'][j].statements;
                 for (i=0,n=statements.length; i<n; ++i)
                 {
-                    res = await vale(statements[i], v, $$);
-                    if (null != res) ans = res;
+                    ans = await vale(statements[i], v, $$, null, out);
+                    if (/*null != ans*/ $$ && $$.ctx) $$.ctx.ans = ans;
+                    if ((1 < out.length) && is_array(out[out.length-1]) && (out[out.length-1] === out[out.length-2])) out.pop();
                 }
-                return ans;
+                return out;
             }
         }
     }
@@ -559,25 +562,27 @@ async function if_end($arg, v, $$)
         statements = $arg['else'].statements;
         for (i=0,n=statements.length; i<n; ++i)
         {
-            res = await vale(statements[i], v, $$);
-            if (null != res) ans = res;
+            ans = await vale(statements[i], v, $$, null, out);
+            if (/*null != ans*/ $$ && $$.ctx) $$.ctx.ans = ans;
+            if ((1 < out.length) && is_array(out[out.length-1]) && (out[out.length-1] === out[out.length-2])) out.pop();
         }
-        return ans;
+        return out;
     }
 }
 
 async function for_end($arg, v, $$)
 {
-    var i, n, j, k, res, ans = [],
+    var i, n, j, k, ans, out = [],
         brk, is_break = false,
         cont, is_continue = false,
         values = await vale($arg.val, v, $$),
         values_is_2d = false, sz,
         statements = $arg.statements;
-    ans.$scilitevarargout$ = true;
+    out.$scilitevarargout$ = true;
     if (is_array(values))
     {
         $$ = $$ || {};
+        //$$.ctx = $$.ctx || {ans:null};
         brk = $$.brk;
         cont = $$.cont;
         $$.brk = function() {is_break = true;};
@@ -598,9 +603,11 @@ async function for_end($arg, v, $$)
             await $arg.ind.set(values_is_2d ? vec2col(COL(values, j)) : values[j]);
             for (i=0,n=statements.length; i<n; ++i)
             {
-                res = await vale(statements[i], v, $$);
+                ans = await vale(statements[i], v, $$, null, out);
                 if (is_break || is_continue) break;
-                if ((null != res) && (!ans.length || ans[ans.length-1] !== res)) ans.push(res);
+                if (/*null != ans*/ $$.ctx) $$.ctx.ans = ans;
+                //if ((null != ans) && (!out.length || out[out.length-1] !== ans)) out.push(ans);
+                if ((1 < out.length) && is_array(out[out.length-1]) && (out[out.length-1] === out[out.length-2])) out.pop();
             }
             if (is_break) break;
             else if (is_continue) continue;
@@ -609,17 +616,18 @@ async function for_end($arg, v, $$)
         $$.brk = brk;
         $$.cont = cont;
     }
-    return ans;
+    return out/*.length ? out[out.length-1] : null*/;
 }
 
 async function while_end($arg, v, $$)
 {
-    var i, n, res, ans = [],
+    var i, n, ans, out = [],
         brk, is_break = false,
         cont, is_continue = false,
         statements = $arg.statements;
-    ans.$scilitevarargout$ = true;
+    out.$scilitevarargout$ = true;
     $$ = $$ || {};
+    //$$.ctx = $$.ctx || {ans:null};
     brk = $$.brk;
     cont = $$.cont;
     $$.brk = function() {is_break = true;};
@@ -630,16 +638,18 @@ async function while_end($arg, v, $$)
         is_continue = false;
         for (i=0,n=statements.length; i<n; ++i)
         {
-            res = await vale(statements[i], v, $$);
+            ans = await vale(statements[i], v, $$, null, out);
             if (is_break || is_continue) break;
-            if ((null != res) && (!ans.length || ans[ans.length-1] !== res)) ans.push(res);
+            if (/*null != ans*/ $$.ctx) $$.ctx.ans = ans;
+            //if ((null != ans) && (!out.length || out[out.length-1] !== ans)) out.push(ans);
+            if ((1 < out.length) && is_array(out[out.length-1]) && (out[out.length-1] === out[out.length-2])) out.pop();
         }
         if (is_break) break;
         else if (is_continue) continue;
     }
     $$.brk = brk;
     $$.cont = cont;
-    return ans;
+    return out/*.length ? out[out.length-1] : null*/;
 }
 
 function def_fn(fn_def)
@@ -1169,7 +1179,7 @@ function parse(s, ctx, lineStart, posStart)
             }
         }
 
-        function end(and_reset)
+        function end(and_reset, not_echoed)
         {
             merge(true);
             if ((1 < terms.length) || (0 < ops.length))
@@ -1178,7 +1188,7 @@ function parse(s, ctx, lineStart, posStart)
             }
             if (true === and_reset)
             {
-                if (is_instance(terms[0], expr)) statements.push(terms[0]);
+                if (is_instance(terms[0], expr)) statements.push(not_echoed ? expr('not_echoed', terms[0]) : terms[0]);
                 terms = [];
                 ops = [];
             }
@@ -1608,7 +1618,7 @@ function parse(s, ctx, lineStart, posStart)
                     // statement end
                     eat(";");
                     // new statement
-                    end(true);
+                    end(true, true);
                     continue;
                 }
             }
@@ -2108,6 +2118,10 @@ async function evaluate(e, v, $$, vf2v)
     var f, argout, nargout, tmp, tmpe, n, arg, ctx, ret;
     if (is_instance(e, expr))
     {
+        if ('not_echoed' === e.op)
+        {
+            return await evaluate(e.arg, v, $$, vf2v);
+        }
         if ('arg' === e.op)
         {
             // argument, delegate
@@ -2298,17 +2312,19 @@ async function evaluate(e, v, $$, vf2v)
     }
     throw "invalid expr";
 }
-async function vale(x, v, $$, vf2v)
+async function vale(x, v, $$, vf2v, output)
 {
     if (is_instance(x, expr))
     {
-        return await evaluate(x, v, $$, vf2v);
+        var ans = await evaluate(x, v, $$, vf2v);
+        if (output && ('not_echoed' !== x.op)) output.push(ans);
+        return ans;
     }
     else if (is_array(x))
     {
         for (var i=0,n=x.length,y=new Array(n); i<n; ++i)
         {
-            y[i] = await vale(x[i], v, $$, vf2v);
+            y[i] = await vale(x[i], v, $$, vf2v, output);
         }
         return y;
     }
@@ -2320,17 +2336,17 @@ $_.createContext = function() {
 };
 
 $_.eval = async function(code, ctx, lineStart, cb) {
-    ctx = ctx || $_.createContext();
     if (!is_callable(cb)) cb = null;
+    ctx = ctx || $_.createContext();
     var ast = parse(String(code), ctx, null == lineStart ? 1 : lineStart, 1),
-        ans = null, ans_changed = false, i, n;
+        ans = null, ans_changed = false, out = [], i, n;
     if (is_array(ast))
     {
         for (i=0,n=ast.length; i<n; ++i)
         {
             if (ast[i])
             {
-                ans = await evaluate(ast[i]);
+                ans = await vale(ast[i], null, null, null, out);
                 if ((null != ans) && cb) cb(ans);
                 ans_changed = true;
             }
@@ -2338,9 +2354,10 @@ $_.eval = async function(code, ctx, lineStart, cb) {
     }
     else if (ast)
     {
-        ans = await evaluate(ast);
+        ans = await vale(ast, null, null, null, out);
+        if ((null != ans) && cb) cb(ans);
         ans_changed = true;
     }
     if (ans_changed && (is_array(ans) || is_nan(ans) || is_scalar(ans) || is_string(ans))) ctx.ans = ans;
-    return ans_changed ? ans : null;
+    return out.length ? out[out.length-1] : null;
 };

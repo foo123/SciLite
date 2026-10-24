@@ -149,9 +149,9 @@ async function repl(code, output, $, CodeMirror, MathJax, Plotly)
     let ans = null, err = null, figs = [];
     try {
         ans = await $._.eval(code, ctx, currentLine+1, (el) => {
-            if ((el instanceof window.Element) && !el.id)
+            if (el instanceof window.Element)
             {
-                el.id = 'fig-' + String(++cnt);
+                if (!el.id) el.id = 'fig-' + String(++cnt);
                 figs.push(currentFig = el);
             }
         });
@@ -165,24 +165,24 @@ async function repl(code, output, $, CodeMirror, MathJax, Plotly)
     print_code(output, code, CodeMirror);
     if (warnings.length)
     {
-        warnings.forEach(function(warning) {
-            print_err(output, warning, 'warn');
-        });
+        warnings.forEach(warning => print_err(output, warning, 'warn'));
         warnings = [];
     }
-    figs.forEach(el => output.appendChild(el));
+    figs.forEach(el => print_fig(output, el, Plotly));
     if (err)
     {
         print_err(output, err);
     }
-    else if (ans instanceof window.Element)
+    else
     {
-        print_fig(output, ans, Plotly);
-    }
-    else if (null != ans)
-    {
-        // if not output suppressed, print output
-        if (!/;\s*$/.test(code.split("\n").pop())) print_math(output, $._.tex(ans), MathJax);
+        if (ans instanceof window.Element)
+        {
+            print_fig(output, ans, Plotly);
+        }
+        else if (null != ans)
+        {
+            print_math(output, $._.tex(ans), MathJax);
+        }
     }
     printCompleted = printCompleted.then(() => output.scrollTop = output.scrollHeight);
 }
