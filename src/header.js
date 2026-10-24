@@ -79,6 +79,7 @@ var tensorview = null,
             inf: inf, Inf: inf,
             nan: nan, NaN: nan,
             "true": I, "false": O,
+            on: "on", off: "off",
             "0": O, "1": I, "-1": J,
             "1/2": half, "2": two, "10": ten
         }

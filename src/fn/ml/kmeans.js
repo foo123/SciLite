@@ -1,58 +1,110 @@
-async function kmeans(X, k, C, D, max_iter, speedup)
+function kmeans(X, k, D, init, max_iter, run_async, speedup)
 {
     // https://en.wikipedia.org/wiki/K-means_clustering
     // Lloyd's algorithm with triangle speedup heuristic
-
-    var n = ROWS(X), p = COLS(X), iter,
-        i, ci, idx, centroids_changed;
-
-    idx = await Promise.all(X.map(function(Xi) {return closest_cluster(Xi, C, D, speedup);})).then(function(c) {return c[0];});
-    C = compute_centroids(X, k, idx);
-
-    for (iter=1; iter<=max_iter; ++iter)
+    var n = X.length, idx = array(n, -1), C, centroids_changed = 0, iter;
+    if (run_async)
     {
-        // Assign each point to the nearest centroid
-        centroids_changed = 0;
-        for (i=0; i<n; ++i)
-        {
-            ci = (await closest_cluster(X[i], C, D, speedup))[0];
-            if (idx[i] !== ci) ++centroids_changed;
-            idx[i] = ci;
-        }
+        return (async function() {
+            await closest_clusters(idx, null, X, is_matrix(init) ? init : await init(X, k, D, run_async), D, run_async);
 
-        // Check for convergence
-        if (0 === centroids_changed)
-        {
-            break; // converged
-        }
-        else
-        {
-            // Recalculate centroids
-            C = compute_centroids(X, k, idx);
-        }
+            for (iter=1; iter<=max_iter; ++iter)
+            {
+                // calculate centroids
+                C = compute_centroids(idx, X, k);
+                // assign each point to the nearest centroid
+                centroids_changed = await closest_clusters(idx, null, X, C, D, run_async);
+                if (!centroids_changed) break; // converged
+            }
+            if (centroids_changed) fn.warning('kmeans failed to converge in '+max_iter+' iteration(s).');
+            return [idx, C];
+        })();
     }
-    return [idx, C];
+    else
+    {
+        closest_clusters(idx, null, X, is_matrix(init) ? init : init(X, k, D), D);
+
+        for (iter=1; iter<=max_iter; ++iter)
+        {
+            // calculate centroids
+            C = compute_centroids(idx, X, k);
+            // assign each point to the nearest centroid
+            centroids_changed = closest_clusters(idx, null, X, C, D);
+            if (!centroids_changed) break; // converged
+        }
+        if (centroids_changed) fn.warning('kmeans failed to converge in '+max_iter+' iteration(s).');
+        return [idx, C];
+    }
 }
-async function closest_cluster(x, C, D, speedup)
+function closest_clusters(idx, min, X, C, D, run_async)
 {
-    var k = C.length, i, d, idx = 0, min = inf;
-    for (i=0; i<k; ++i)
+    var n = X.length, k = C.length, i, j, x, d, cj, minj, nchanged = 0;
+    if (run_async)
     {
-        if (!C[i] || !C[i].length) continue;
-        d = await D(x, C[i]);
-        if (n_lt(d, min))
+        return (async function() {
+        for (j=0; j<n; ++j)
         {
-            min = d;
-            idx = i;
+            x = X[j];
+            cj = 0;
+            minj = inf;
+            for (i=0; i<k; ++i)
+            {
+                if (!C[i] || !C[i].length) continue;
+                d = await D(x, C[i]);
+                if (n_lt(d, minj))
+                {
+                    minj = d;
+                    cj = i;
+                }
+            }
+            if (idx)
+            {
+                if (cj !== idx[j]) ++nchanged;
+                idx[j] = cj;
+            }
+            if (min)
+            {
+                min[j] = minj;
+            }
         }
+        return nchanged;
+        })();
     }
-    return [idx, min];
+    else
+    {
+        for (j=0; j<n; ++j)
+        {
+            x = X[j];
+            cj = 0;
+            minj = inf;
+            for (i=0; i<k; ++i)
+            {
+                if (!C[i] || !C[i].length) continue;
+                d = D(x, C[i]);
+                if (n_lt(d, minj))
+                {
+                    minj = d;
+                    cj = i;
+                }
+            }
+            if (idx)
+            {
+                if (cj !== idx[j]) ++nchanged;
+                idx[j] = cj;
+            }
+            if (min)
+            {
+                min[j] = minj;
+            }
+        }
+        return nchanged;
+    }
 }
 function compute_centroid(cluster)
 {
     return cluster.length ? mean(cluster) : cluster;
 }
-function compute_centroids(X, k, idx)
+function compute_centroids(idx, X, k)
 {
     return array(k, function(cluster_index) {
         return compute_centroid(idx.reduce(function(cluster, index, i) {
@@ -61,7 +113,7 @@ function compute_centroids(X, k, idx)
         }, []));
     });
 }
-function kmeans_init_forgy(X, k, dist, speedup)
+function kmeans_init_forgy(X, k, D, run_async)
 {
     X = X.slice();
     return array(k, function(cluster) {
@@ -69,7 +121,7 @@ function kmeans_init_forgy(X, k, dist, speedup)
         return -1 < i ? X.splice(i, 1)[0] : [];
     });
 }
-function kmeans_init_random_partition(X, k, dist, speedup)
+function kmeans_init_random_partition(X, k, D, run_async)
 {
     var n = X.length;
     return shuffle(X.slice()).reduce(function(clusters, xi) {
@@ -79,46 +131,79 @@ function kmeans_init_random_partition(X, k, dist, speedup)
         return clusters;
     }, []).map(compute_centroid);
 }
-async function kmeans_init_plusplus(X, k, dist, speedup)
+function kmeans_init_plusplus(X, k, D, run_async)
 {
     // https://en.wikipedia.org/wiki/K-means%2B%2B
     // Initialize list of centroids with one randomly selected point
     var n = X.length,
         centroids = [X[stdMath.round(stdMath.random()*(n-1))]],
-        D2 = new Array(n), d, i, total, thresh, cum;
+        D2 = new Array(n), d = new Array(n), i, total, thresh, cum;
 
-    // Choose remaining k - 1 centroids
-    while (centroids.length < k)
+    if (run_async)
     {
-        // For each point, compute squared distance to nearest selected centroid
-        total = O;
-        for (i=0; i<n; ++i)
+        return (async function() {
+        // Choose remaining k - 1 centroids
+        while (centroids.length < k)
         {
-            d = (await closest_cluster(X[i], centroids, dist, speedup))[1];
-            D2[i] = scalar_abs(scalar_mul(d, scalar_conj(d)));
-            total = n_add(total, D2[i]);
-        }
-
-        // Choose next centroid with probability proportional to D(x)^2
-        thresh = n_mul(total, stdMath.random());
-        cum = O;
-        for (i=0; i<n; ++i)
-        {
-            cum = n_add(cum, D2[i]);
-            if (n_ge(cum, thresh))
+            await closest_clusters(null, d, X, centroids, D, run_async);
+            // For each point, compute squared distance to nearest selected centroid
+            total = O;
+            for (i=0; i<n; ++i)
             {
-                centroids.push(X[i]);
-                break;
+                D2[i] = scalar_abs(scalar_mul(d[i], scalar_conj(d[i])));
+                total = n_add(total, D2[i]);
+            }
+
+            // Choose next centroid with probability proportional to D(x)^2
+            thresh = n_mul(total, stdMath.random());
+            cum = O;
+            for (i=0; i<n; ++i)
+            {
+                cum = n_add(cum, D2[i]);
+                if (n_ge(cum, thresh))
+                {
+                    centroids.push(X[i]);
+                    break;
+                }
             }
         }
+        return centroids;
+        })();
     }
-    return centroids;
+    else
+    {
+        // Choose remaining k - 1 centroids
+        while (centroids.length < k)
+        {
+            closest_clusters(null, d, X, centroids, D);
+            // For each point, compute squared distance to nearest selected centroid
+            total = O;
+            for (i=0; i<n; ++i)
+            {
+                D2[i] = scalar_abs(scalar_mul(d[i], scalar_conj(d[i])));
+                total = n_add(total, D2[i]);
+            }
+
+            // Choose next centroid with probability proportional to D(x)^2
+            thresh = n_mul(total, stdMath.random());
+            cum = O;
+            for (i=0; i<n; ++i)
+            {
+                cum = n_add(cum, D2[i]);
+                if (n_ge(cum, thresh))
+                {
+                    centroids.push(X[i]);
+                    break;
+                }
+            }
+        }
+        return centroids;
+    }
 }
-fn.kmeans = varargout(namevalueargs(async function(nargout, X, k) {
+fn.kmeans = varargout(namevalueargs(function(nargout, X, k) {
     var nv = arguments[arguments.length-1]._,
-        init, dist, max_iter,
-        speedup = false,
-        i, j, n, m, ans;
+        dist, init, max_iter, speedup = false,
+        run_async = false, i, j, n, m, idx, C, ans;
     if (!is_matrix(X)) not_supported("kmeans");
     if (is_matrix(nv.Start))
     {
@@ -147,7 +232,8 @@ fn.kmeans = varargout(namevalueargs(async function(nargout, X, k) {
     }
     if (is_callable(nv.Distance))
     {
-        dist = nv.Distance; // possibly async if user-defined
+        dist = nv.Distance;
+        run_async = is_instance(dist(X[0], array(X[0].length, O)), Promise);
     }
     else
     {
@@ -176,44 +262,92 @@ fn.kmeans = varargout(namevalueargs(async function(nargout, X, k) {
     }
     max_iter = stdMath.ceil(stdMath.abs(_(sca(nv.MaxIter, true))));
 
-    ans = await kmeans(X, k, is_matrix(init) ? init : await init(X, k, dist, speedup), dist, max_iter, speedup);
-    ans[0] = ans[0].map(function(idx) {return idx+1;});
-    if (1 === nargout)
+    if (run_async)
     {
-        ans = ans[0];
-    }
-    else if (2 < nargout)
-    {
-        // sumd
-        n = idx.length;
-        m = array(k, O);
-        ans.push(m);
-        for (j=0; j<k; ++j)
+        return (async function() {
+        ans = await kmeans(X, k, dist, init, max_iter, run_async);
+        idx = ans[0]; C = ans[1];
+        ans[0] = ans[0].map(function(idx) {return idx+1;});
+        if (1 === nargout)
         {
-            for (i=0; i<n; ++i)
-            {
-                if (idx[i] === j)
-                {
-                    m[j] = scalar_add(m[j], await dist(X[i], C[j]));
-                }
-            }
+            ans = ans[0];
         }
-        if (3 < nargout)
+        else if (2 < nargout)
         {
-            // D
-            n = ROWS(X);
-            m = matrix(n, k, O);
+            // sumd
+            n = idx.length;
+            m = array(k, O);
             ans.push(m);
-            for (i=0; i<n; ++i)
+            for (j=0; j<k; ++j)
             {
-                for (j=0; j<k; ++j)
+                for (i=0; i<n; ++i)
                 {
-                    m[i][j] = await dist(X[i], C[j]);
+                    if (idx[i] === j)
+                    {
+                        m[j] = scalar_add(m[j], await dist(X[i], C[j]));
+                    }
+                }
+            }
+            if (3 < nargout)
+            {
+                // D
+                n = ROWS(X);
+                m = matrix(n, k, O);
+                ans.push(m);
+                for (i=0; i<n; ++i)
+                {
+                    for (j=0; j<k; ++j)
+                    {
+                        m[i][j] = await dist(X[i], C[j]);
+                    }
                 }
             }
         }
+        return ans;
+        })();
     }
-    return ans;
+    else
+    {
+        ans = kmeans(X, k, dist, init, max_iter);
+        idx = ans[0]; C = ans[1];
+        ans[0] = ans[0].map(function(idx) {return idx+1;});
+        if (1 === nargout)
+        {
+            ans = ans[0];
+        }
+        else if (2 < nargout)
+        {
+            // sumd
+            n = idx.length;
+            m = array(k, O);
+            ans.push(m);
+            for (j=0; j<k; ++j)
+            {
+                for (i=0; i<n; ++i)
+                {
+                    if (idx[i] === j)
+                    {
+                        m[j] = scalar_add(m[j], dist(X[i], C[j]));
+                    }
+                }
+            }
+            if (3 < nargout)
+            {
+                // D
+                n = ROWS(X);
+                m = matrix(n, k, O);
+                ans.push(m);
+                for (i=0; i<n; ++i)
+                {
+                    for (j=0; j<k; ++j)
+                    {
+                        m[i][j] = dist(X[i], C[j]);
+                    }
+                }
+            }
+        }
+        return ans;
+    }
 }, {
    Start: "plus",
    Distance: "sqeuclidean",
