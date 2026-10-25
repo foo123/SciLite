@@ -168,21 +168,24 @@ async function repl(code, output, $, CodeMirror, MathJax, Plotly)
         warnings.forEach(warning => print_err(output, warning, 'warn'));
         warnings = [];
     }
-    figs.forEach(el => print_fig(output, el, Plotly));
     if (err)
     {
         print_err(output, err);
     }
     else
     {
-        if (ans instanceof window.Element)
-        {
-            print_fig(output, ans, Plotly);
-        }
-        else if (null != ans)
-        {
-            print_math(output, $._.tex(ans), MathJax);
-        }
+        ans.forEach(ans => {
+            if (ans instanceof window.Element)
+            {
+                //print_fig(output, ans, Plotly);
+                figs.push(ans);
+            }
+            else if (null != ans)
+            {
+                print_math(output, $._.tex(ans), MathJax);
+            }
+        });
+        figs.forEach(el => print_fig(output, el, Plotly));
     }
     printCompleted = printCompleted.then(() => output.scrollTop = output.scrollHeight);
 }
@@ -213,7 +216,7 @@ $.fn.warning = function(msg) {
 };
 $.fn.eval = async function(code) {
     if (null == ctx) ctx = $._.createContext();
-    return await $._.eval(code, ctx, 1);
+    return (await $._.eval(code, ctx, 1)).pop();
 };
 $.fn.xlabel = function(text) {
     if (currentFig)
@@ -663,7 +666,7 @@ codemirror_define_grammar_mode("scilite", {
                                     ["RE::/(['\"])/",   1]
                                 }
     ,"<number>"                 : "RE::/\\d+(?:\\.\\d+)?([eE]-?\\d+)?[ij]?/"
-    ,"<const>"                 : {"autocomplete":true,"tokens":["realmax","realmin","intmax","intmin","eps","pi","e","inf","Inf","nan","NaN"]}
+    ,"<const>"                 : {"autocomplete":true,"tokens":["realmax","realmin","intmax","intmin","eps","pi","e","inf","Inf","nan","NaN","true","false","on","off"]}
     ,"<t>"                      : [".'","'"]
     ,"<op>"                     : ["+","-",".'","'",".*","*","./","/","\\","&&","||","&","|","xor","==","~=",">=","<=",">","<","~","=","@"]
 },

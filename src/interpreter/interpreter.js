@@ -2375,5 +2375,5 @@ $_.eval = async function(code, ctx, lineStart, cb) {
         ans_changed = true;
     }
     if (ans_changed && (is_array(ans) || is_nan(ans) || is_scalar(ans) || is_string(ans))) ctx.ans = ans;
-    return echoed.length ? echoed[echoed.length-1] : null;
+    return echoed;
 };
