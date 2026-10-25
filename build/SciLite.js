@@ -2,16 +2,16 @@
 *
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab/SciPy in pure JavaScript
-* @version: 0.11.0
-* 2026-09-26 11:26:48
+* @version: 0.12.0
+* 2026-10-25 15:22:30
 * https://github.com/foo123/SciLite
 *
 **//**
 *
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab/SciPy in pure JavaScript
-* @version: 0.11.0
-* 2026-09-26 11:26:48
+* @version: 0.12.0
+* 2026-10-25 15:22:30
 * https://github.com/foo123/SciLite
 *
 **/
@@ -54,12 +54,15 @@ var tensorview = null,
     update = [],
     HAS = Object.prototype.hasOwnProperty,
     toString = Object.prototype.toString,
+    KEYS = Object.keys,
     is_array = Array.isArray || function(o) {return '[object Array]' === toString.call(o);},
     nop = function() {},
+    variable = null,
+    expr = null,
 
     // lib
     $ = {
-        VERSION: "0.11.0",
+        VERSION: "0.12.0",
         // common functions
         _: {},
         // builtin functions
@@ -74,6 +77,7 @@ var tensorview = null,
         op: {},
         // constants
         constant: {
+            __version__: "0.12.0",
             pi: pi, e: e,
             eps: eps,
             realmax: realmax,
@@ -83,6 +87,7 @@ var tensorview = null,
             inf: inf, Inf: inf,
             nan: nan, NaN: nan,
             "true": I, "false": O,
+            on: "on", off: "off",
             "0": O, "1": I, "-1": J,
             "1/2": half, "2": two, "10": ten
         }
@@ -172,6 +177,8 @@ $_.decimal = function(Decimal) {
     {
         i = new complex(O, I);
         ze = new complex(constant.e, O);
+        constant["i"] = i;
+        constant["j"] = i;
     }
     update.forEach(function(u) {u();});
 };
@@ -180,6 +187,25 @@ $_.decimal = function(Decimal) {
 function not_supported(fn)
 {
     throw (String(fn) + ": input(s) not supported");
+}
+function merge(output, args)
+{
+    var n = args.length, i, k, o;
+    for (i=0; i<n; ++i)
+    {
+        o = args[i];
+        if (is_obj(o))
+        {
+            for (k in o)
+            {
+                if (HAS.call(o, k))
+                {
+                    output[k] = o[k];
+                }
+            }
+        }
+    }
+    return output;
 }
 function is_instance(x, C)
 {
@@ -236,7 +262,8 @@ function is_complex(x)
 $_.is_complex = is_complex;
 function is_real(x)
 {
-    return !is_complex(x) || n_eq(O, x.im);
+    var iscomplex = is_complex(x);
+    return (iscomplex && n_eq(O, x.im)) || !iscomplex;
 }
 $_.is_real = is_real;
 function is_scalar(x, strict)
@@ -252,13 +279,13 @@ function is_scalar(x, strict)
 $_.is_scalar = is_scalar;
 function is_vector(x, no_cell)
 {
-    if ((null != x) && x.$scilitecell$) return false === no_cell ? (x.$scilitecell$.length === 1) : false;
+    if ((null != x) && x.$scilitecell$) return false === no_cell ? (1 === x.$scilitecell$.length) : false;
     return is_array(x) && is_scalar(x[0]);
 }
 $_.is_vector = is_vector;
 function is_matrix(x, no_cell)
 {
-    if ((null != x) && x.$scilitecell$) return false === no_cell ? (x.$scilitecell$.length === 2) : false;
+    if ((null != x) && x.$scilitecell$) return false === no_cell ? (2 === x.$scilitecell$.length) : false;
     return is_array(x) && is_array(x[0]) && is_scalar(x[0][0]);
 }
 $_.is_matrix = is_matrix;
@@ -269,29 +296,66 @@ function is_cell(x)
 //$_.is_cell = is_cell;
 function is_0d(x)
 {
-    if ((null != x) && x.$scilitecell$) return x.$scilitecell$.length < 1;
+    if ((null != x) && x.$scilitecell$) return 1 > x.$scilitecell$.length;
     return !is_array(x);
 }
 function is_1d(x)
 {
-    if ((null != x) && x.$scilitecell$) return x.$scilitecell$.length < 2;
+    if ((null != x) && x.$scilitecell$) return 1 === x.$scilitecell$.length;
     return is_array(x) && !is_array(x[0]);
 }
-function is_2d(x)
+function is_2d(x, strict)
 {
-    if ((null != x) && x.$scilitecell$) return x.$scilitecell$.length > 1;
-    return is_array(x) && is_array(x[0]);
+    if ((null != x) && x.$scilitecell$) return true === strict ? (2 === x.$scilitecell$.length) : (1 < x.$scilitecell$.length);
+    if (!is_array(x) || !is_array(x[0])) return false;
+    return true === strict ? !is_array(x[0][0]) : true;
 }
 function is_nd(x)
 {
-    if ((null != x) && x.$scilitecell$) return x.$scilitecell$.length > 2;
+    if ((null != x) && x.$scilitecell$) return 2 < x.$scilitecell$.length;
     return is_array(x) && is_array(x[0]) && is_array(x[0][0]);
+}
+function data_type(x)
+{
+    if (variable && is_instance(x, variable))
+    {
+        return 'variable';
+    }
+    else if (is_string(x))
+    {
+        return 'string';
+    }
+    else if (is_scalar(x) || is_nan(x))
+    {
+        return 'numeric';
+    }
+    else if (is_array(x))
+    {
+        if (x.$scilitecell$) return '';
+        return x.length ? data_type(x[0]) : '';
+    }
+    return '';
+}
+function check_type(type, j, res)
+{
+   if (j < type.length)
+   {
+       var typej = type[j];
+       if ("c" !== typej)
+       {
+           if (is_array(res)) type[j] = "c";
+           else if (is_string(res)) type[j] = "" === typej || "s" === typej ? "s" : "c";
+           else if (is_scalar(res)) type[j] = "" === typej || "n" === typej ? "n" : "c";
+           else type[j] = "c";
+       }
+   }
+   return res;
 }
 function array(n, v)
 {
     n = stdMath.max(0, stdMath.round(n));
-    var i, arr = new Array(n);
-    for (i=0; i<n; ++i) arr[i] = is_callable(v) ? v(i, arr) : v;
+    var i, arr = new Array(n), callable = is_callable(v);
+    for (i=0; i<n; ++i) arr[i] = callable ? v(i, arr) : v;
     return arr;
 }
 $_.array = array;
@@ -299,13 +363,13 @@ function matrix(rows, cols, v)
 {
     rows = stdMath.max(0, stdMath.round(rows));
     cols = stdMath.max(0, stdMath.round(cols));
-    var r, c, row, mat = new Array(rows);
+    var r, c, row, mat = new Array(rows), callable = is_callable(v);
     for (r=0; r<rows; ++r)
     {
         mat[r] = row = new Array(cols);
         for (c=0; c<cols; ++c)
         {
-            row[c] = is_callable(v) ? v(r, c, mat) : v;
+            row[c] = callable ? v(r, c, mat) : v;
         }
     }
     return mat;
@@ -313,14 +377,15 @@ function matrix(rows, cols, v)
 $_.matrix = matrix;
 function ndarray(dims, v)
 {
+    var callable = is_callable(v), dims1 = dims.slice(1);
     return dims.length ? array(dims[0], function(i, ndarr) {
         if (dims.length > 1)
         {
-            return ndarray(dims.slice(1), function(j) {
-                return is_callable(v) ? v([i].concat(j), ndarr) : v;
-            }, true);
+            return ndarray(dims1, function(j) {
+                return callable ? v([i].concat(j), ndarr) : v;
+            });
         }
-        return is_callable(v) ? v([i], ndarr) : v;
+        return callable ? v([i], ndarr) : v;
     }) : [];
 }
 ndarray.indices = function(dims, f) {
@@ -337,6 +402,72 @@ ndarray.indices = function(dims, f) {
             while (d+1 < n) i[++d] = 0;
         }
     }
+};
+ndarray.project = function project(x, d, i, j, matchsize, loose) {
+    j = j || 0;
+    if (is_array(x) && (j < i.length))
+    {
+        if (':' === i[j]) return x.map(function(xj) {return project(xj, d, i, j+1, matchsize, loose);});
+
+        if ((0 === j) && ('loose' === loose))
+        {
+            if ((2 === d.length) && (1 === d[0]) && (0 === i[0]) && !is_array(x[0]))
+            {
+                // handle row-vec and vec as equivalent
+                if (('matchsize' === matchsize) && (i[j+1] >= x.length)) throw "dimensions do not match";
+                return x[i[j+1]];
+            }
+            else if ((1 === d.length) && (1 === x.length) && is_1d(x[0]))
+            {
+                // handle vec and row-vec as equivalent
+                if (('matchsize' === matchsize) && (i[j] >= x[0].length)) throw "dimensions do not match";
+                return x[0][i[j]];
+            }
+            else if ((2 === d.length) && (1 === d[1]) && !is_array(x[0]))
+            {
+                // handle col-vec and vec as equivalent
+                if (('matchsize' === matchsize) && (i[j] >= x.length)) throw "dimensions do not match";
+                return x[i[j]];
+            }
+            else if ((1 === d.length) && is_array(x[0]) && (1 === x[0].length))
+            {
+                // handle vec and col-vec as equivalent
+                if (('matchsize' === matchsize) && (i[j] >= x.length)) throw "dimensions do not match";
+                return x[i[j]][0];
+            }
+            else if ((2 === d.length) && (1 === d[0]) && (0 === i[0]) && is_array(x[0]) && (1 === x[0].length))
+            {
+                // handle row-vec and col-vec as equivalent
+                if (('matchsize' === matchsize) && (i[j+1] >= x.length)) throw "dimensions do not match";
+                return x[i[j+1]][0];
+            }
+            else if ((2 === d.length) && (1 === d[1]) && (1 === x.length) && is_1d(x[0]))
+            {
+                // handle col-vec and row-vec as equivalent
+                if (('matchsize' === matchsize) && (i[j] >= x[0].length)) throw "dimensions do not match";
+                return x[0][i[j]];
+            }
+        }
+
+        if (('matchsize' === matchsize) && ((i[j] >= x.length) || (j+1 < i.length && !is_array(x[0]))))
+        {
+            throw "dimensions do not match";
+        }
+
+        return project(x[i[j]], d, i, j+1, matchsize, loose);
+    }
+    return x;
+};
+ndarray.val = function(a, i, v) {
+    var j = 0, n = i.length, aa = a;
+    for (;j+1<n;)
+    {
+        if (!is_array(a) || (i[j] >= a.length)) throw "invalid array or array index";
+        a = a[i[j++]];
+    }
+    if (!is_array(a) || (i[j] >= a.length)) throw "invalid array or array index";
+    if (2 < arguments.length) a[i[j]] = v;
+    return a[i[j]];
 };
 $_.ndarray = ndarray;
 function cellarray(array, dims)
@@ -399,7 +530,7 @@ function sca(x, real)
         var sizex = size(x);
         if (arr_eq(sizex, array(sizex.length, 1)))
         {
-            return sca(project(x, array(sizex.length, 0)), real);
+            return sca(ndarray.project(x, sizex, array(sizex.length, 0)), real);
         }
     }
     return x;
@@ -411,10 +542,16 @@ function vec(x)
     {
         return x;
     }
-    else if (is_matrix(x))
+    else if (/*is_matrix(x)*/is_2d(x, true))
     {
-        if (1 === ROWS(x)) return x[0];
-        else if (1 === COLS(x)) return x.map(function(xi) {return xi[0];});
+        var xx = null;
+        if (1 === ROWS(x)) xx = x[0];
+        else if (1 === COLS(x)) xx = x.map(function(xi) {return xi[0];});
+        if (xx)
+        {
+            if (x.$scilitecell$) xx = cellarray(xx === x[0] ? xx.slice() : xx, [xx.length]);
+            return xx;
+        }
     }
     else if (is_0d(x))
     {
@@ -431,7 +568,7 @@ function ROWS(mat)
 }
 function COLS(mat)
 {
-    if ((null != mat) && mat.$scilitecell$) return mat.$scilitecell$[1] || 1;
+    if ((null != mat) && mat.$scilitecell$) return mat.$scilitecell$[1] || 0;
     return mat[0].length;
 }
 function ROW(mat, i)
@@ -442,17 +579,6 @@ function COL(mat, j)
 {
     return array(mat.length, function(i) {return mat[i][j];});
 }
-function project(x, i, j)
-{
-    j = j || 0;
-    if (is_array(x))
-    {
-        return ':' === i[j] ? x.map(function(xj) {return project(xj, i, j+1);}) : project(x[i[j]], i, j+1);
-    }
-    return x;
-}
-$_.project = project;
-
 function _(x)
 {
     return ("number" === typeof x) ? x : (is_decimal(x) ? (x.$valueOf()) : (is_complex(x) ? x.valueOf() : x));
@@ -485,13 +611,17 @@ function copy(x)
 {
     if (is_array(x))
     {
-        var x2 = x.map(copy);
-        if (x.$scilitecell$) x2.$scilitecell$ = x.$scilitecell$.slice();
-        return x2;
+        var xx = x.map(copy);
+        if (x.$scilitecell$) xx.$scilitecell$ = x.$scilitecell$.slice();
+        return xx;
     }
     return x;
 }
 $_.copy = copy;
+function copyobj(o)
+{
+    return merge({}, [o]);
+}
 function apply(f, x, iscomplex)
 {
     if (is_num(x))
@@ -529,6 +659,81 @@ function apply2(f, x, y, iscomplex)
     return nan;
 }
 $_.apply2 = apply2;
+function apply_(f, x, t, nargout)
+{
+    nargout = nargout || 1;
+    var i = 0, n = x.length,
+        xa = null, sz = null,
+        type = [], promises = [],
+        fx_ = null, fx = null;
+
+    function set_(i, res)
+    {
+        if ((1 < nargout) && is_array(res))
+        {
+            res = vec(res);
+            fx_.forEach(function(fxj, j) {
+                if (j < res.length) ndarray.val(fxj, i, check_type(type, j, res[j]));
+            });
+        }
+        else
+        {
+            ndarray.val(fx_[0], i, check_type(type, 0, res));
+        }
+    }
+    function ret_()
+    {
+        fx_.forEach(function(fxj, j) {
+            if ((xa && xa.$scilitecell$) || ("c" === type[j]))
+            {
+                fx_[j] = cellarray(fxj, sz.slice());
+            }
+        });
+        return 1 < nargout ? fx_ : (fx_[0]);
+    }
+
+    for (; i<n; ++i)
+    {
+        if (is_array(x[i]) && (!xa || (xa && !xa.$scilitecell$ && x[i].$scilitecell$)))
+        {
+            xa = x[i];
+            if (xa.$scilitecell$) break;
+        }
+    }
+
+    if (xa)
+    {
+        // some x is array
+        sz = is_1d(xa) ? [xa.length] : size(xa);
+        type = array(nargout, "");
+        fx_ = array(nargout, function() {return ndarray(sz, null);});
+        ndarray.indices(sz, function(i) {
+            var res = f.apply(null, x.map(function(xk) {
+                xk = ndarray.project(xk, sz, i, 0, 'matchsize', 'loose');
+                return t ? t(xk) : xk;
+            }));
+            if (is_instance(res, Promise))
+            {
+                promises.push(res.then((function(i) {
+                    return function(res) {set_(i, res);}
+                ;})(i.slice())));
+            }
+            else
+            {
+                set_(i, res);
+            }
+        });
+        fx = promises.length ? Promise.all(promises).then(ret_) : ret_();
+    }
+    else
+    {
+        // every x is scalar
+        fx = f.apply(null, t ? x.map(function(xk) {return t(xk);}) : x);
+    }
+
+    return fx;
+}
+$_.apply_ = apply_;
 function group_apply(type, f, f0, ferr, x, dim, dir)
 {
     dir = "reverse" === dir ? "reverse" : "forward";
@@ -715,6 +920,177 @@ $_.exist = function(variable, ctx) {
     return is_obj(ctx) && is_string(variable) && HAS.call(ctx, variable) ? 1 : 0;
 };
 
+function namevalue(defaults)
+{
+    if (!is_instance(this, namevalue)) return new namevalue(defaults);
+    this._ = {};
+    if (defaults) this.fill(defaults/*, 'defaults'*/);
+}
+namevalue.prototype = {
+    constructor: namevalue,
+    _: null,
+    has: function(name) {
+        return HAS.call(this._, name);
+    },
+    get: function(name, default_value) {
+        return HAS.call(this._, name) ? this._[name] : default_value;
+    },
+    set: function(name, value) {
+        this._[name] = value;
+        return this;
+    },
+    fill: function(namevalues, mode) {
+        var nv = is_instance(namevalues, namevalue) ? namevalues._ : namevalues;
+        if (is_obj(nv))
+        {
+            var _ = this._;
+            KEYS(nv).forEach('defaults' === mode ? function(name) {
+                if (!HAS.call(_, name)) _[name] = nv[name];
+            } : function(name) {
+                _[name] = nv[name];
+            });
+        }
+        return this;
+    },
+    all: function() {
+        return KEYS(this._);
+    },
+    clone: function() {
+        var self = this;
+        return namevalue(self.all().reduce(function(_, name) {
+            _[name] = copy(self._[name]);
+            return _;
+        }, {}));
+    }
+};
+$_.namevalue = namevalue;
+
+function namevalueargs(f, nv, repeatable)
+{
+    repeatable = 'repeatable' === repeatable;
+    return nv ? function(/*..args*/) {
+        var args = [].slice.call(arguments),
+            NameValueDefaults = namevalue(KEYS(nv).reduce(function(_, name) {
+                _[name] = copy(nv[name]);
+                return _;
+            }, {})), NameValueArgs,
+            NameValueAltArgs, AltBackup,
+            i, nexti = -1, a, arg, n;
+
+        for (i=0,n=args.length; i<n; ++i)
+        {
+            if (is_instance(args[i], namevalue))
+            {
+                NameValueArgs = args[i]; // Name=Value args present
+                break;
+            }
+        }
+        a = args;
+        args = [];
+        for (i=0,n=a.length; i<n; ++i)
+        {
+            arg = a[i];
+            if (i === nexti)
+            {
+                nexti = -1;
+                continue;
+            }
+            else if (is_instance(arg, namevalue))
+            {
+                // Name=Value arguments
+                /*NameValueArgs = arg;
+                if (NameValueAltArgs)
+                {
+                    NameValueArgs.fill(NameValueAltArgs, 'defaults');
+                    NameValueAltArgs = null;
+                }*/
+                if (repeatable && (!args.length || (arg !== args[args.length-1])))
+                {
+                    args.push(arg); // in-place
+                }
+                continue;
+            }
+            else if (!NameValueArgs && is_string(arg) && (i+1 < a.length) && NameValueDefaults.has(arg))
+            {
+                // older alternative "Name",Value argument pairs
+                /*if (NameValueArgs)
+                {
+                    NameValueArgs.set(arg, a[i+1]);
+                }
+                else
+                {*/
+                    if (!NameValueAltArgs)
+                    {
+                        NameValueAltArgs = {};
+                        AltBackup = [];
+                    }
+                    else if (repeatable && HAS.call(NameValueAltArgs, arg))
+                    {
+                        args.push(namevalue(NameValueAltArgs)); // in-place
+                        // assume new namevalue args
+                        NameValueAltArgs = {};
+                        AltBackup = [];
+                    }
+                    NameValueAltArgs[arg] = a[i+1];
+                    AltBackup.push(arg);
+                    AltBackup.push(a[i+1]);
+                /*}*/
+                nexti = i+1;
+                continue;
+            }
+            if (NameValueAltArgs)
+            {
+                if (repeatable)
+                {
+                    args.push(namevalue(NameValueAltArgs)); // in-place
+                }
+                else
+                {
+                    // "Name",Value argument pairs are not last, push them back
+                    args.push.apply(args, AltBackup);
+                }
+                NameValueAltArgs = null;
+                AltBackup = null;
+            }
+            args.push(arg);
+        }
+        AltBackup = null;
+        a = null;
+        // Name=Value arguments
+        if (repeatable)
+        {
+            if (NameValueAltArgs)
+            {
+                args.push(namevalue(NameValueAltArgs));
+                NameValueAltArgs = null;
+            }
+            args = args.map(function(arg) {
+                if (is_instance(arg, namevalue))
+                {
+                    arg.fill(NameValueDefaults, 'defaults');
+                }
+                return arg;
+            }); // NameValues args in-place
+        }
+        else
+        {
+            if (NameValueAltArgs)
+            {
+                if (NameValueArgs) NameValueArgs.fill(NameValueAltArgs, 'defaults');
+                else NameValueArgs = namevalue(NameValueAltArgs);
+            }
+            if (NameValueArgs)
+            {
+                NameValueDefaults.fill(NameValueArgs);
+            }
+            args.push(NameValueDefaults); // NameValue args last
+        }
+
+        return f.apply(null, args);
+    } : f;
+}
+$_.namevalueargs = namevalueargs;
+
 function varargout(f, nargout_default)
 {
     if (!is_callable(f))
@@ -730,7 +1106,7 @@ function varargout(f, nargout_default)
         var args = [].slice.call(arguments), ans;
         args.unshift(nargout_default); // nargout=nargout_default
         ans = f.apply(null, args);
-        if (ans instanceof Promise)
+        if (is_instance(ans, Promise))
         {
             ans = ans.then(function(ans) {
                 if ((1 < nargout_default) && is_array(ans)) ans.$scilitevarargout$ = true;
@@ -748,7 +1124,7 @@ function varargout(f, nargout_default)
             var args = [].slice.call(arguments), ans;
             args.unshift(nargout); // nargout=nargout
             ans = f.apply(null, args);
-            if (ans instanceof Promise)
+            if (is_instance(ans, Promise))
             {
                 ans = ans.then(function(ans) {
                     if (((1 < nargout) || (1 < nargout_default)) && is_array(ans)) ans.$scilitevarargout$ = true;
@@ -767,6 +1143,24 @@ function varargout(f, nargout_default)
     return f_with_nargout;
 }
 $_.varargout = varargout;
+
+function $fn(name, func)
+{
+    var fn = null;
+    return varargout(async function(nargout /*..args*/) {
+        if (!fn)
+        {
+            // compile it
+            var entry = $["@fn"][name];
+            await $_.eval(func);
+            fn = $["@fn"][name];
+            $["@fn"][name] = entry;
+        }
+        // invoke it
+        return await fn.nargout(nargout).apply(null, [].slice.call(arguments, 1));
+    });
+}
+$_.$fn = $fn;
 
 function num2str(x)
 {
@@ -795,6 +1189,22 @@ function num2str(x)
 }
 $_.num2str = num2str;
 $_.MAXPRINTSIZE = inf;
+function celltexify(x)
+{
+    if (is_array(x))
+    {
+        x = (x.$scilitecell$ ? '\\text{cell }' : (x.length ? '\\text{'+data_type(x)+' }' : '')) + size(x).join(' \\times ');
+    }
+    else if (is_callable(x))
+    {
+        x = '\\text{function()}';
+    }
+    else
+    {
+        x = texify(x);
+    }
+    return '\\{' +  x + '\\}';
+}
 function texify(x)
 {
     var tex;
@@ -809,7 +1219,7 @@ function texify(x)
     }
     else if (is_string(x))
     {
-        x = '\\text{"' + x + '"}';
+        x = '\\mathsf{\\text{"' + x + '"}}';
     }
     else if (is_nan(x))
     {
@@ -826,16 +1236,11 @@ function texify(x)
     else if (is_2d(x))
     {
         // 2d or nd array
-        tex = x.$scilitecell$ ? function(x) {
-            return '\\{' + (is_array(x) ? (x.$scilitecell$ ? '\\text{cell }' : '') + size(x).join(' \\times ') : texify(x)) + '\\}';
-        } : texify;
-        x = tensorview.stringify('tex', x, size(x), tex, $_.MAXPRINTSIZE, 1, true, x.$scilitecell$ ? '\\text{cell }' : '');
+        x = tensorview.stringify('tex', x, size(x), x.$scilitecell$ ? celltexify : texify, $_.MAXPRINTSIZE, 1, true, x.$scilitecell$ ? '\\text{cell }' : (x.length ? '\\text{'+data_type(x)+' }' : ''));
     }
     else if (is_array(x))
     {
-        tex = x.$scilitecell$ ? function(x) {
-            return '\\{' + (is_array(x) ? (x.$scilitecell$ ? '\\text{cell }' : '') + size(x).join(' \\times ') : texify(x)) + '\\}';
-        } : texify;
+        tex = x.$scilitecell$ ? celltexify : texify;
         if (x.length > $_.MAXPRINTSIZE)
         {
             x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat(tensorview.cdots).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
@@ -868,9 +1273,7 @@ $_.tex = function(x) {
             }
             else
             {
-                var tex = x.$scilitecell$ ? function(x) {
-                    return '\\{' + (is_array(x) ? (x.$scilitecell$ ? '\\text{cell }' : '') + size(x).join(' \\times ') : texify(x)) + '\\}';
-                } : texify;
+                var tex = x.$scilitecell$ ? celltexify : texify;
                 if (x.length > $_.MAXPRINTSIZE)
                 {
                     x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat(tensorview.vdots).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
@@ -891,6 +1294,22 @@ $_.tex = function(x) {
     }
     return x;
 };
+function cellstringify(x)
+{
+    if (is_array(x))
+    {
+        x = (x.$scilitecell$ ? 'cell ' : (x.length ? data_type(x)+' ' : '')) + size(x).join("\u00D7");
+    }
+    else if (is_callable(x))
+    {
+        x = 'function()';
+    }
+    else
+    {
+        x = stringify(x);
+    }
+    return '{' +  x + '}';
+}
 function stringify(x)
 {
     var str;
@@ -923,16 +1342,11 @@ function stringify(x)
     else if (is_2d(x))
     {
         // 2d or nd array
-        str = x.$scilitecell$ ? function(x) {
-            return '{' + (is_array(x) ? (x.$scilitecell$ ? 'cell ' : '') + size(x).join("\u00D7") : stringify(x)) + '}';
-        } : stringify;
-        x = tensorview.stringify('str', x, size(x), str, $_.MAXPRINTSIZE, 1, true, x.$scilitecell$ ? 'cell ' : '');
+        x = tensorview.stringify('str', x, size(x), x.$scilitecell$ ? cellstringify : stringify, $_.MAXPRINTSIZE, 1, true, x.$scilitecell$ ? 'cell ' : (x.length ? data_type(x)+' ' : ''));
     }
     else if (is_array(x))
     {
-        str = x.$scilitecell$ ? function(x) {
-            return '{' + (is_array(x) ? (x.$scilitecell$ ? 'cell ' : '') + size(x).join("\u00D7") : stringify(x)) + '}';
-        } : stringify;
+        str = x.$scilitecell$ ? cellstringify : stringify;
         if (x.length > $_.MAXPRINTSIZE)
         {
             x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat(tensorview.cdots).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
@@ -965,9 +1379,7 @@ $_.str = function(x) {
             }
             else
             {
-                var str = x.$scilitecell$ ? function(x) {
-                    return '{' + (is_array(x) ? (x.$scilitecell$ ? 'cell ' : '') + size(x).join("\u00D7") : stringify(x)) + '}';
-                } : stringify;
+                var str = x.$scilitecell$ ? cellstringify : stringify;
                 if (x.length > $_.MAXPRINTSIZE)
                 {
                     x = x.slice(0, stdMath.round($_.MAXPRINTSIZE/2)).concat(tensorview.vdots).concat(x.slice(-stdMath.round($_.MAXPRINTSIZE/2)+1));
@@ -2319,23 +2731,39 @@ function get(mat /*, ..slices*/)
 {
     // indices start from 1 to end
     // B=A(:,[5 6]); B=get(A,':','4,5');
+    var is_var = variable && is_instance(mat, variable);
+    if (is_var) mat = mat.get(true);
     if (!is_array(mat)) return mat;
     var has_b = '()' === arguments[1] || '{}' === arguments[1],
         b = has_b ? arguments[1] : '()', iscell = is_cell(mat),
         slices = [].slice.call(arguments, has_b ? 2 : 1),
-        sz = is_1d(mat) ? [mat.length] : size(mat), tot, ret;
+        sz = is_1d(mat) ? [mat.length] : size(mat), sz2, tot, ret;
     if (1 === slices.length)
     {
-        if (is_array(slices[0]) && arr_eq(sz, size(slices[0])) && all(slices[0], function(v) {return 0 === _(v) || 1 === _(v);}))
+        tot = 0;
+        if (is_array(slices[0]) && arr_eq(sz, size(slices[0])) && all(slices[0], function(v) {
+            tot += 1 === _(v) ? 1 : 0;
+            return 0 === _(v) || 1 === _(v);
+        }))
         {
-            ret = tensorview(mat, {shape:sz, ndarray:sz}).select(tonumber(slices[0])).permute(array(sz.length, function(i) {return sz.length-1-i;})).toArray();
-            if ((1 === ret.length) && ('{}' === b || !iscell)) ret = ret[0];
-            else if (iscell) ret = cellarray(ret, [ret.length]);
+            ret = tensorview(mat, {shape:sz, ndarray:sz}).select(tonumber(slices[0])).permute(array(sz.length, function(i) {return sz.length-1-i;}));
+            if (is_var)
+            {
+                if ((1 === tot) && ('{}' === b || !iscell)) ret = ret.get(array(ret.dimension, 0));
+            }
+            else
+            {
+                ret = ret.toArray();
+                if ((1 === ret.length) && ('{}' === b || !iscell)) ret = ret[0];
+                else if (iscell) ret = cellarray(ret, [ret.length]);
+            }
         }
         else
         {
+            slices = slices.map(function(slice) {return is_array(slice) ? vec(slice) : slice;});
             tot = _(prod(sz));
-            ret = tensorview(tensorview(mat, {shape:sz, ndarray:sz}).permute(array(sz.length, function(i) {return sz.length-1-i;})).toArray()).slice(slices.map(function(slice, dim) {
+            sz2 = [tot];
+            ret = tensorview(mat, {shape:sz, ndarray:sz}).permute(array(sz.length, function(i) {return sz.length-1-i;})).reshape(sz2).slice(slices.map(function(slice, dim) {
                 if (is_string(slice))
                 {
                     return slice;
@@ -2358,14 +2786,30 @@ function get(mat /*, ..slices*/)
                 {
                     throw "get: invalid range";
                 }
-            })).toArray();
-            if ((1 === ret.length) && ('{}' === b || !iscell)) ret = ret[0];
-            else if (iscell) ret = cellarray(ret, [ret.length]);
+            }));
+            if (is_var)
+            {
+                if ((1 === ret.length) && (':' !== slices[0]) && ('{}' === b || !iscell)) ret = ret.get(array(ret.dimension, 0));
+            }
+            else
+            {
+                ret = ret.toArray();
+                if ((1 === ret.length) && (':' !== slices[0]) && ('{}' === b || !iscell)) ret = ret[0];
+                else if (iscell) ret = cellarray(ret, [ret.length]);
+            }
         }
     }
-    else
+    else if ((1 < slices.length) && (slices.length < sz.length))
     {
-        ret = tensorview(mat, {shape:sz, ndarray:sz}).slice(slices.map(function(slice, dim) {
+        slices = slices.map(function(slice) {return is_array(slice) ? vec(slice) : slice;});
+        tot = _(prod(sz));
+        sz2 = array(slices.length, function(dim) {
+            if (dim+1 === slices.length) return tot;
+            tot /= sz[dim];
+            return sz[dim];
+        });
+        ret = tensorview(mat, {shape:sz,ndarray:sz}).permute(array(sz.length, function(i) {return sz.length-1-i;})).reshape(sz2.reverse()).permute(array(sz2.length, function(i) {return sz2.length-1-i;})).slice(slices.map(function(slice, dim) {
+            dim = sz2.length-1-dim;
             if (is_string(slice))
             {
                 return slice;
@@ -2373,14 +2817,14 @@ function get(mat /*, ..slices*/)
             else if (is_int(slice))
             {
                 var index = _(slice);
-                if (1 <= index && index <= sz[dim]) return index-1;
+                if (1 <= index && index <= sz2[dim]) return index-1;
                 throw "get: index out of bounds";
             }
             else if (is_vector(slice))
             {
                 return slice.map(function(index) {
                     index = _(index);
-                    if (1 <= index && index <= sz[dim]) return index-1;
+                    if (1 <= index && index <= sz2[dim]) return index-1;
                     throw "get: index out of bounds";
                 });
             }
@@ -2388,7 +2832,7 @@ function get(mat /*, ..slices*/)
             {
                 throw "get: invalid range";
             }
-        })).squeeze(2); // remove trivial dimensions after 2d
+        }));
         if (1 === ret.length)
         {
             ret = ret.get(array(ret.dimension, 0));
@@ -2398,6 +2842,67 @@ function get(mat /*, ..slices*/)
         {
             ret = [];
             if (iscell && ('()' === b)) ret = cellarray([ret], [1]);
+        }
+        else if (is_var)
+        {
+            // pass
+        }
+        else
+        {
+            if (iscell && ('()' === b)) ret = cellarray(ret.toNDArray(), ret.shape());
+            else ret = ret.toNDArray();
+        }
+    }
+    else
+    {
+        slices = slices.map(function(slice) {return is_array(slice) ? vec(slice) : slice;});
+        ret = tensorview(mat, {shape:sz, ndarray:sz}).slice(slices.reduce(function(slices, slice, dim) {
+            var szdim = dim >= sz.length ? 1 : (sz[dim]), index;
+            if (is_string(slice))
+            {
+                if (dim < sz.length) slices.push(slice);
+                else if ('0' !== slice) throw "get: index out of bounds";
+            }
+            else if (is_int(slice))
+            {
+                index = _(slice);
+                if (1 <= index && index <= szdim)
+                {
+                    if (dim < sz.length) slices.push(index-1);
+                }
+                else
+                {
+                    throw "get: index out of bounds";
+                }
+            }
+            else if (is_vector(slice))
+            {
+                slice = slice.map(function(index) {
+                    index = _(index);
+                    if (1 <= index && index <= szdim) return index-1;
+                    throw "get: index out of bounds";
+                });
+                if (dim < sz.length) slices.push(slice);
+            }
+            else
+            {
+                throw "get: invalid range";
+            }
+            return slices;
+        }, [])).squeeze(2); // remove trivial dimensions after 2d
+        if (1 === ret.length)
+        {
+            ret = ret.get(array(ret.dimension, 0));
+            if (iscell && ('()' === b)) ret = cellarray([ret], [1]);
+        }
+        else if (0 === ret.length)
+        {
+            ret = [];
+            if (iscell && ('()' === b)) ret = cellarray([ret], [1]);
+        }
+        else if (is_var)
+        {
+            // pass
         }
         else
         {
@@ -2412,24 +2917,30 @@ function set(mat /*, ..slices, val*/)
 {
     // indices start from 1 to end
     // B(:,[2 3])=A; set(B,':','1,2', A);
-    if (!is_array(mat)) return arguments[arguments.length-1];
-    var has_b = 3 <= arguments.length && ('()' === arguments[1] || '{}' === arguments[1]),
-        b = has_b ? arguments[1] : '()',
-        slices = [].slice.call(arguments, has_b ? 2 : 1, -1),
-        val = '{}' === b ? [arguments[arguments.length-1]] : arguments[arguments.length-1],
-        iscell = is_cell(mat), iscellv = is_cell(val),
-        sz = is_1d(mat) ? [mat.length] : size(mat),
-        szv = '{}' === b ? [1] : (is_1d(val) ? [val.length] : size(val)),
+    var val = arguments[arguments.length-1], is_view = is_instance(val, tensorview),
+        has_b = 3 <= arguments.length && ('()' === arguments[1] || '{}' === arguments[1]),
+        b = has_b ? arguments[1] : '()';
+    if (!is_array(mat)) return is_view ? copy(val.data) : val;
+    if ('{}' === b)
+    {
+        val = is_view ? [val.data] : [val];
+        is_view = false;
+    }
+    var slices = [].slice.call(arguments, has_b ? 2 : 1, -1),
+        iscell = is_cell(mat), iscellv = is_cell(is_view ? val.data : val),
+        sz = is_1d(mat) ? [mat.length] : size(mat), sz2,
+        szv = '{}' === b ? [1] : (is_view ? val.shape() : (is_1d(val) ? [val.length] : size(val))),
         tot, concat_dim = [-1, -1];
     if (!mat.length && slices.length)
     {
+        slices = slices.map(function(slice) {return is_array(slice) ? vec(slice) : slice;});
         slices.forEach(function(slice, dim) {
             if (!(((dim < szv.length) && (':' === slice)) || ((dim >= szv.length) && (1 === _(slice)))))
             {
                 throw "set: invalid range";
             }
         });
-        mat = tensorview(val, {shape:szv.concat(array(slices.length-szv.length, 1))});
+        mat = is_view ? val.reshape(szv.concat(array(slices.length-szv.length, 1))) : tensorview(val, {shape:szv.concat(array(slices.length-szv.length, 1))});
         if (iscell || iscellv)
         {
             mat = cellarray(mat.toNDArray(), mat.shape());
@@ -2441,13 +2952,14 @@ function set(mat /*, ..slices, val*/)
     }
     else if (sz.length < slices.length)
     {
+        slices = slices.map(function(slice) {return is_array(slice) ? vec(slice) : slice;});
         slices.forEach(function(slice, dim) {
-            if (!(((dim < szv.length) && (':' === slice)) || ((dim === slices.length-1) && (2 === _(slice))) || ((dim >= szv.length) && (dim < slices.length-1) && (1 === _(slice)))))
+            if (!(((dim < sz/*v*/.length) && (':' === slice)) || ((dim === slices.length-1) && (2 === _(slice))) || ((dim >= sz/*v*/.length) && (dim < slices.length-1) && (1 === _(slice)))))
             {
                 throw "set: invalid range";
             }
         });
-        mat = tensorview(mat, {shape: sz.concat(array(slices.length-sz.length, 1))}).concat(tensorview(val, {shape: szv.concat(array(slices.length-szv.length, 1))}), slices.length-1);
+        mat = tensorview(mat, {shape: sz.concat(array(slices.length-sz.length, 1))}).concat(is_view ? val.reshape(sz/*v*/.concat(array(slices.length-sz/*v*/.length, 1))) : tensorview(val, {shape: sz/*v*/.concat(array(slices.length-sz/*v*/.length, 1))}), slices.length-1);
         if (iscell)
         {
             mat = cellarray(mat.toNDArray(), mat.shape());
@@ -2457,9 +2969,44 @@ function set(mat /*, ..slices, val*/)
             mat = mat.toNDArray();
         }
     }
+    else if ((1 < slices.length) && (slices.length < sz.length))
+    {
+        slices = slices.map(function(slice) {return is_array(slice) ? vec(slice) : slice;});
+        tot = _(prod(sz));
+        sz2 = array(slices.length, function(dim) {
+            if (dim+1 === slices.length) return tot;
+            tot /= sz[dim];
+            return sz[dim];
+        });
+        tensorview(mat, {shape:sz,ndarray:sz}).permute(array(sz.length, function(i) {return sz.length-1-i;})).reshape(sz2.reverse()).permute(array(sz2.length, function(i) {return sz2.length-1-i;})).slice(slices.map(function(slice, dim) {
+            dim = sz2.length-1-dim;
+            if (is_string(slice))
+            {
+                return slice;
+            }
+            else if (is_int(slice))
+            {
+                var index = _(slice);
+                if (1 <= index && index <= sz2[dim]) return index-1;
+                throw "set: index out of bounds";
+            }
+            else if (is_vector(slice))
+            {
+                return slice.map(function(index) {
+                    index = _(index);
+                    if (1 <= index && index <= sz2[dim]) return index-1;
+                    throw "set: index out of bounds";
+                });
+            }
+            else
+            {
+                throw "set: invalid range";
+            }
+        })).setFrom(is_view ? val : tensorview(val, {shape:is_array(val) ? szv : null, ndarray:is_array(val) ? szv : null}), copy);
+    }
     else if (is_int(slices[slices.length-1]) && (sz[sz.length-1]+1 === _(slices[slices.length-1])))
     {
-        mat = tensorview(mat, {shape: sz}).concat(tensorview(val, {shape: !is_array(val) ? (sz.slice(0, -1).concat(1)) : (szv.concat(array(slices.length-szv.length, 1)))}), slices.length-1);
+        mat = tensorview(mat, {shape: sz}).concat(is_view ? val.reshape(szv.concat(array(slices.length-szv.length, 1))) : tensorview(val, {shape: !is_array(val) ? (sz.slice(0, -1).concat(1)) : (szv.concat(array(slices.length-szv.length, 1)))}), slices.length-1);
         if (iscell)
         {
             mat = cellarray(mat.toNDArray(), mat.shape());
@@ -2473,10 +3020,11 @@ function set(mat /*, ..slices, val*/)
     {
         if (is_array(slices[0]) && arr_eq(sz, size(slices[0])) && all(slices[0], function(v) {return 0 === _(v) || 1 === _(v);}))
         {
-            tensorview(mat, {shape:sz, ndarray:sz}).select(tonumber(slices[0])).setFrom(tensorview(val, {shape:is_array(val) ? szv : null, ndarray:is_array(val) ? szv : null}), copy);
+            tensorview(mat, {shape:sz, ndarray:sz}).select(tonumber(slices[0])).setFrom(is_view ? val : tensorview(val, {shape:is_array(val) ? szv : null, ndarray:is_array(val) ? szv : null}), copy);
         }
         else
         {
+            slices = slices.map(function(slice) {return is_array(slice) ? vec(slice) : slice;});
             tot = _(prod(sz));
             concat_dim[0] = sz.indexOf(tot);
             slices = slices.map(function(slice, dim) {
@@ -2521,7 +3069,7 @@ function set(mat /*, ..slices, val*/)
             });
             if (-1 < concat_dim[1])
             {
-                mat = tensorview(mat, {shape: sz}).concat(tensorview(val, {shape: !is_array(val) ? (sz.slice(0, concat_dim[1]).concat(1).concat(sz.slice(concat_dim[1]+1))) : (szv.concat(array(slices.length-szv.length, 1)))}), concat_dim[1]);
+                mat = tensorview(mat, {shape: sz}).concat(is_view ? val.reshape(szv.concat(array(slices.length-szv.length, 1))) : tensorview(val, {shape: !is_array(val) ? (sz.slice(0, concat_dim[1]).concat(1).concat(sz.slice(concat_dim[1]+1))) : (szv.concat(array(slices.length-szv.length, 1)))}), concat_dim[1]);
                 if (iscell)
                 {
                     mat = cellarray(mat.toNDArray(), mat.shape());
@@ -2533,12 +3081,13 @@ function set(mat /*, ..slices, val*/)
             }
             else
             {
-                tensorview(mat, {shape:sz, ndarray:sz}).permute(array(sz.length, function(i) {return sz.length-1-i;})).reshape([tot]).slice(slices).setFrom(tensorview(val, {shape:is_array(val) ? szv : null, ndarray:is_array(val) ? szv : null}), copy);
+                tensorview(mat, {shape:sz, ndarray:sz}).permute(array(sz.length, function(i) {return sz.length-1-i;})).reshape([tot]).slice(slices).setFrom(is_view ? val : tensorview(val, {shape:is_array(val) ? szv : null, ndarray:is_array(val) ? szv : null}), copy);
             }
         }
     }
     else
     {
+        slices = slices.map(function(slice) {return is_array(slice) ? vec(slice) : slice;});
         slices = slices.map(function(slice, dim) {
             if (is_string(slice))
             {
@@ -2581,7 +3130,7 @@ function set(mat /*, ..slices, val*/)
         });
         if (-1 < concat_dim[0])
         {
-            mat = tensorview(mat, {shape: sz}).concat(tensorview(val, {shape: !is_array(val) ? (sz.slice(0, concat_dim[0]).concat(1).concat(sz.slice(concat_dim[0]+1))) : (szv.concat(array(slices.length-szv.length, 1)))}), concat_dim[0]);
+            mat = tensorview(mat, {shape: sz}).concat(is_view ? val.reshape(szv.concat(array(slices.length-szv.length, 1))) : tensorview(val, {shape: !is_array(val) ? (sz.slice(0, concat_dim[0]).concat(1).concat(sz.slice(concat_dim[0]+1))) : (szv.concat(array(slices.length-szv.length, 1)))}), concat_dim[0]);
             if (iscell)
             {
                 mat = cellarray(mat.toNDArray(), mat.shape());
@@ -2593,7 +3142,7 @@ function set(mat /*, ..slices, val*/)
         }
         else
         {
-            tensorview(mat, {shape:sz, ndarray:sz}).slice(slices).setFrom(tensorview(val, {shape:is_array(val) ? szv : null, ndarray:is_array(val) ? szv : null}), copy);
+            tensorview(mat, {shape:sz, ndarray:sz}).slice(slices).setFrom(is_view ? val : tensorview(val, {shape:is_array(val) ? szv : null, ndarray:is_array(val) ? szv : null}), copy);
         }
     }
     return mat;
@@ -2787,55 +3336,6 @@ function norm2(x)
         return scalar_add(n, scalar_mul(xi, scalar_conj(xi)));
     }, O);
 }
-
-function tiedrank(x, symmetric)
-{
-    var n = x.length,
-        ord = x.map(function(xi, i) {return [xi, i];}).sort(function(a, b) {
-            return eq(a[0], b[0]) ? a[1] - b[1] : (lt(a[0], b[0]) ? -1 : 1);
-        }),
-        rank = new Array(n), i, j, k;
-    for (i=0; i<n;)
-    {
-        k = 1;
-        j = i;
-        while ((j+k < n) && eq(ord[j][0], ord[j+k][0])) ++k;
-        while (j < i+k)
-        {
-            rank[ord[j][1]] = is_nan(ord[j][0]) ? nan : (symmetric ? __((2*i <= n ? i+1 : n-i) + (1 < k ? 1/k : 0)) : __(i+1 + (1 < k ? 1/k : 0)));
-            ++j;
-        }
-        i = j;
-    }
-    return rank;
-}
-function pearson(a, b)
-{
-    var N = a.length;
-    return 1 < N ? scalar_div(sum(dotmul(dotdiv(sub(a, mean(a)), std(a)), dotdiv(sub(b, mean(b)), std(b)))), __(N-1)) : I;
-}
-function spearman(a, b)
-{
-    return pearson(tiedrank(a), tiedrank(b));
-}
-function kendall(a, b)
-{
-    if (1 < a.length)
-    {
-        var n = a.length, i, j, sa, sb, tau = O;
-        for (i=0; i<n; ++i)
-        {
-            for (j=i+1; j<n; ++j)
-            {
-                sa = scalar_sign(scalar_sub(a[i], a[j]));
-                sb = scalar_sign(scalar_sub(b[i], b[j]));
-                tau = scalar_add(tau, scalar_mul(sa, sb));
-            }
-        }
-        return scalar_div(scalar_div(scalar_mul(tau, two), n), n-1);
-    }
-    return I;
-}
 // plotting functions
 $_.PALETTE = [
   "#ff0000",
@@ -2901,12 +3401,12 @@ figure.prototype = {
     pl: 70,
     pr: 20,
 
-    option: function(style, args, i, kth) {
+    style: function(style, kth) {
         var linedash = {
-                "-" : [],           //Solid
-                "--": [15, 5],      //Dashed
-                ":" : [5, 5],       //Dotted
-                "-.": [15,5,5,5],   //Dash-dotted
+                "-" : [],          //Solid
+                "--": [15,5],      //Dashed
+                ":" : [5,5],       //Dotted
+                "-.": [15,5,5,5],  //Dash-dotted
             },
             color_ = {
                 "red": "r",
@@ -2938,96 +3438,90 @@ figure.prototype = {
                 "k",
                 "w"
             ],
-            val, k, f
+            val, k
         ;
-        if (style.Color)
+        if (is_string(style))
         {
-            return {
-                Color: color[palette[(kth || 0) % palette.length]],
-                LineWidth: style.LineWidth,
-                LineStyle: style.LineStyle,
-                _LineStyle: style._LineStyle
+            val = style;
+            style = {
+                Color: color[palette[(kth || 0) % palette.length]].slice(),
+                LineWidth: 2,
+                LineStyle: '-',
+                _LineStyle: linedash['-'].slice()
+            };
+            for (k in color)
+            {
+                if (-1 < val.indexOf(k))
+                {
+                    style.Color = color[k].slice();
+                    break;
+                }
+            }
+            for (k in linedash)
+            {
+                if (('-' !== k) && (-1 < val.indexOf(k)))
+                {
+                    style.LineStyle = k;
+                    style._LineStyle = linedash[k].slice();
+                    break;
+                }
+            }
+        }
+        else if (is_obj(style))
+        {
+            if (is_string(style.Color))
+            {
+                if (HAS.call(color_, style.Color))
+                {
+                    style.Color = color[color_[style.Color]].slice();
+                }
+                else if (HAS.call(color, style.Color))
+                {
+                    style.Color = color[style.Color].slice();
+                }
+                else
+                {
+                    style.Color = color[palette[(kth || 0) % palette.length]].slice();
+                }
+            }
+            else if (is_array(style.Color) && is_vector(val=vec(style.Color)) && (3 === val.length))
+            {
+                style.Color = tonumber(val);
+            }
+            else
+            {
+                style.Color = color[palette[(kth || 0) % palette.length]].slice();
+            }
+
+            if (is_num(style.LineWidth))
+            {
+                style.LineWidth = 2*tonumber(style.LineWidth);
+            }
+            else
+            {
+                style.LineWidth = 2;
+            }
+
+            if (is_string(style.LineStyle) && HAS.call(linedash, style.LineStyle))
+            {
+                style._LineStyle = linedash[style.LineStyle].slice();
+            }
+            else
+            {
+                style.LineStyle = '-';
+                style._LineStyle = linedash['-'].slice();
+            }
+        }
+        else
+        {
+            style = {
+                Color: color[palette[(kth || 0) % palette.length]].slice(),
+                LineWidth: 2,
+                LineStyle: '-',
+                _LineStyle: linedash['-'].slice()
             };
         }
-        if (!style.Color) style.Color = color[palette[(kth || 0) % palette.length]];
-        if (!style.LineWidth) style.LineWidth = 1;
-        if (!style.LineStyle) style.LineStyle = linedash["-"];
-        if (!style._LineStyle) style._LineStyle = "-";
-        i = i || 0;
-        while (i < args.length)
-        {
-            if ("Color" === args[i])
-            {
-                val = args[i+1];
-                if (is_string(val))
-                {
-                    if (HAS.call(color_, val))
-                    {
-                        style.Color = color[color_[val]];
-                    }
-                    else if (HAS.call(color, val))
-                    {
-                        style.Color = color[val];
-                    }
-                }
-                else if (is_vector(val) && (3 === val.length))
-                {
-                    style.Color = tonumber(val);
-                }
-                i += 2;
-                continue;
-            }
-            else if ("LineWidth" === args[i])
-            {
-                val = args[i+1];
-                if (is_num(val))
-                {
-                    style.LineWidth = 2*tonumber(val);
-                }
-                i += 2;
-                continue;
-            }
-            else if ("LineStyle" === args[i])
-            {
-                val = args[i+1];
-                if (is_string(val) && HAS.call(linedash, val))
-                {
-                    style._LineStyle = val;
-                    style.LineStyle = linedash[val];
-                }
-                i += 2;
-                continue;
-            }
-            else if (is_string(args[i]))
-            {
-                f = false;
-                val = args[i];
-                for (k in color)
-                {
-                    if (-1 < val.indexOf(k))
-                    {
-                        style.Color = color[k];
-                        f = true;
-                    }
-                }
-                for (k in linedash)
-                {
-                    if (('-' !== k) && (-1 < val.indexOf(k)))
-                    {
-                        style._LineStyle = k;
-                        style.LineStyle = linedash[k];
-                        f = true;
-                    }
-                }
-                if (f)
-                {
-                    i += 1;
-                    continue;
-                }
-            }
-            break;
-        }
-        return i;
+        return style;
     },
     parse: function(args, type, defaultEmpty) {
         var fig = this, i = 0, j, kth = 0, n, v, x, y, z, s;
@@ -3035,10 +3529,11 @@ figure.prototype = {
         {
             while (i < args.length)
             {
-                v = vec(args[i]);
-                if (is_vector(v))
+                if (is_array(args[i]) && is_vector(v=vec(args[i])))
                 {
-                    fig.data.push({y:tonumber(v)});
+                    fig.data.push({
+                        y:tonumber(v)
+                    });
                 }
                 i += 1;
             }
@@ -3048,28 +3543,30 @@ figure.prototype = {
             while (i < args.length)
             {
                 x = null; y = null; z = null;
-                v = vec(args[i]);
-                if (is_vector(v))
+                if (is_array(args[i]) && is_vector(v=vec(args[i])))
                 {
                     x = v;
                 }
-                v = vec(args[i+1]);
-                if (is_vector(v))
+                if (is_array(args[i+1]) && is_vector(v=vec(args[i+1])))
                 {
                     y = v;
                 }
-                v = vec(args[i+2]);
-                if (is_vector(v))
+                if (is_array(args[i+2]) && is_vector(v=vec(args[i+2])))
                 {
                     z = v;
-                    i += 3;
                 }
                 if (x && y && z)
                 {
-                    s = {};
-                    i = fig.option(s, args, i, kth);
-                    fig.data.push({x:tonumber(x), y:tonumber(y), z:tonumber(z), style:s});
-                    ++kth;
+                    i += 3;
+                    s = get_style(args[i]);
+                    if (s) i += 1;
+                    else s = {};
+                    fig.data.push({
+                        x:tonumber(x),
+                        y:tonumber(y),
+                        z:tonumber(z),
+                        style:fig.style(s, kth++)
+                    });
                 }
                 else
                 {
@@ -3082,12 +3579,11 @@ figure.prototype = {
             while (i < args.length)
             {
                 x = null; y = null;
-                v = vec(args[i]);
-                if (is_vector(v))
+                if (is_array(args[i]) && is_vector(v=vec(args[i])))
                 {
                     x = v;
                 }
-                if (is_vector(args[i+1]) || is_matrix(args[i+1]))
+                if (is_array(args[i+1]) && (is_matrix(args[i+1]) || is_vector(vec(args[i+1]))))
                 {
                     y = vec(args[i+1]);
                     i += 2;
@@ -3101,21 +3597,30 @@ figure.prototype = {
                 if (x && y)
                 {
                     x = tonumber(x);
-                    s = {};
-                    i = fig.option(s, args, i, kth);
                     if (is_matrix(y))
                     {
                         for (j=0,n=COLS(y); j<n; ++j)
                         {
-                            fig.data.push({x:x, y:tonumber(COL(y, j)), style:s});
-                            ++kth;
-                            s = fig.option(s, args, i, kth);
+                            s = get_style(args[i]);
+                            if (s) i += 1;
+                            else s = {};
+                            fig.data.push({
+                                x:x,
+                                y:tonumber(COL(y, j)),
+                                style:fig.style(s, kth++)
+                            });
                         }
                     }
                     else
                     {
-                        fig.data.push({x:x, y:tonumber(y), style:s});
-                        ++kth;
+                        s = get_style(args[i]);
+                        if (s) i += 1;
+                        else s = {};
+                        fig.data.push({
+                            x:x,
+                            y:tonumber(y),
+                            style:fig.style(s, kth++)
+                        });
                     }
                 }
                 else
@@ -3127,6 +3632,10 @@ figure.prototype = {
         return fig;
     }
 };
+function get_style(arg)
+{
+    return is_instance(arg, namevalue) && arg.has('Color') ? arg._ : (is_string(arg) ? arg : null);
+}
 $_.figure = figure;
 $_.createCanvas = function(w, h) {};
 $_.currentCanvas = function() {};
@@ -3138,6 +3647,12 @@ fn.help = nop;
 fn.who = nop;
 fn.whos = nop;
 fn.exist = nop;
+fn.warning = function(msg) {
+    if (msg.length) console.warn('Warning: '+ (1 < arguments.length && fn.sprintf ? fn.sprintf.apply(null, [].slice.call(arguments)) : msg));
+};
+fn.error = function(msg) {
+    throw new Error(1 < arguments.length && fn.sprintf ? fn.sprintf.apply(null, [].slice.call(arguments)) : (msg || 'error'));
+};
 (['floor','ceil','round','sign','abs','exp','log','log10','log2','sqrt','sin','cos','tan','sinh','cosh','tanh','asin','acos','atan','asinh','acosh','atanh']).forEach(function(f) {
     if ('log' === f)
     {
@@ -3338,6 +3853,8 @@ complex.prototype = {
 };
 i = new complex(O, I);
 ze = new complex(constant.e, O);
+constant["i"] = i;
+constant["j"] = i;
 
 complexMath = {
     floor: function(z) {
@@ -3389,22 +3906,22 @@ complexMath = {
         return complexMath.sinh(z).div(complexMath.cosh(z));
     },
     asin: function(z) {
-        return i.neg().mul( complexMath.log( i.mul(z).add( complexMath.sqrt( complex(I, O).sub(z.pow(two)) ) ) ) );
+        return i.neg().mul(complexMath.log(i.mul(z).add(complexMath.sqrt(complex(I, O).sub(z.pow(two))))));
     },
     acos: function(z) {
-        return i.neg().mul( complexMath.log( z.add( i.mul( complexMath.sqrt( complex(I, O).sub(z.pow(two)) ) ) ) ) );
+        return i.neg().mul(complexMath.log(z.add(i.mul(complexMath.sqrt(complex(I, O).sub(z.pow(two)))))));
     },
     atan: function(z) {
-        return i.div(two).mul( complexMath.log( i.add(z).div(i.sub(z)) ) );
+        return i.div(two).mul(complexMath.log(i.add(z).div(i.sub(z))));
     },
     asinh: function(z) {
-        return complexMath.log( z.add( complexMath.sqrt( z.pow(two).add(I) ) ) );
+        return complexMath.log(z.add(complexMath.sqrt(z.pow(two).add(I))));
     },
     acosh: function(z) {
-        return complexMath.log( z.add( complexMath.sqrt( z.pow(two).sub(I) ) ) );
+        return complexMath.log(z.add(complexMath.sqrt(z.pow(two).sub(I))));
     },
     atanh: function(z) {
-        return complexMath.log( z.add(I).div(z.neg().add(I)) ).div(two);
+        return complexMath.log(z.add(I).div(z.neg().add(I))).div(two);
     }
 };
 $_.complexMath = complexMath;
@@ -3441,6 +3958,754 @@ fn.sqrt = function(x) {
         }, x, true);
     };
 });
+
+fn.tofixed = function(x, d) {
+    return is_num(x) ? x.toFixed(d || 10) : x;
+};
+// some special functions,
+// eg erf, erfc, gamma, gammaln, gammainc, beta, betaln, betainc, ..
+// TODO add more and/or improve speed and/or accuracy if needed
+var __a1 =  0.254829592,
+    __a2 = -0.284496736,
+    __a3 =  1.421413741,
+    __a4 = -1.453152027,
+    __a5 =  1.061405429,
+    __p  =  0.3275911,
+
+    __p10 = 0.56418958354775629,
+    __q10 = 2.06955023132914151,
+    __p21 = 2.71078540045147805,
+    __p20 = 5.80755613130301624,
+    __q21 = 3.47954057099518960,
+    __q20 = 12.06166887286239555,
+    __p31 = 3.47469513777439592,
+    __p30 = 12.07402036406381411,
+    __q31 = 3.72068443960225092,
+    __q30 = 8.44319781003968454,
+    __p41 = 4.00561509202259545,
+    __p40 = 9.30596659485887898,
+    __q41 = 3.90225704029924078,
+    __q40 = 6.36161630953880464,
+    __p51 = 5.16722705817812584,
+    __p50 = 9.12661617673673262,
+    __q51 = 4.03296893109262491,
+    __q50 = 5.13578530585681539,
+    __p61 = 5.95908795446633271,
+    __p60 = 9.19435612886969243,
+    __q61 = 4.11240942957450885,
+    __q60 = 4.48640329523408675,
+
+    //__A  =  1.98,
+    //__B  =  1.135,
+    //__sqrt_pi = realMath.sqrt(constant.pi),
+
+    __G = 7,
+    __gP = [
+    0.99999999999980993,
+    676.5203681218851,
+    -1259.1392167224028,
+    771.32342877765313,
+    -176.61502916214059,
+    12.507343278686905,
+    -0.13857109526572012,
+    9.9843695780195716e-6,
+    1.5056327351493116e-7
+    ],
+
+    __sqrt_2pi = realMath.sqrt(n_mul(constant['2'], constant.pi)),
+    __log_sqrt_2pi = n_mul(constant['1/2'], realMath.log(n_mul(constant['2'], constant.pi))),
+    __log_pi = realMath.log(constant.pi),
+    __12 = 12,
+    __eps = 1e-15
+;
+update.push(function() {
+__a1 = __( 0.254829592);
+__a2 = __(-0.284496736);
+__a3 = __( 1.421413741);
+__a4 = __(-1.453152027);
+__a5 = __( 1.061405429);
+__p  = __( 0.3275911);
+
+__p10 = __(0.56418958354775629);
+__q10 = __(2.06955023132914151);
+__p21 = __(2.71078540045147805);
+__p20 = __(5.80755613130301624);
+__q21 = __(3.47954057099518960);
+__q20 = __(12.06166887286239555);
+__p31 = __(3.47469513777439592);
+__p30 = __(12.07402036406381411);
+__q31 = __(3.72068443960225092);
+__q30 = __(8.44319781003968454);
+__p41 = __(4.00561509202259545);
+__p40 = __(9.30596659485887898);
+__q41 = __(3.90225704029924078);
+__q40 = __(6.36161630953880464);
+__p51 = __(5.16722705817812584);
+__p50 = __(9.12661617673673262);
+__q51 = __(4.03296893109262491);
+__q50 = __(5.13578530585681539);
+__p61 = __(5.95908795446633271);
+__p60 = __(9.19435612886969243);
+__q61 = __(4.11240942957450885);
+__q60 = __(4.48640329523408675);
+
+//__A  = __(1.98);
+//__B  = __(1.135);
+//__sqrt_pi = realMath.sqrt(constant.pi);
+
+__gP = [
+    __(0.99999999999980993),
+    __(676.5203681218851),
+    __(-1259.1392167224028),
+    __(771.32342877765313),
+    __(-176.61502916214059),
+    __(12.507343278686905),
+    __(-0.13857109526572012),
+    __(9.9843695780195716e-6),
+    __(1.5056327351493116e-7)
+];
+
+__sqrt_2pi = realMath.sqrt(n_mul(constant['2'], constant.pi));
+__log_sqrt_2pi = n_mul(constant['1/2'], realMath.log(n_mul(constant['2'], constant.pi)));
+__log_pi = realMath.log(constant.pi);
+
+__12 = __(12);
+__eps = __(1e-15);
+});
+
+// utils
+function monotone_inverse_bisearch(f, y, min_x, max_x, min_f, max_f, lim_0, lim_1, dir)
+{
+    // find inverse x s.t f(x) <= y, f(.) is monotone
+    // using binary search between min_x and max_x
+    dir = -1 === dir ? -1 : 1; // increasing or decreasing
+    if (null == min_f) min_f = O;
+    if (null == max_f) max_f = I;
+    if (is_nan(y)) return nan;
+    else if (n_le(y, min_f)) return 0 > dir ? (null == lim_1 ? inf : lim_1) : (null == lim_0 ? -inf : lim_0);
+    else if (n_ge(y, max_f)) return 0 > dir ? (null == lim_0 ? -inf : lim_0) : (null == lim_1 ? inf : lim_1);
+
+    var two = constant['2'], x, fx;
+    for (;;)
+    {
+        x = n_div(n_add(min_x, max_x), two);
+        fx = f(x);
+        if (is_nan(fx))
+        {
+            x = nan;
+            break; // fails
+        }
+        if (n_gt(fx, y))
+        {
+            if (0 > dir)
+            {
+                min_x = x;
+            }
+            else
+            {
+                max_x = x;
+            }
+        }
+        else if (n_lt(fx, y))
+        {
+            if (n_lt(n_sub(y, fx), __eps) || n_lt(n_sub(max_x, min_x), __eps)) break;
+            if (0 > dir)
+            {
+                max_x = x;
+            }
+            else
+            {
+                min_x = x;
+            }
+        }
+        else
+        {
+            break;
+        }
+    }
+    return x;
+}
+function monotone_inverse_newton(f, df, y, min_x, max_x, min_f, max_f, lim_0, lim_1, dir)
+{
+    // find inverse x s.t f(x) ~ y, f(.) is monotone
+    // using Newton's method between min_x and max_x
+    dir = -1 === dir ? -1 : 1; // increasing or decreasing
+    if (null == min_f) min_f = O;
+    if (null == max_f) max_f = I;
+    if (is_nan(y)) return nan;
+    else if (n_le(y, min_f)) return 0 > dir ? (null == lim_1 ? inf : lim_1) : (null == lim_0 ? -inf : lim_0);
+    else if (n_ge(y, max_f)) return 0 > dir ? (null == lim_0 ? -inf : lim_0) : (null == lim_1 ? inf : lim_1);
+
+    var x = n_div(n_add(min_x, max_x), constant['2']), fx, dfx, max_iter = 100, tries;
+    for (;max_iter;max_iter--)
+    {
+        fx = n_sub(f(x), y);
+        tries = 10;
+        while ((is_nan(fx) || is_inf(fx)) && (tries--))
+        {
+            x = n_add(min_x, n_mul(n_sub(max_x, min_x), __(stdMath.random())));
+            fx = n_sub(f(x), y);
+        }
+        if (is_nan(fx) || is_inf(fx))
+        {
+            if (is_nan(fx)) x = nan;
+            break; // fails
+        }
+        if (n_lt(scalar_abs(fx), __eps)) break;
+        x = n_sub(x, n_div(fx, n_add(df(x), __eps)));
+    }
+    return x;
+}
+
+// erf
+function erf(x)
+{
+    // https://en.wikipedia.org/wiki/Error_function#Bounds_and_numerical_approximations
+    x = real(x);
+    var sgn = n_lt(x, O) ? -1 : 1, t, erfx;
+    if (sgn < 0) x = n_neg(x);
+    t = n_inv(n_add(n_mul(__p, x), I));
+    erfx = n_mul(sgn, n_sub(
+    I, n_mul(n_add(n_mul(n_add(n_mul(n_add(n_mul(n_add(n_mul(__a5, t), __a4), t), __a3), t), __a2), t), __a1), n_mul(t, realMath.exp(n_neg(n_mul(x, x)))))));
+    return erfx;
+}
+
+// erfc
+function erfc(x)
+{
+    // https://en.wikipedia.org/wiki/Error_function#Bounds_and_numerical_approximations
+    x = real(x);
+    //return n_div(n_mul(n_sub(I, realMath.exp(n_neg(n_mul(__A, x)))), realMath.exp(n_neg(n_mul(x, x)))), n_mul(__B, n_mul(__sqrt_pi, x)));
+    // better approximation
+    var is_neg = n_lt(x, O), x2, erfcx;
+    if (is_neg) x = n_neg(x);
+    x2 = n_mul(x, x);
+    erfcx = n_mul(
+        realMath.exp(n_neg(x2)),
+        n_mul(
+        n_mul(
+        n_mul(
+        n_mul(
+        n_mul(
+            n_div(
+                __p10,
+                n_add(x, __q10)
+            ),
+            n_div(
+                n_add(x2, n_add(n_mul(__p21, x), __p20)),
+                n_add(x2, n_add(n_mul(__q21, x), __q20))
+            )
+        ),
+            n_div(
+                n_add(x2, n_add(n_mul(__p31, x), __p30)),
+                n_add(x2, n_add(n_mul(__q31, x), __q30))
+            )
+        ),
+            n_div(
+                n_add(x2, n_add(n_mul(__p41, x), __p40)),
+                n_add(x2, n_add(n_mul(__q41, x), __q40))
+            )
+        ),
+            n_div(
+                n_add(x2, n_add(n_mul(__p51, x), __p50)),
+                n_add(x2, n_add(n_mul(__q51, x), __q50))
+            )
+        ),
+            n_div(
+                n_add(x2, n_add(n_mul(__p61, x), __p60)),
+                n_add(x2, n_add(n_mul(__q61, x), __q60))
+            )
+        )
+    );
+    if (is_neg) erfcx = n_sub(constant['2'], erfcx);
+    return erfcx;
+}
+
+// erfinv
+function erfinv(x)
+{
+    x = real(x);
+    if (n_lt(x, J) || n_gt(x, I)) return nan;
+    return monotone_inverse_bisearch(
+        erf,
+        x, __(-100), __(100), J, I
+    );
+}
+
+// erfcinv
+function erfcinv(x)
+{
+    x = real(x);
+    if (n_lt(x, O) || n_gt(x, constant['2'])) return nan;
+    return monotone_inverse_bisearch(
+        erfc,
+        x, __(-100), __(100), O, constant['2'], -inf, inf, -1
+    );
+}
+
+function factorial(n)
+{
+    // https://en.wikipedia.org/wiki/Factorial
+    // simple factorial
+    if (is_int(n) && n_ge(n, O))
+    {
+        n = realMath.floor(n);
+        var f;
+        if (n_ge(__12, n))
+        {
+            // pre-computed
+            f = __(([1,1,2,6,24,120,720,5040,40320,362880,3628800,39916800,479001600 /*MAX: 2147483647*/])[_(n)]);
+        }
+        else
+        {
+            for (f=__(479001600); n_lt(__12, n); n=n_sub(n, I)) f = n_mul(f, n);
+        }
+        return f;
+    }
+    return gamma(scalar_add(n, I));
+}
+function logfactorial(n)
+{
+    // https://en.wikipedia.org/wiki/Factorial
+    // simple log factorial
+    if (is_int(n) && n_ge(n, O))
+    {
+        n = realMath.floor(n);
+        var f;
+        if (n_ge(__12, n))
+        {
+            // pre-computed
+            f = realMath.log(__(([1,1,2,6,24,120,720,5040,40320,362880,3628800,39916800,479001600 /*MAX: 2147483647*/])[_(n)]));
+        }
+        else
+        {
+            for (f=realMath.log(__(479001600)); n_lt(__12, n); n=n_sub(n, I)) f = n_add(f, realMath.log(n));
+        }
+        return f;
+    }
+    return gammaln(scalar_add(n, I));
+}
+function binom(n, k, inverse)
+{
+    // https://en.wikipedia.org/wiki/Binomial_coefficient
+    // binomial = B(n,m) = B(n-1,m-1)+B(n-1,m) = n!/m!(n-m)! = Gamma(n+1)/Gamma(k+1)Gamma(n-k+1)
+    var Bnk, i;
+    if (is_int(n) && is_int(k) && n_le(O, k) && n_le(k, n))
+    {
+        if (n_eq(n, k) || n_eq(k, O))
+        {
+            Bnk = I;
+        }
+        else
+        {
+            // this is faster and will not overflow unnecesarily for default arithmetic
+            n = n_sub(n, k);
+            k = _(k);
+            if ('inverse' === inverse)
+            {
+                for (Bnk=n_div(I, n_add(n, I)),i=2; i<=k; ++i)
+                {
+                    //Bnk /= (n+i)/i;
+                    Bnk = n_div(Bnk, n_add(I, n_div(n, i)));
+                }
+            }
+            else
+            {
+                for (Bnk=n_add(n, I),i=2; i<=k; ++i)
+                {
+                    //Bnk *= (n+i)/i;
+                    Bnk = n_mul(Bnk, n_add(I, n_div(n, i)));
+                }
+                Bnk = realMath.round(Bnk);
+            }
+        }
+    }
+    else
+    {
+        if ('inverse' === inverse)
+        {
+            Bnk = scalar_mul(scalar_div(gamma(scalar_add(scalar_sub(n, k), I)), gamma(scalar_add(n, I))), gamma(scalar_add(k, I)));
+        }
+        else
+        {
+            Bnk = scalar_div(scalar_div(gamma(scalar_add(n, I)), gamma(scalar_add(k, I))), gamma(scalar_add(scalar_sub(n, k), I)));
+        }
+    }
+    return Bnk;
+}
+function logbinom(n, k, inverse)
+{
+    // https://en.wikipedia.org/wiki/Binomial_coefficient
+    // log binomial = log(B(n,m)) = log(n!)-log(m!)-log((n-m)!) = LogGamma(n+1)-LogGamma(k+1)-LogGamma(n-k+1)
+    var Bnk, i;
+    if (is_int(n) && is_int(k) && n_le(O, k) && n_le(k, n))
+    {
+        if (n_eq(n, k) || n_eq(k, O))
+        {
+            Bnk = O;
+        }
+        else
+        {
+            // this is faster and will not overflow unnecesarily for default arithmetic
+            n = n_sub(n, k);
+            k = _(k);
+            for (Bnk=realMath.log(n_add(n, I)),i=2; i<=k; ++i)
+            {
+                //Bnk *= (n+i)/i;
+                Bnk = n_add(Bnk, realMath.log(n_add(I, n_div(n, i))));
+            }
+        }
+    }
+    else
+    {
+        Bnk = scalar_sub(scalar_sub(gammaln(scalar_add(n, I)), gammaln(scalar_add(k, I))), gammaln(scalar_add(scalar_sub(n, k), I)));
+    }
+    return 'inverse' === inverse ? scalar_neg(Bnk) : Bnk;
+}
+
+function gamma(z)
+{
+    // gamma(z) function
+    // https://en.wikipedia.org/wiki/Gamma_function
+    // https://en.wikipedia.org/wiki/Lanczos_approximation
+    // accuracy at least within 13 decimal places
+    if (n_lt(real(z), constant['1/2']))
+    {
+        // Lanczos is not valid for this real(z). Use reflection formula.
+        return scalar_div(constant.pi, scalar_mul(fn.sin(scalar_mul(constant.pi, z)), gamma(scalar_sub(I, z))));
+    }
+    else
+    {
+        z = realify(z);
+        z = scalar_sub(z, I);
+        if (is_int(z) && n_ge(z, O))
+        {
+            return factorial(z); // reduces to factorial
+        }
+        else
+        {
+            var z_1_2 = scalar_add(z, constant['1/2']),
+                t = scalar_add(z_1_2, __G),
+                x = scalar_add(
+                scalar_add(
+                scalar_add(
+                scalar_add(
+                scalar_add(
+                scalar_add(
+                scalar_add(
+                scalar_add(
+                __gP[0],
+                scalar_div(__gP[1], scalar_add(z, 1))
+                ),
+                scalar_div(__gP[2], scalar_add(z, 2))
+                ),
+                scalar_div(__gP[3], scalar_add(z, 3))
+                ),
+                scalar_div(__gP[4], scalar_add(z, 4))
+                ),
+                scalar_div(__gP[5], scalar_add(z, 5))
+                ),
+                scalar_div(__gP[6], scalar_add(z, 6))
+                ),
+                scalar_div(__gP[7], scalar_add(z, 7))
+                ),
+                scalar_div(__gP[8], scalar_add(z, 8))
+                );
+            return scalar_mul(scalar_mul(__sqrt_2pi, scalar_pow(t, z_1_2)), scalar_mul(fn.exp(scalar_neg(t)), x));
+        }
+    }
+}
+function gammaln(z)
+{
+    // log-gamma(z) function
+    // https://en.wikipedia.org/wiki/Gamma_function
+    // https://en.wikipedia.org/wiki/Lanczos_approximation
+    // accuracy at least within 13 decimal places
+    if (!is_real(z)) return nan;
+    z = real(z);
+    if (n_lt(z, O)) return nan;
+    if (n_lt(z, constant['1/2']))
+    {
+        // Lanczos is not valid for this real(z). Use reflection formula.
+        return scalar_sub(scalar_sub(__log_pi, fn.log(fn.sin(scalar_mul(constant.pi, z)))), gammaln(scalar_sub(I, z)));
+    }
+    else
+    {
+        z = scalar_sub(z, I);
+        if (is_int(z) && n_ge(z, O))
+        {
+            return logfactorial(z); // reduces to log factorial
+        }
+        else
+        {
+            var z_1_2 = scalar_add(z, constant['1/2']),
+                t = scalar_add(z_1_2, __G),
+                x = scalar_add(
+                scalar_add(
+                scalar_add(
+                scalar_add(
+                scalar_add(
+                scalar_add(
+                scalar_add(
+                scalar_add(
+                __gP[0],
+                scalar_div(__gP[1], scalar_add(z, 1))
+                ),
+                scalar_div(__gP[2], scalar_add(z, 2))
+                ),
+                scalar_div(__gP[3], scalar_add(z, 3))
+                ),
+                scalar_div(__gP[4], scalar_add(z, 4))
+                ),
+                scalar_div(__gP[5], scalar_add(z, 5))
+                ),
+                scalar_div(__gP[6], scalar_add(z, 6))
+                ),
+                scalar_div(__gP[7], scalar_add(z, 7))
+                ),
+                scalar_div(__gP[8], scalar_add(z, 8))
+                );
+            return scalar_add(scalar_add(__log_sqrt_2pi, scalar_sub(scalar_mul(z_1_2, fn.log(t)), scalar_neg(t))), fn.log(x));
+        }
+    }
+}
+function gammainc(x, a, type)
+{
+    // gammainc(x,a) regularized incomplete gamma function
+    // https://en.wikipedia.org/wiki/Incomplete_gamma_function
+    if (!is_real(x) || !is_real(a)) return nan;
+    x = real(x); a = real(a);
+    if (n_lt(a, O)) return nan;
+    var Ga = 'scaledlower' === type || 'scaledupper' === type ? a : n_mul(n_div(n_pow(x, a), gamma(a)), realMath.exp(n_neg(x))),
+        t = n_eq(Ga, a) ? I : n_div(Ga, a),
+        g = t;
+    for (var k=1,N=25; k<=N; ++k) // power series up to N terms
+    {
+        t = n_mul(t, n_div(x, n_add(a, k)));
+        g = n_add(g, t);
+        if ((5 < k) && n_lt(scalar_abs(t), __eps)) break;
+    }
+    return 'scaledupper' === type ? n_sub(n_mul(gamma(n_add(a, I)), n_div(realMath.exp(x), n_pow(x, a))), g) : ('upper' === type ? n_sub(I, g) : g);
+}
+function gammaincinv(y, a, type)
+{
+    // gammaincinv(y,a) inverse regularized incomplete gamma function
+    // https://en.wikipedia.org/wiki/Incomplete_gamma_function
+    if (!is_real(y) || !is_real(a)) return nan;
+    y = real(y); a = real(a);
+    if (n_lt(a, O) || n_lt(y, O) || n_gt(y, I)) return nan;
+    var s = 'scaledupper' === type || 'upper' === type ? -1 : 1,
+        g = n_mul(gamma(a), s);
+    return monotone_inverse_newton(
+        function(x) {return gammainc(x, a, type);},
+        function(x) {return n_neg(n_div(n_mul(n_pow(x, n_sub(a, I)), realMath.exp(n_neg(x))), g));},
+        y, O, __(1e6), O, I, O, inf, s
+    );
+}
+
+function beta(z, w)
+{
+    // beta(z, w) function
+    // https://en.wikipedia.org/wiki/Beta_function
+    if (!is_real(z) || !is_real(w)) return nan;
+    z = real(z); w = real(w);
+    if (n_lt(z, O) || n_lt(w, O)) return nan;
+    if (n_eq(z, O) || n_eq(w, O)) return n_eq(z, w) ? nan : inf;
+    if (is_int(z) && is_int(w))
+    {
+        // reduces to inverse binomial coeff
+        return n_mul(n_add(z, w), n_div(binom(n_add(z, w), w, 'inverse'), n_mul(z, w)));
+    }
+    return scalar_mul(scalar_div(gamma(z), gamma(scalar_add(z, w))), gamma(w));
+}
+function betaln(z, w)
+{
+    // log-beta(z, w) function
+    // https://en.wikipedia.org/wiki/Beta_function
+    if (!is_real(z) || !is_real(w)) return nan;
+    z = real(z); w = real(w);
+    if (n_lt(z, O) || n_lt(w, O)) return nan;
+    if (is_int(z) && is_int(w))
+    {
+        // reduces to inverse log-binomial coeff
+        return n_add(realMath.log(n_add(z, w)), n_sub(logbinom(n_add(z, w), w, 'inverse'), realMath.log(n_mul(z, w))));
+    }
+    return scalar_add(scalar_sub(gammaln(z), gammaln(scalar_add(z, w))), gammaln(w));
+}
+function _betainc_cont_frac(x, z, w, regularized)
+{
+    var p, q, p1, p0,
+        q1, q0, r0, r,
+        m, k, ak, bk
+    ;
+    p1 = I;
+    p0 = O;
+    q1 = O;
+    q0 = I;
+    bk = I;
+    ak = n_div(
+        n_mul(n_div(n_pow(x, z), z), n_pow(n_sub(I, x), w)),
+        'regularized' === regularized ? beta(z, w) : I
+    );
+    p = ak;
+    q = I;
+    r = ak;
+    p1 = p0; p0 = p;
+    q1 = q0; q0 = q;
+    r0 = r;
+    for (k=1;;++k)
+    {
+        if (k & 1)
+        {
+            m = (k-1) >> 1;
+            ak = n_neg(n_div(n_mul(n_mul(x, n_add(z, m)), n_add(n_add(z, w), m)), n_mul(n_add(z, 2*m), n_add(z, 2*m+1))));
+        }
+        else
+        {
+            m = k >> 1;
+            ak = n_div(n_mul(x, n_mul(n_sub(w, m), m)), n_mul(n_add(z, 2*m), n_add(z, 2*m-1)));
+        }
+        p = n_add(n_mul(bk, p0), n_mul(ak, p1));
+        q = n_add(n_mul(bk, q0), n_mul(ak, q1));
+        r = n_div(p, q);
+
+        if ((5 < k) && n_lt(scalar_abs(n_sub(r, r0)), __eps)) break;
+
+        p1 = p0; p0 = p;
+        q1 = q0; q0 = q;
+        r0 = r;
+    }
+    return r;
+}
+/*function _betainc_series_10(x, z, w)
+{
+}
+function _betainc_series_11(x, z, w)
+{
+}
+function _betainc_erfc(x, z, w)
+{
+}*/
+function betainc(x, z, w, tail)
+{
+    // regularized incomplete beta(x, z, w) function
+    // https://en.wikipedia.org/wiki/Beta_function
+
+    if (!is_real(x) || !is_real(z) || !is_real(w)) return nan;
+    x = real(x); z = real(z); w = real(w);
+
+    if (n_lt(x, O) || n_gt(x, I) || n_lt(z, O) || n_lt(w, O)) return nan;
+
+    if (n_eq(x, O)) return 'upper' === tail ? I : O;
+    else if (n_eq(x, I)) return 'upper' === tail ? O : I;
+
+    var xt = n_div(z, n_add(z, w)), b;
+    /*
+    // "Computation of the regularized incomplete Beta function",
+    // Vera Egorova, Amparo Gil, Javier Segura, Nico M. Temme, 2023
+    if (n_gt(z, 50) && n_gt(w, 50) && n_gt(n_add(z, w), 700) && n_lt(scalar_abs(n_sub(x, xt)), 0.2))
+    {
+        //Use the error function approximation in Section 2.3.1.
+        b = _betainc_erfc(x, z, w);
+    }
+    else if (n_gt(z, 100) && n_lt(w, 10))
+    {
+        if (n_lt(x, 0.85))
+        {
+            //Use the series expansion (10).
+            b = _betainc_series_10(x, z, w);
+        }
+        else
+        {
+            //Use the continued fraction (5).
+            b = _betainc_cont_frac(x, z, w, 'regularized');
+        }
+    }
+    else
+    {
+        if (n_gt(w, n_div(n_mul(n_sub(I, x), z), x)))
+        {
+            //Use the continued fraction (5).
+            b = _betainc_cont_frac(x, z, w, 'regularized');
+        }
+        else
+        {
+            //Use the series expansion (11).
+            b = _betainc_series_11(x, z, w);
+        }
+    }
+    */
+    if (n_ge(x, xt))
+    {
+        // use reflection, more efficient
+        b = n_sub(I, _betainc_cont_frac(n_sub(I, x), w, z, 'regularized'));
+    }
+    else
+    {
+        // converges rapidly for x < xt
+        b = _betainc_cont_frac(x, z, w, 'regularized');
+    }
+    return 'upper' === tail ? n_sub(I, b) : b;
+}
+function betaincinv(y, z, w, tail)
+{
+    // betaincinv(y,z,w) inverse regularized incomplete beta function
+    // https://en.wikipedia.org/wiki/Beta_function
+    if (!is_real(y) || !is_real(z) || !is_real(w)) return nan;
+    y = real(y); z = real(z); w = real(w);
+
+    if (n_lt(y, O) || n_gt(y, I) || n_lt(z, O) || n_lt(w, O)) return nan;
+    var s = 'upper' === tail ? -1 : 1, b = n_mul(beta(z, w), s);
+    return monotone_inverse_newton(
+        function(x) {return betainc(x, z, w, tail);},
+        function(x) {return n_div(n_mul(n_pow(x, n_sub(z, I)), n_pow(n_sub(I, x), n_sub(w, I))), b);},
+        y, O, I, O, I, O, I, s
+    );
+}
+
+// add them
+fn.erf = function(x) {
+    return apply(erf, x, true);
+};
+fn.erfc = function(x) {
+    return apply(erfc, x, true);
+};
+fn.erfinv = function(x) {
+    return apply(erfinv, x, true);
+};
+fn.erfcinv = function(x) {
+    return apply(erfcinv, x, true);
+};
+fn.factorial = function(n) {
+    return apply(factorial, n, false);
+};
+fn.logfactorial = function(n) {
+    return apply(logfactorial, n, false);
+};
+fn.gamma = function(x) {
+    return apply(gamma, x, true);
+};
+fn.gammaln = function(x) {
+    return apply(gammaln, x, true);
+};
+fn.gammainc = function(x, a, type) {
+    return apply_(function(x, a) {return gammainc(x, a, type);}, [x, a]);
+};
+fn.gammaincinv = function(y, a, type) {
+    return apply_(function(y, a) {return gammaincinv(y, a, type);}, [y, a]);
+};
+fn.beta = function(z, w) {
+    return apply_(beta, [z, w]);
+};
+fn.betaln = function(z, w) {
+    return apply_(betaln, [z, w]);
+};
+fn.betainc = function(x, z, w, tail) {
+    return apply_(function(x, z, w) {return betainc(x, z, w, tail);}, [x, z, w]);
+};
+fn.betaincinv = function(y, z, w, tail) {
+    return apply_(function(y, z, w) {return betaincinv(y, z, w, tail);}, [y, z, w]);
+};
 function real(x)
 {
     return apply(function(x) {return is_complex(x) ? x.re : x;}, x, true);
@@ -3544,64 +4809,85 @@ function norm(x, p)
     not_supported("norm");
 }
 fn.norm = norm;
-function arrayfun(fn, arrays, nargout)
+/*function arrayfun(fn, arrays, nargout)
 {
     nargout = nargout || 1;
-    var sz = is_array(arrays[0]) /*&& !arrays[0].$scilitecell$*/ ? (is_1d(arrays[0]) ? [arrays[0].length] : size(arrays[0])) : [], output, promises = [], type;
+    var arr = arrays.reduce(function(arr, a) {return arr ? arr : (is_array(a) ? a : arr);}, null),
+        sz = is_array(arr) /*&& !arrays[0].$scilitecell$* / ? (is_1d(arr) ? [arr.length] : size(arr)) : [], output, promises = [], type, res;
 
-    if (arrays.length !== arrays.filter(function(arr) {return is_array(arr) /*&& !arr.$scilitecell$*/ && arr_eq(sz, is_1d(arr) ? [arr.length] : size(arr));}).length) not_supported("arrayfun");
+    if (arrays.length !== arrays.filter(function(arr) {return !is_array(arr) /*&& !arr.$scilitecell$* / || arr_eq(sz, is_1d(arr) ? [arr.length] : size(arr));}).length) not_supported("arrayfun");
 
-    arrays = arrays.map(function(arr) {return tensorview(arr, {shape:sz, ndarray:sz});});
-    output = array(nargout, function() {return tensorview(ndarray(sz, null), {shape:sz, ndarray:sz});});
+    arrays = arrays.map(function(arr) {return is_array(arr) ? tensorview(arr, {shape:sz, ndarray:sz}) : arr;});
+    output = array(nargout, sz.length ? function() {return tensorview(ndarray(sz, null), {shape:sz, ndarray:sz});} : null);
     type = array(nargout, "");
+
     if ((1 < nargout) && is_callable(fn.nargout)) fn = fn.nargout(nargout);
-    function check_type(j, res)
-    {
-       var typej = type[j];
-       if ("c" !== typej)
-       {
-           if (is_array(res)) type[j] = "c";
-           else if (is_string(res)) type[j] = "" === typej || "s" === typej ? "s" : "c";
-           else if (is_scalar(res)) type[j] = "" === typej || "n" === typej ? "n" : "c";
-           else type[j] = "c";
-       }
-       return res;
-    }
+
     function set(i, res)
     {
         if ((1 < nargout) && is_array(res))
         {
             res = vec(res);
             output.forEach(function(outj, j) {
-               if (j >= res.length) return;
-               outj.set(i, check_type(j, res[j]));
+                if (j >= res.length) return;
+                if (i)
+                {
+                    outj.set(i, check_type(type, j, res[j]));
+                }
+                else
+                {
+                    output[j] = res[j];
+                }
             });
+        }
+        else if (i)
+        {
+            output[0].set(i, check_type(type, 0, res));
         }
         else
         {
-            output[0].set(i, check_type(0, res));
+            output[0] = res;
         }
+        return res;
     }
     function ret()
     {
-        return 1 < nargout ? output.map(function(out, j) {return "c" === type[j] ? cellarray(out.toNDArray(), sz.slice()) : (out.toNDArray());}) : ("c" === type[0] ? cellarray(output[0].toNDArray(), sz.slice()) : (output[0].toNDArray()));
+        return sz.length ? (1 < nargout ? output.map(function(out, j) {return "c" === type[j] ? cellarray(out.toNDArray(), sz.slice()) : (out.toNDArray());}) : (arr ? ("c" === type[0] ? cellarray(output[0].toNDArray(), sz.slice()) : (output[0].toNDArray())) : (output[0].get([0])))) : (1 < nargout ? output : (output[0]));
     }
-    ndarray.indices(sz, function(i) {
-        var res = fn.apply(null, arrays.map(function(arr) {return arr.get(i);}));
-        if (res instanceof Promise)
+
+    if (sz.length)
+    {
+        ndarray.indices(sz, function(i) {
+            var res = fn.apply(null, arrays.map(function(arr) {return is_instance(arr, tensorview) ? arr.get(i) : arr;}));
+            if (is_instance(res, Promise))
+            {
+                promises.push(res.then((function(i) {return function(res) {return set(i, res);};})(i.slice())));
+            }
+            else
+            {
+                set(i, res);
+            }
+        });
+    }
+    else
+    {
+        res = fn.apply(null, arrays);
+        if (is_instance(res, Promise))
         {
-            promises.push(res.then((function(i) {return function(res) {set(i, res);};})(i.slice())));
+            promises.push(res.then(function(res) {return set(null, res);}));
         }
         else
         {
-            set(i, res);
+            set(null, res);
         }
-    });
+    }
     return promises.length ? Promise.all(promises).then(ret) : ret();
-}
+}*/
 fn.arrayfun = varargout(function(nargout, fn/*..arrays*/) {
     if (!is_callable(fn) || (3 > arguments.length)) not_supported("arrayfun");
-    return arrayfun(fn, [].slice.call(arguments, 2), nargout);
+    //return arrayfun(fn, [].slice.call(arguments, 2), nargout);
+    if ((1 < nargout) && is_callable(fn.nargout)) fn = fn.nargout(nargout);
+    return apply_(fn, [].slice.call(arguments, 2), null, nargout);
 });
 function cell(/*args*/)
 {
@@ -4034,27 +5320,37 @@ fn.colon = function(a, b, c) {
 };
 function cat_horz(A, B)
 {
-    if (is_1d(A) && is_1d(B))
+    if (is_0d(A) && is_0d(B))
+    {
+        return [A, B];
+    }
+    else if (is_1d(A) && is_1d(B))
     {
         return A.concat(B);
     }
-    else if (is_2d(A) && is_2d(B) && (ROWS(A) === ROWS(B)))
+    else if (is_2d(A, true) && is_2d(B, true) && (ROWS(A) === ROWS(B)))
     {
         return A.map(function(Ai, i) {
             return Ai.concat(B[i]);
         });
     }
+    throw "incompatible array dimensions";
 }
 function cat_vert(A, B)
 {
-    if (is_1d(A) && is_1d(B))
+    if (is_0d(A) && is_0d(B))
+    {
+        return [[A], [B]];
+    }
+    else if (is_1d(A) && is_1d(B))
     {
         return A.concat(B);
     }
-    else if (is_2d(A) && is_2d(B) && (COLS(A) === COLS(B)))
+    else if (is_2d(A, true) && is_2d(B, true) && (COLS(A) === COLS(B)))
     {
         return A.concat(B);
     }
+    throw "incompatible array dimensions";
 }
 function cat(dim, A, B)
 {
@@ -4129,7 +5425,7 @@ fn.vertcat = function(A, B /*,..*/) {
 function transpose(x)
 {
     var ans;
-    if (is_2d(x))
+    if (is_2d(x, true))
     {
         ans = matrix(COLS(x), ROWS(x), function(i, j) {
             return x[j][i];
@@ -4146,7 +5442,7 @@ fn.transpose = function(x) {
 function ctranspose(x)
 {
     var ans;
-    if (is_2d(x))
+    if (is_2d(x, true))
     {
         ans = matrix(COLS(x), ROWS(x), function(i, j) {
             return is_scalar(x[j][i]) ? scalar_conj(x[j][i]) : x[j][i];
@@ -4179,13 +5475,14 @@ function diag(x, k)
     {
         return [[x]];
     }
+    x = vec(x);
     if (is_1d(x))
     {
         return matrix(x.length, x.length, function(i, j) {
             return k === i - j ? x[i] : O;
         });
     }
-    if (is_2d(x))
+    if (is_2d(x, true))
     {
         return x.reduce(function(diag, xi, i) {
             return xi.reduce(function(diag, xij, j) {
@@ -4205,7 +5502,7 @@ function blkdiag(matrices)
     matrices.forEach(function(mat, i) {
         if (is_0d(mat)) matrices[i] = mat = [[mat]];
         if (is_1d(mat)) matrices[i] = mat = diag(mat);
-        if (!is_2d(mat)) not_supported("blkdiag");
+        if (!is_2d(mat, true)) not_supported("blkdiag");
         rows += ROWS(mat);
         cols += COLS(mat);
     });
@@ -4229,7 +5526,7 @@ fn.blkdiag = function(/*..args*/) {
 };
 function tril(x, k)
 {
-    if (is_2d(x))
+    if (is_2d(x, true))
     {
         k = _(k || 0);
         return matrix(ROWS(x), COLS(x), function(i, j) {
@@ -4241,7 +5538,7 @@ function tril(x, k)
 fn.tril = tril;
 function triu(x, k)
 {
-    if (is_2d(x))
+    if (is_2d(x, true))
     {
         k = _(k || 0);
         return matrix(ROWS(x), COLS(x), function(i, j) {
@@ -4264,22 +5561,13 @@ function repmat(x)
     }
     if (!is_array(x) || (sz.length === n.length))
     {
-        if (is_vector(x)) x = [x];
+        if (is_1d(x)) x = [x];
         return ndarray(is_array(x) ? n.map(function(ni, i) {return sz[i]*ni;}) : n, function(indices) {
             return indices.reduce(function(arr, index, dim) {
-                return is_array(arr) ? arr[index % sz[dim]] : arr;
+                return (dim < sz.length) && is_array(arr) ? arr[index % sz[dim]] : arr;
             }, x);
         });
     }
-    /*if (is_0d(x)) x = [[x]];
-    if (is_1d(x)) x = [x];
-    if (is_2d(x))
-    {
-        var rows = nr*ROWS(x), cols = nc*COLS(x);
-        return matrix(rows, cols, function(i, j) {
-            return x[i % nr][j % nc];
-        });
-   }*/
    return x;
 }
 fn.repmat = repmat;
@@ -4287,7 +5575,7 @@ function repelem(x, n)
 {
     if (is_array(x))
     {
-        if (is_array(x[0]))
+        if (is_2d(x))
         {
             // higher-dim array
             var sz = size(x), rn = [].slice.call(arguments, 1).map(_);
@@ -4301,6 +5589,7 @@ function repelem(x, n)
         else
         {
             // 1-dim array
+            if (is_array(n)) n = vec(n);
             if (is_vector(n))
             {
                 if (n.length === x.length)
@@ -4328,51 +5617,26 @@ function repelem(x, n)
 fn.repelem = repelem;
 function reshape(x/*sz, rows, cols*/)
 {
-    var sz = [].slice.call(arguments, 1), left,
-        sizex = size(x), total = prod(sizex);
+    var sz = [].slice.call(arguments, 1), rem,
+        sizex = is_2d(x) ? size(x) : [x.length], total = _(prod(sizex));
 
     if ((1 === sz.length) && is_array(sz[0]) && sz[0].length) sz = vec(sz[0]);
 
-    left = sz.reduce(function(total, s) {
+    rem = sz.reduce(function(total, s) {
         return is_array(s) && !s.length ? total : stdMath.floor(total / _(s));
     }, total);
 
     sz = sz.map(function(s) {
-        return is_array(s) && !s.length ? left : _(s);
+        return is_array(s) && !s.length ? rem : _(s);
     });
+    function ret(o)
+    {
+        return x.$scilitecell$ ? cellarray(o.toNDArray(), o.shape()) : (o.toNDArray());
+    }
 
     // use octave-compatible columnwise-ordering by permuting back and forth
-    return tensorview(tensorview(x, {shape:sizex,ndarray:sizex}).permute(array(sizex.length, function(i) {return sizex.length-1-i;})).toArray(), {shape:sz.reverse()}).permute(array(sz.length, function(i) {return sz.length-1-i;})).toNDArray();
-
-    /*if (is_vector(rows))
-    {
-        cols = rows[1];
-        rows = rows[0];
-    }
-    rows = _(rows); cols = _(cols);
-    var n = rows*cols;
-    if (is_0d(x) && (1 === rows) && (1 === cols))
-    {
-        return [[x]];
-    }
-    else if (is_1d(x) && (x.length === n))
-    {
-        return matrix(rows, cols, function(i, j) {
-            return x[i + rows*j];
-        });
-    }
-    else if (is_2d(x) && (ROWS(x)*COLS(x) === n))
-    {
-        var xrows = ROWS(x);
-        return matrix(rows, cols, function(i, j) {
-            var index = i + rows*j;
-            return x[index % xrows][stdMath.floor(index/xrows)];
-        });
-    }
-    else
-    {
-        return x;
-    }*/
+    //return ret(tensorview(tensorview(x, {shape:sizex,ndarray:sizex}).permute(array(sizex.length, function(i) {return sizex.length-1-i;})).toArray(), {shape:sz.reverse()}).permute(array(sz.length, function(i) {return sz.length-1-i;})));
+    return ret(tensorview(x, {shape:sizex,ndarray:sizex}).permute(array(sizex.length, function(i) {return sizex.length-1-i;})).reshape(sz.reverse()).permute(array(sz.length, function(i) {return sz.length-1-i;})));
 }
 fn.reshape = reshape;
 function permute(x, dimorder)
@@ -4411,11 +5675,16 @@ function rot90(x, k)
 {
     if (is_2d(x))
     {
-        var sizex, order, rows, cols, view;
+        var sizex, order, rows, cols, view,
+            ret = x.$scilitecell$ ? function(o) {
+                return cellarray(o.toNDArray(), o.shape());
+            } : function(o) {
+                return o.toNDArray();
+            };
         if (null == k) k = 1;
         k = stdMath.round(_(k)) % 4;
         if (0 > k) k += 4;
-        if (is_array(x[0][0]))
+        if (is_nd(x))
         {
             // nd array
             sizex = size(x);
@@ -4425,17 +5694,17 @@ function rot90(x, k)
             if (1 === k)
             {
                 order = [1, 0].concat(array(sizex.length-2, function(i) {return 2+i;}));
-                return view.permute(order).slice(order.map(function(oi) {return 1 === oi ? '-1:-1:0' : ':';})).toNDArray();
+                return ret(view.permute(order).slice(order.map(function(oi) {return 1 === oi ? '-1:-1:0' : ':';})));
             }
             else if (3 === k)
             {
                 order = [1, 0].concat(array(sizex.length-2, function(i) {return 2+i;}));
-                return view.permute(order).slice(order.map(function(oi) {return 0 === oi ? '-1:-1:0' : ':';})).toNDArray();
+                return ret(view.permute(order).slice(order.map(function(oi) {return 0 === oi ? '-1:-1:0' : ':';})));
             }
             else if (2 === k)
             {
                 order = array(sizex.length, function(i) {return i;});
-                return view.slice(order.map(function(oi) {return 0 === oi || 1 === oi ? '-1:-1:0' : ':';})).toNDArray();
+                return ret(view.slice(order.map(function(oi) {return 0 === oi || 1 === oi ? '-1:-1:0' : ':';})));
             }
         }
         else
@@ -4444,15 +5713,15 @@ function rot90(x, k)
             cols = COLS(x);
             if (1 === k)
             {
-                return matrix(cols, rows, function(j, i) {return x[i][cols-1-j];});
+                return ret(matrix(cols, rows, function(j, i) {return x[i][cols-1-j];}));
             }
             else if (3 === k)
             {
-                return matrix(cols, rows, function(j, i) {return x[rows-1-i][j];});
+                return ret(matrix(cols, rows, function(j, i) {return x[rows-1-i][j];}));
             }
             else if (2 === k)
             {
-                return matrix(rows, cols, function(i, j) {return x[rows-1-i][cols-1-j];});
+                return ret(matrix(rows, cols, function(i, j) {return x[rows-1-i][cols-1-j];}));
             }
         }
     }
@@ -4542,7 +5811,7 @@ function sort(x, dim, dir, cmp, with_indices)
         // 0d
         return x;
     }
-    else if (!is_array(x[0]))
+    else if (is_1d(x))
     {
         // 1d
         if (null == cmp) cmp = is_string(x[0]) ? cmp_str : (is_real(x) ? cmp_real : cmp_abs);
@@ -4553,7 +5822,7 @@ function sort(x, dim, dir, cmp, with_indices)
         });
         return with_indices ? [ans.map(function(vi) {return vi.v;}), ans.map(function(vi) {return vi.i+1;})] : ans.map(function(vi) {return vi.v;});
     }
-    else if (is_array(x[0]) && !is_array(x[0][0]))
+    else if (is_2d(x, true))
     {
         // 2d
         if (1 === dim)
@@ -4609,36 +5878,27 @@ function sort(x, dim, dir, cmp, with_indices)
     }
     not_supported("sort");
 }
-fn.sort = varargout(function(nargout, x, dim, dir/*, .. args*/) {
-    var i = 2, cmp = null;
-    while (i < arguments.length)
+fn.sort = varargout(namevalueargs(function(nargout, x, dim, dir) {
+    var nv = arguments[arguments.length-1]._, cmp = null;
+    if ('real' === nv.ComparisonMethod) cmp = cmp_real;
+    else if ('abs' === nv.ComparisonMethod) cmp = cmp_abs;
+    else if ('str' === nv.ComparisonMethod) cmp = cmp_str;
+    if (nv === dim)
     {
-        if ('ComparisonMethod' === arguments[i])
-        {
-            if ('real' === arguments[i+1]) cmp = cmp_real;
-            else if ('abs' === arguments[i+1]) cmp = cmp_abs;
-            else if ('str' === arguments[i+1]) cmp = cmp_str;
-            if (2 === i)
-            {
-                dim = 1;
-                dir = 'ascend';
-            }
-            else if (3 === i)
-            {
-                dir = 'ascend';
-            }
-            break;
-        }
-        else
-        {
-            i += 1;
-        }
+        dim = 1;
+        dir = 'ascend';
+    }
+    else if (nv === dir)
+    {
+        dir = 'ascend';
     }
     if (null == dir) dir = 'ascend';
     if (null == dim) dim = 1;
     dim = _(dim);
     return sort(x, dim, dir, cmp, 1 < nargout);
-});
+}, {
+    ComparisonMethod: null
+}));
 function unique(x, ord, occ, rows, nargout)
 {
     if (!is_array(x)) not_supported("unique");
@@ -5350,9 +6610,15 @@ function size(x)
     return dims.length ? dims.map(function(dim) {return sizex[_(dim)-1];}) : sizex;
     //return [];
 }
-fn.size = function(x) {
-    return varargout(size.apply(null, [].slice.call(arguments)));
-};
+fn.size = varargout(function(nargout, x) {
+    var sz = size.apply(null, [].slice.call(arguments, 1));
+    if (1 < nargout)
+    {
+        if (sz.length < nargout) sz.push.apply(sz, array(nargout-sz.length, 1));
+        else if (sz.length > nargout) sz.length = nargout;
+    }
+    return sz;
+});
 function length(x)
 {
     if (is_array(x)) return x.length ? stdMath.max.apply(null, size(x)) : 0;
@@ -5422,59 +6688,75 @@ function sub2ind(dims/*, i, j*/)
     i = _(i); j = _(j);
     return 1 === dims.length ? i : ((i-1)+_(dims[0])*(j-1)+1);*/
 }
-fn.sub2ind = sub2ind;
 function ind2sub(dims, ind)
 {
     dims = vec(dims);
-    return varargout(_ind2sub(dims, ind));
+    return _ind2sub(dims, ind);
 
     /*ind = _(ind);
     return 1 === dims.length ? [ind, 1] : [((ind-1) % _(dims[0])) + 1, stdMath.floor((ind-1) / _(dims[0])) + 1];*/
 }
-fn.ind2sub = ind2sub;
-function find(x, check)
+fn.sub2ind = function(/*args*/) {
+    return sub2ind.apply(null, [].slice.call(arguments));
+};
+fn.ind2sub = varargout(function(nargout, dims, ind) {
+    return ind2sub(dims, ind);
+});
+function find(x, check, n, dir, nargout)
 {
+    nargout = nargout || 1;
+    if (null == n) n = inf;
     if (is_array(x))
     {
-        if (is_array(x[0]))
+        var row = 1 < nargout ? [] : null,
+            col = 1 < nargout ? [] : null,
+            val = 2 < nargout ? [] : null,
+            xx = colon(x),
+            tot = xx.length,
+            rows = x.length,
+            cols = rows ? tot/rows : 0,
+            r = 1, c = 1,
+            ind = [],
+            i, xi, di = 'last' === dir ? -1 : 1;
+
+        for (i='last' === dir ? tot-1 : 0; 0 <= i && i < tot && ind.length < n; i+=di)
         {
-            if (is_array(x[0][0]))
+            xi = xx[i];
+            if (r > rows)
             {
-                // ndarray
-                // use octave-compatible columnwise-ordering by permuting back and forth
-                var sizex = size(x);
-                return tensorview(x, {shape: sizex, ndarray: sizex}).permute(array(sizex.length, function(i) {return sizex.length-1-i;})).toArray().reduce(function(ind, xi, i) {
-                    if (check(xi, i+1, 1)) ind.push(i+1);
-                    return ind;
-                }, []);
+                ++c;
+                r = 1;
+            }
+            if ('last' === dir)
+            {
+                if (check(xi, rows-r+1, cols-c+1))
+                {
+                    ind.push(i+1);
+                    if (row) row.push(rows-r+1);
+                    if (col) col.push(cols-c+1);
+                    if (val) val.push(xi);
+                }
             }
             else
             {
-                // matrix
-                var rows = ROWS(x);
-                return x.reduce(function(ind, xi, i) {
-                    return xi.reduce(function(ind, xij, j) {
-                        if (check(xij, i+1, j+1)) ind.push(i+rows*j+1);
-                        return ind;
-                    }, ind);
-                }, []);
+                if (check(xi, r, c))
+                {
+                    ind.push(i+1);
+                    if (row) row.push(r);
+                    if (col) col.push(c);
+                    if (val) val.push(xi);
+                }
             }
+            ++r;
         }
-        else
-        {
-            // vector
-            return x.reduce(function(ind, xi, i) {
-                if (check(xi, i+1, 1)) ind.push(i+1);
-                return ind;
-            }, []);
-        }
+        return 1 < nargout ? [row, col, val] : ind;
     }
     return [];
 }
 $_.find = find;
-fn.find = function(x) {
-    return find(x, function(x) {return !eq(x, O);});
-};
+fn.find = varargout(function(nargout, x, n, dir) {
+    return find(x, function(x) {return !eq(x, O);}, is_int(n) ? _(n) : null, dir || 'first', nargout);
+});
 function all(x, check)
 {
     if (is_scalar(x))
@@ -5600,11 +6882,18 @@ fn.isequaln = function(/*args*/) {
         ans = isequal(arguments[0], arguments[i++], true);
     }
     return ans;
+};fn.isnumeric = function isnumeric(x) {
+    if (is_array(x)) return x.length === x.filter(isnumeric).length ? 1 : 0;
+    return is_scalar(x) ? 1 : 0;
 };fn.isnan = function isnan(x) {
     if (is_array(x)) return x.map(isnan);
-    if (is_nan(x)) return 1;
     if (is_complex(x)) return is_nan(x.re) || is_nan(x.im) ? 1 : 0;
-    return 0;
+    return is_nan(x) ? 1 : 0;
+};
+fn.anynan = function anynan(x) {
+    if (is_array(x)) return 0 < x.filter(anynan).length ? 1 : 0;
+    if (is_complex(x)) return is_nan(x.re) || is_nan(x.im) ? 1 : 0;
+    return is_nan(x) ? 1 : 0;
 };fn.isinf = function isinf(x) {
     if (is_array(x)) return x.map(isinf);
     if (is_num(x)) return is_inf(x) ? 1 : 0;
@@ -5615,16 +6904,544 @@ fn.isequaln = function(/*args*/) {
     if (is_num(x)) return !is_inf(x) ? 1 : 0;
     if (is_complex(x)) return !is_inf(x.re) && !is_inf(x.im) ? 1 : 0;
     return 0;
+};
+fn.allfinite = function allfinite(x) {
+    if (is_array(x)) return x.length === x.filter(allfinite).length ? 1 : 0;
+    if (is_num(x)) return !is_inf(x) ? 1 : 0;
+    if (is_complex(x)) return !is_inf(x.re) && !is_inf(x.im) ? 1 : 0;
+    return 0;
 };fn.isreal = function(x) {
     return all(x, is_real);
 };
 fn.isempty = function(x) {
     if (is_array(x))
     {
-        if (is_array(x[0])) return !x[0].length ? 1 : 0;
+        if (is_2d(x)) return !x[0].length ? 1 : 0;
         else return !x.length ? 1 : 0;
     }
     return 0;
+};
+fn.string = function string(x) {
+    if (is_array(x))
+    {
+        return x.map(string);
+    }
+    if (is_string(x))
+    {
+        return x;
+    }
+    return String(x);
+};
+fn.strlength = function(str) {
+    if (is_string(str))
+    {
+        return str.length;
+    }
+    not_supported("strlength");
+};
+fn['char'] = function tochar(x) {
+    x = vec(x);
+    if (is_array(x))
+    {
+        return x.map(tochar);
+    }
+    if (is_string(x))
+    {
+        return x.split('');
+    }
+    if (is_int(x))
+    {
+        return String.fromCharCode(_(x));
+    }
+    return String(x);
+};
+fn.lower = fn.tolower = function tolower(x) {
+    if (is_array(x))
+    {
+        return x.map(tolower);
+    }
+    else if (is_string(x))
+    {
+        return x.toLowerCase();
+    }
+    return x;
+};
+fn.upper = fn.toupper = function toupper(x) {
+    if (is_array(x))
+    {
+        return x.map(toupper);
+    }
+    else if (is_string(x))
+    {
+        return x.toUpperCase();
+    }
+    return x;
+};
+fn.strjoin = function(str, delim) {
+    delim = delim || " ";
+    delim = vec(delim);
+    str = vec(str);
+    var n = str.length, m = delim.length, j = 0;
+    if (1 !== m && 1 < n && n > m+1) throw "strjoin: delimiter array length must be at least str array length minus one";
+    return str.reduce(function(joined, s, i) {
+        return joined + String(s) + (i+1 < n ? String(delim[(j++) % m]) : "");
+    }, "");
+};
+// TODO
+fn.join = fn.strjoin;
+fn.strsplit = varargout(namevalueargs(function(nargout, str, delim) {
+    if (!is_string(str)) not_supported("strsplit");
+    var nv = arguments[arguments.length-1]._;
+    if (null == delim)
+    {
+        delim = new RegExp('[ \\f\\n\\r\\t\\v]'+(_(nv.CollapseDelimiters) ? '+' : ''), 'g');
+    }
+    else
+    {
+        delim = new RegExp('(' + vec(delim).map(function(delim) {
+            return 'RegularExpression' === nv.DelimiterType ? String(delim) : (' ' === delim ? '[ \\f\\n\\r\\t\\v]' : RegExp.escape(String(delim)));
+        }).join('|') + ')'+(_(nv.CollapseDelimiters) ? '+' : ''), 'g');
+    }
+    var m, start = 0, splits = [], matches = 1 < nargout ? [] : null, ans;
+    while (null !== (m=delim.exec(str)))
+    {
+        if (1 < nargout) matches.push(m[0]);
+        splits.push(str.slice(start, m.index));
+        start = m.index + m[0].length;
+        if (!m[0].length) ++delim.lastIndex;
+    }
+    splits.push(str.slice(start));
+    ans = 1 < nargout ? [splits, matches] : splits;
+    //ans = str.split(delim);
+    return ans;
+}, {
+    CollapseDelimiters: 1,
+    DelimiterType: 'Simple'
+}));
+// TODO
+fn.split = fn.strsplit;
+function pad_(s, n, c, right)
+{
+    if (null == c) c = ' ';
+    var str = String(s), l = str.length, p = l < n ? new Array(n-l+1).join(c) : '';
+    return right ? (str+p) : (p+str);
+}
+function justify(value, prefix, leftJustify, minWidth, zeroPad, customPadChar)
+{
+    var sv = String(value), diff = minWidth - sv.length;
+    if (diff > 0)
+    {
+        if (leftJustify || !zeroPad)
+            sv = pad_(sv, minWidth, customPadChar, leftJustify);
+        else
+            sv = sv.slice(0, prefix.length) + pad_('', diff, '0', true) + sv.slice(prefix.length);
+    }
+    return sv;
+}
+function formatBaseX(value, base, prefix, leftJustify, minWidth, precision, zeroPad)
+{
+    // Note: casts negative numbers to positive ones
+    var number = value >>> 0;
+    prefix = prefix && number && ({
+    '2': '0b',
+    '8': '0',
+    '16': '0x'
+    })[base] || '';
+    value = prefix + pad_(number.toString(base), precision||0, '0', false);
+    return justify(value, prefix, leftJustify, minWidth, zeroPad);
+}
+function formatString(value, leftJustify, minWidth, precision, zeroPad, customPadChar)
+{
+    if (null != precision) value = value.slice(0, precision);
+    return justify(value, '', leftJustify, minWidth, zeroPad, customPadChar);
+}
+var sprintf_format_re = /%%|%(\d+\$)?([-+\'#0 ]*)(\*\d+\$|\*|\d+)?(\.(\*\d+\$|\*|\d+))?([scboxXuideEfFgG])/g;
+function sprintf()
+{
+    // adapted from https://github.com/foo123/Contemplate
+    var i = 1, fmt = arguments[0], a = arguments, is_charvector = false, ret;
+    if (is_array(fmt))
+    {
+        fmt = fmt.join('');
+        is_charvector = true;
+    }
+    var do_format = function do_format(substring, valueIndex, flags, minWidth, _x_, precision, type) {
+        var number, prefix, method, textTransform, value;
+        if ('%%' == substring) return '%';
+
+        // parse flags
+        var leftJustify = false, positivePrefix = '', zeroPad = false, prefixBaseX = false,
+            j, customPadChar = ' ', flagsl = flags.length;
+        for (j=0; flags && j < flagsl; ++j)
+        {
+            switch (flags.charAt(j))
+            {
+                case ' ':
+                    positivePrefix = ' ';
+                    break;
+                case '+':
+                    positivePrefix = '+';
+                    break;
+                case '-':
+                    leftJustify = true;
+                    break;
+                case "'":
+                    customPadChar = flags.charAt(j + 1);
+                    break;
+                case '0':
+                    zeroPad = true;
+                    break;
+                case '#':
+                    prefixBaseX = true;
+                    break;
+            }
+        }
+
+        // parameters may be null, undefined, empty-string or real valued
+        // we want to ignore null, undefined and empty-string values
+        if (!minWidth) minWidth = 0;
+        else if ('*' == minWidth) minWidth = +_(a[i++]);
+        else if ('*' == minWidth.charAt(0)) minWidth = +_(a[minWidth.slice(1, -1)]);
+        else minWidth = +minWidth;
+
+        // Note: undocumented perl feature:
+        if (0 > minWidth)
+        {
+            minWidth = -minWidth;
+            leftJustify = true;
+        }
+
+        if (!isFinite(minWidth))
+        {
+            throw 'sprintf: (minimum-)width must be finite';
+        }
+
+        if (!precision) precision = 'fFeE'.indexOf(type) > -1 ? 6 : (type == 'd') ? 0 : undefined;
+        else if ('*' == precision) precision = +_(a[i++]);
+        else if ('*' == precision.charAt(0)) precision = +_(a[precision.slice(1, -1)]);
+        else precision = +precision;
+
+        // grab value using valueIndex if required?
+        value = valueIndex ? a[valueIndex.slice(0, -1)] : a[i++];
+        if (is_array(value)) value = value.join('');
+
+        switch (type)
+        {
+            case 's':
+                return formatString(String(value), leftJustify, minWidth, precision, zeroPad, customPadChar);
+            case 'c':
+                return formatString(String.fromCharCode(+_(value)), leftJustify, minWidth, precision, zeroPad);
+            case 'b':
+                return formatBaseX(value, 2, prefixBaseX, leftJustify, minWidth, precision, zeroPad);
+            case 'o':
+                return formatBaseX(value, 8, prefixBaseX, leftJustify, minWidth, precision, zeroPad);
+            case 'x':
+                return formatBaseX(value, 16, prefixBaseX, leftJustify, minWidth, precision, zeroPad);
+            case 'X':
+                return formatBaseX(value, 16, prefixBaseX, leftJustify, minWidth, precision, zeroPad).toUpperCase();
+            case 'u':
+                return formatBaseX(value, 10, prefixBaseX, leftJustify, minWidth, precision, zeroPad);
+            case 'i':
+            case 'd':
+                number = _(value || 0);
+                number = stdMath.round(number - number % 1); // Plain Math.round doesn't just truncate
+                prefix = number < 0 ? '-' : positivePrefix;
+                value = prefix + pad_(String(stdMath.abs(number)), precision, '0', false);
+                return justify(value, prefix, leftJustify, minWidth, zeroPad);
+            case 'e':
+            case 'E':
+            case 'f': // Should handle locales (as per setlocale)
+            case 'F':
+            case 'g':
+            case 'G':
+                number = _(value || 0);
+                prefix = number < 0 ? '-' : positivePrefix;
+                method = ['toExponential', 'toFixed', 'toPrecision']['efg'.indexOf(type.toLowerCase())];
+                textTransform = ['toString', 'toUpperCase']['eEfFgG'.indexOf(type) % 2];
+                value = prefix + stdMath.abs(number)[method](precision);
+                return justify(value, prefix, leftJustify, minWidth, zeroPad)[textTransform]();
+            default:
+                return substring;
+        }
+    };
+    ret = fmt.replace(sprintf_format_re, do_format);
+    if (is_charvector) ret = ret.split('');
+    return ret;
+}
+fn.sprintf = function(/*..args*/) {
+    return sprintf.apply(null, [].slice.call(arguments));
+};
+function create_regexp(expression, opts)
+{
+    // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RegExp/RegExp
+    opts = opts || {};
+    return new RegExp(expression, KEYS(opts).reduce(function(f, o) {
+        if (opts[o] && (-1 < ['g','i','m','s'].indexOf(o))) f += o;
+        return f;
+    }, 'd'));
+}
+function apply_regexp(str, re, opts)
+{
+    // TODO support dynamic regular expressions
+    opts = opts || {};
+    re.lastIndex = 0; // reset, just in case
+    var m, matches = [];
+    while (null !== (m=re.exec(str)))
+    {
+        if (m[0].length || opts['emptymatch'])
+        {
+            matches.push({
+                match:  m[0],
+                start:  m.index,
+                end:    m.index + m[0].length,
+                tokens: (m.indices || []).slice(1).map(function(ind, i) {
+                    return {
+                        match:  m[i+1],
+                        start:  ind[0],
+                        end:    ind[1],
+                        name:   null
+                    };
+                }),
+                namedTokens: KEYS((m.indices || []).groups || {}).map(function(name) {
+                    var ind = m.indices.groups[name];
+                    return {
+                        match:  str.slice(ind[0], ind[1]),
+                        start:  ind[0],
+                        end:    ind[1],
+                        name:   name
+                    };
+                })
+            });
+            if (!m[0].length) ++re.lastIndex;
+            else if (!opts['g']) break;
+        }
+    }
+    return matches;
+}
+function regexp_ret(i, args, opts)
+{
+    opts = opts || {};
+    var n = args.length, ret = [];
+    for (i=i||0; i<n; ++i)
+    {
+        if ('start' === args[i])
+        {
+            ret.push('start');
+        }
+        else if ('end' === args[i])
+        {
+            ret.push('end');
+        }
+        else if ('tokenExtents' === args[i])
+        {
+            ret.push('tokenExtents');
+        }
+        else if ('match' === args[i])
+        {
+            ret.push('match');
+        }
+        else if ('tokens' === args[i])
+        {
+            ret.push('tokens');
+        }
+        else if ('names' === args[i])
+        {
+            ret.push('names');
+        }
+        else if ('split' === args[i])
+        {
+            ret.push('split');
+        }
+        else if ('all' === args[i])
+        {
+            opts['g'] = 1;
+        }
+        else if ('once' === args[i])
+        {
+            opts['g'] = 0;
+        }
+        else if ('ignorecase' === args[i])
+        {
+            opts['i'] = 1;
+        }
+        else if ('matchcase' === args[i])
+        {
+            opts['i'] = 0;
+        }
+        else if ('stringanchors' === args[i])
+        {
+            opts['m'] = 0;
+        }
+        else if ('lineanchors' === args[i])
+        {
+            opts['m'] = 1;
+        }
+        else if ('dotall' === args[i])
+        {
+            opts['s'] = 1;
+        }
+        else if ('dotexceptnewline' === args[i])
+        {
+            opts['s'] = 0;
+        }
+        else if ('noemptymatch' === args[i])
+        {
+            opts['emptymatch'] = 0;
+        }
+        else if ('emptymatch' === args[i])
+        {
+            opts['emptymatch'] = 1;
+        }
+        else if ('literalspacing' === args[i])
+        {
+            opts['literalspacing'] = 1;
+        }
+        else if ('freespacing' === args[i])
+        {
+            opts['literalspacing'] = 0;
+        }
+        else if ('nowarnings' === args[i])
+        {
+            opts['warnings'] = 0;
+        }
+        else if ('warnings' === args[i])
+        {
+            opts['warnings'] = 1;
+        }
+    }
+    if (!ret.length) ret = ['start'];
+    return ret;
+}
+function regexp(str, expression, ret, opts, nargout)
+{
+    nargout = nargout || 1;
+    var matches = apply_regexp(str, create_regexp(expression, opts), opts),
+        ans = ret.map(function(r) {
+            var ret = [], start = 0;
+            if ('start' === r)
+            {
+                ret = matches.map(function(match) {
+                    return match.start+1;
+                });
+            }
+            else if ('end' === r)
+            {
+                ret = matches.map(function(match) {
+                    return match.end+1;
+                });
+            }
+            else if ('tokenExtents' === r)
+            {
+                ret = matches.reduce(function(ret, match) {
+                    ret.push.apply(ret, match.tokens.map(function(tok) {
+                        return [tok.start+1, tok.end+1];
+                    }));
+                    return ret;
+                }, []);
+            }
+            else if ('match' === r)
+            {
+                ret = matches.map(function(match) {
+                    return match.match;
+                });
+            }
+            else if ('tokens' === r)
+            {
+                ret = matches.reduce(function(ret, match) {
+                    ret.push.apply(ret, match.tokens.map(function(tok) {
+                        return tok.match;
+                    }));
+                    return ret;
+                }, []);
+            }
+            else if ('names' === r)
+            {
+                ret = matches.reduce(function(ret, match) {
+                    ret.push.apply(ret, match.namedTokens.map(function(tok) {
+                        return [tok.name, tok.match];
+                    }));
+                    return ret;
+                }, []);
+                ret = cellarray(ret, ret.length ? [ret.length, 2] : [0, 0]);
+            }
+            else if ('split' === r)
+            {
+                ret = matches.reduce(function(ret, match, index) {
+                    ret.push(str.slice(start, match.start));
+                    start = match.end;
+                    if (index+1 === matches.length) ret.push(str.slice(start));
+                    return ret;
+                }, []);
+            }
+            return ret;
+        })
+    ;
+
+    if (ans.length > nargout) ans.length = nargout;
+    else if (ans.length < nargout) ans.push.apply(ans, array(nargout-ans.length, function() {return [];}));
+
+    return 1 === nargout ? ans[0] : ans;
+}
+fn.regexp = varargout(function(nargout, str, expression/*, ..args*/) {
+    var opts = {'g':1,'i':0,'m':0,'s':1,'emptymatch':0,'literalspacing':1,'warnings':0},
+        ret = regexp_ret(3, arguments, opts);
+    return apply_(function(str, expression) {return regexp(str, expression, ret, opts, nargout);}, [str, expression], null, nargout);
+});
+fn.regexpi = varargout(function(nargout, str, expression/*, ..args*/) {
+    var opts = {'g':1,'i':1,'m':0,'s':1,'emptymatch':0,'literalspacing':1,'warnings':0},
+        ret = regexp_ret(3, arguments, opts);
+    return apply_(function(str, expression) {return regexp(str, expression, ret, opts, nargout);}, [str, expression], null, nargout);
+});fn.dec2bin = function dec2bin(x) {
+    if (is_array(x))
+    {
+        return x.map(dec2bin);
+    }
+    else if (is_number(x))
+    {
+        return x.toString(2);
+    }
+    else if (is_decimal(x))
+    {
+        return x.toBinary();
+    }
+    return x;
+};
+fn.bin2dec = function bin2dec(x) {
+    if (is_array(x))
+    {
+        return x.map(bin2dec);
+    }
+    else if (is_string(x))
+    {
+        return parseInt(x, 2);
+    }
+    return x;
+};
+fn.dec2hex = function dec2hex(x) {
+    if (is_array(x))
+    {
+        return x.map(dec2hex);
+    }
+    else if (is_number(x))
+    {
+        return x.toString(16);
+    }
+    else if (is_decimal(x))
+    {
+        return x.toHexadecimal();
+    }
+    return x;
+};
+fn.hex2dec = function hex2dec(x) {
+    if (is_array(x))
+    {
+        return x.map(hex2dec);
+    }
+    else if (is_string(x))
+    {
+        return parseInt(x, 16);
+    }
+    return x;
 };
 // adapted from https://github.com/foo123/Abacus
 function SWAPR(m, i, j)
@@ -8766,7 +10583,7 @@ function expm(A, with_neg)
     with_neg = 'with_neg' === with_neg;
 
     var n = ROWS(A),
-        eps = __(1e-12),
+        eps = __(1e-15),
         i, N = 25, sgn = -1,
         In = eye(n), An,
         expA, expA_neg, expA_prev,
@@ -8786,19 +10603,20 @@ function expm(A, with_neg)
     {
         sgn = -sgn;
         An = dotdiv(mul(A, An), __(i));
-        if (!converged_1)
-        {
-            expA_prev = expA;
+        /*if (!converged_1)
+        {*/
+            //expA_prev = expA;
             expA = add(expA, An);
-            if (n_le(max(max(abs(sub(expA, expA_prev)))), eps)) converged_1 = true; // converged
-        }
-        if (!converged_2)
+            //if (n_le(max(max(abs(sub(expA, expA_prev)))), eps)) converged_1 = true; // converged
+        /*}*/
+        if (with_neg/*!converged_2*/)
         {
-            expA_prev = expA_neg;
+            //expA_prev = expA_neg;
             expA_neg = 0 > sgn ? sub(expA_neg, An) : add(expA_neg, An);
-            if (n_le(max(max(abs(sub(expA_neg, expA_prev)))), eps)) converged_2 = true; // converged
+            //if (n_le(max(max(abs(sub(expA_neg, expA_prev)))), eps)) converged_2 = true; // converged
         }
-        if (converged_1 && converged_2) break; // converged
+        if (i > 5 && n_le(max(max(abs(An))), eps)) break;
+        //if (converged_1 && converged_2) break; // converged
     }
 
     // fast squaring
@@ -9020,7 +10838,7 @@ function acosm(A)
 
     if (any(d, function(d) {return n_eq(imag(d), O) && (n_eq(real(d), J) || n_eq(real(d), I));}))
     {
-        console.warn("acosm: input must not have an eigenvalue of 1 or -1 else result may be unreliable!");
+        fn.warning("acosm: input must not have an eigenvalue of 1 or -1 else result may be unreliable!");
     }
 
     // Compute lower bound on the number of square roots required.
@@ -9243,12 +11061,14 @@ function acosm(A)
 fn.acosm = function(A) {
     if (is_scalar(A)) return fn.acos(A);
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("acosm");
+    if (1 === ROWS(A)) return [[fn.acos(A[0][0])]];
     return acosm(A);
 };
 fn.asinm = function(A) {
     // adapted from https://github.com/higham/matrix-inv-trig-hyp/blob/master/asinm.m
     if (is_scalar(A)) return fn.asin(A);
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("asinm");
+    if (1 === ROWS(A)) return [[fn.asin(A[0][0])]];
     return sub(eye(ROWS(A), __(pi/2)), acosm(A));
 };
 function acoshm(A)
@@ -9273,41 +11093,865 @@ function acoshm(A)
 fn.acoshm = function(A) {
     if (is_scalar(A)) return fn.acosh(A);
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("acoshm");
+    if (1 === ROWS(A)) return [[fn.acosh(A[0][0])]];
     return acoshm(A);
 };
 fn.asinhm = function(A) {
     // adapted from https://github.com/higham/matrix-inv-trig-hyp/blob/master/asinhm.m
     if (is_scalar(A)) return fn.asinh(A);
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("asinhm");
+    if (1 === ROWS(A)) return [[fn.asinh(A[0][0])]];
     return dotmul(fn.asinm(dotmul(A, scalar_mul(J, i))), i);
 };
-var __a1 =  0.254829592,
-    __a2 = -0.284496736,
-    __a3 =  1.421413741,
-    __a4 = -1.453152027,
-    __a5 =  1.061405429,
-    __p  =  0.3275911;
-update.push(function() {
-    __a1 = __( 0.254829592);
-    __a2 = __(-0.284496736);
-    __a3 = __( 1.421413741);
-    __a4 = __(-1.453152027);
-    __a5 = __( 1.061405429);
-    __p  = __( 0.3275911);
-});
-function erf(x)
+/*
+"Blind beamforming for non Gaussian signals",
+Jean-Francois Cardoso and Antoine Souloumiac, 1993
+
+"On the performance of orthogonal source separation algorithms",
+Jean-Francois Cardoso, 1994
+
+"High-order contrasts for independent component analysis",
+Jean-Francois Cardoso, 1999
+*/
+
+// jadeR.m
+// adapted from Cardoso's 2013 version of jadeR.m
+// https://www2.iap.fr/users/cardoso/compsep_classic.html
+fn.jadeR = $fn("jadeR", `function B =  jadeR(X, m)
+%   B = jadeR(X, m) is an m*n matrix such that Y=B*X are separated sources
+%    extracted from the n*T data matrix X.
+%   If m is omitted,  B=jadeR(X)  is a square n*n matrix (as many sources as sensors)
+%
+% Blind separation of real signals with JADE.  Version 1.9.   August 2013
+%
+% Usage:
+%   * If X is an nxT data matrix (n sensors, T samples) then
+%     B=jadeR(X) is a nxn separating matrix such that S=B*X is an nxT
+%     matrix of estimated source signals.
+%   * If B=jadeR(X,m), then B has size mxn so that only m sources are
+%     extracted.  This is done by restricting the operation of jadeR
+%     to the m first principal components.
+%   * Also, the rows of B are ordered such that the columns of pinv(B)
+%     are in order of decreasing norm; this has the effect that the
+%     'most energetically significant' components appear first in the
+%     rows of S=B*X.
+
+% Finding the number of sources
+[n,T]	= size(X);
+if nargin==1, m=n ; end; 	% Number of sources defaults to # of sensors
+if m>n, error("jadeR: more sources than sensors are not supported"); end;
+
+% Mean removal
+X	= X - mean(X')' * ones(1,T);
+
+%%% whitening & projection onto signal subspace
+[U,D]     = eig((X*X')/T) ; %% An eigen basis for the sample covariance matrix
+[Ds,k]    = sort(diag(D)) ; %% Sort by increasing variance
+PCs       = n:-1:n-m+1    ; %% The m most significant princip. comp. by decreasing variance
+
+%% --- PCA  ----------------------------------------------------------
+B         = U(:,k(PCs))'    ; % At this stage, B does the PCA on m components
+
+%% --- Scaling  ------------------------------------------------------
+scales    = sqrt(Ds(PCs)) ; % The scales of the principal components .
+B         = diag(1./scales)*B  ; % Now, B does PCA followed by a rescaling = sphering
+
+%% --- Sphering ------------------------------------------------------
+X         = B*X;  %% We have done the easy part: B is a whitening matrix and X is white.
+
+%clear U D Ds k PCs scales ;
+U = 0;
+D = 0;
+Ds = 0;
+k = 0;
+PCs = 0;
+scales = 0;
+
+%%% Estimation of the cumulant matrices.
+X = X';
+dimsymm 	= (m*(m+1))/2;	% Dim. of the space of real symm matrices
+nbcm 		= dimsymm  ; 	% number of cumulant matrices
+CM 		= zeros(m,m*nbcm);  % Storage for cumulant matrices
+R 		= eye(m);  	%%
+Qij 		= zeros(m);	% Temp for a cum. matrix
+Xim		= zeros(m,1);	% Temp
+Xijm		= zeros(m,1);	% Temp
+Uns		= ones(1,m);    % for convenience
+Range     = 1:m ; % will index the columns of CM where to store the cumulant matrices.
+for im = 1:m
+  Xim = X(:,im) ;
+  Xijm= Xim.*Xim ;
+  %% Note to myself: the -R on next line can be removed: it does not affect
+  %% the joint diagonalization criterion
+  Qij           = ((Xijm(:,Uns).*X)' * X)/T - R - 2 * R(:,im)*R(:,im)' ;
+  CM(:,Range)	= Qij ;
+  Range         = Range  + m ;
+  for jm = 1:im-1
+    Xijm        = Xim.*X(:,jm) ;
+    Qij         = sqrt(2) *(((Xijm(:,Uns).*X)' * X)/T - R(:,im)*R(:,jm)' - R(:,jm)*R(:,im)') ;
+    CM(:,Range)	= Qij ;
+    Range       = Range  + m ;
+  end ;
+end;
+
+%%% Joint diagonalization of the cumulant matrices
+if 0, 	%% Init by diagonalizing a *single* cumulant matrix.  It seems to save
+	%% some computation time 'sometimes'.  Not clear if initialization is really worth
+	%% it since Jacobi rotations are very efficient.  On the other hand, it does not
+	%% cost much...
+	[V,D]	= eig(CM(:,1:m)); % Selectng a particular cumulant matrix.
+	for u=1:m:m*nbcm,         % Accordingly updating the cumulant set given the init
+		CM(:,u:u+m-1) = CM(:,u:u+m-1)*V ;
+	end;
+	CM	= V'*CM;
+else,	%% The dont-try-to-be-smart init
+	V	= eye(m) ; % la rotation initiale
+end;
+
+%% Computing the initial value of the contrast
+Diag    = zeros(m,1) ;
+On      = 0 ;
+Range   = 1:m ;
+for im = 1:nbcm,
+  Diag  = diag(CM(:,Range)) ;
+  On    = On + sum(Diag.*Diag) ;
+  Range = Range + m ;
+end;
+Off = sum(sum(CM.*CM)) - On ;
+
+seuil	= 1.0e-6 / sqrt(T) ; % A statistically scaled threshold on 'small' angles
+encore	= 1;
+sweep	= 0; % sweep number
+updates = 0; % Total number of rotations
+upds    = 0; % Number of rotations in a given seep
+g	= zeros(2,nbcm);
+gg	= zeros(2,2);
+G	= zeros(2,2);
+c	= 0 ;
+s 	= 0 ;
+ton	= 0 ;
+toff	= 0 ;
+theta	= 0 ;
+Gain    = 0 ;
+
+%% Joint diagonalization proper
+while encore, encore=0;
+
+  Vkeep = V ;
+
+  for p=1:m-1,
+    for q=p+1:m,
+
+      Ip = p:m:m*nbcm ;
+      Iq = q:m:m*nbcm ;
+
+      %%% computation of Givens angle
+      g	    = [ CM(p,Ip)-CM(q,Iq) ; CM(p,Iq)+CM(q,Ip) ];
+      gg    = g*g';
+      ton   = gg(1,1)-gg(2,2);
+      toff  = gg(1,2)+gg(2,1);
+      theta = 0.5*atan2( toff , ton+sqrt(ton*ton+toff*toff) );
+      Gain  = (sqrt(ton*ton+toff*toff) - ton) / 4 ;
+
+      %%% Givens update
+      if abs(theta) > seuil,
+%%      if Gain > 1.0e-3*On/m/m ,
+	encore  = 1 ;
+	c	= cos(theta);
+	s	= sin(theta);
+	G	= [ c -s ; s c ] ;
+
+	pair 		= [p;q] ;
+	V(:,pair) 	= V(:,pair)*G ;
+	CM(pair,:)	= G' * CM(pair,:) ;
+	CM(:,[Ip Iq]) 	= [ c*CM(:,Ip)+s*CM(:,Iq) -s*CM(:,Ip)+c*CM(:,Iq) ] ;
+
+
+	On   = On  + Gain;
+	Off  = Off - Gain;
+
+      end;%%of the if
+    end;%%of the loop on q
+  end;%%of the loop on p
+end;%%of the while loop
+
+%%% A separating matrix
+B	= V'*B ;
+
+%%% Permut the rows of the separating matrix B to get the most energetic components first.
+A           = pinv(B) ;
+[Ds,keys]   = sort(sum(A.*A)) ;
+B           = B(keys,:)       ;
+B           = B(m:-1:1,:)     ; % Is this smart ?
+% Signs are fixed by forcing the first column of B to have non-negative entries.
+b	= B(:,1) ;
+signs	= sign(sign(b)+0.1) ; % just a trick to deal with sign=0
+B	= diag(signs)*B ;
+end`);
+
+// jade.m
+// adapted from Cardoso's 2013 version of jade.m
+// https://www2.iap.fr/users/cardoso/compsep_classic.html
+fn.jade = $fn("jade", `function [A,S] =  jade(X, m)
+% Source separation of complex signals with JADE.
+% Jade performs 'Source Separation' in the following sense:
+%   X is an n x T data matrix assumed modelled as X = A S + N where
+%
+% o A is an unknown n x m matrix with full rank.
+% o S is a m x T data matrix (source signals) with the properties
+%    	a) for each t, the components of S(:,t) are statistically
+%    	   independent
+% 	b) for each p, the S(p,:) is the realization of a zero-mean
+% 	   'source signal'.
+% 	c) At most one of these processes has a vanishing 4th-order
+% 	   cumulant.
+% o  N is a n x T matrix. It is a realization of a spatially white
+%    Gaussian noise, i.e. Cov(X) = sigma*eye(n) with unknown variance
+%    sigma.  This is probably better than no modeling at all...
+%
+% Jade performs source separation via a
+% Joint Approximate Diagonalization of Eigen-matrices.
+%
+%
+% Input :
+%   * X: Each column of X is a sample from the n sensors
+%   * m: m is an optional argument for the number of sources.
+%     If ommited, JADE assumes as many sources as sensors.
+%
+% Output :
+%    * A is an n x m estimate of the mixing matrix
+%    * S is an m x T naive (ie pinv(A)*X)  estimate of the source signals
+%
+% Version 1.6.  Copyright: JF Cardoso.
+[n,T]	= size(X);
+%%  source detection not implemented yet !
+if nargin==1, m=n ; end;
+if m>n, error("jade: more sources than sensors are not supported"); end;
+
+% A few parameters that could be adjusted
+nem	= m;		% number of eigen-matrices to be diagonalized
+seuil	= 1/sqrt(T)/100;% a statistical threshold for stopping joint diag
+
+%% mean removal, ASSUME X is ZERO MEAN
+%X	= X - mean(X')' * ones(1,T);
+
+%%% whitening
+if m<n, %assumes white noise
+ 	[U,D] 	= eig((X*X')/T);
+	[puiss,k]=sort(diag(D));
+ 	ibl 	= sqrt(puiss(n-m+1:n)-mean(puiss(1:n-m)));
+ 	bl 	= ones(m,1) ./ ibl ;
+ 	W	= diag(bl)*U(1:n,k(n-m+1:n))';
+ 	IW 	= U(1:n,k(n-m+1:n))*diag(ibl);
+else    %assumes no noise
+ 	IW 	= sqrtm((X*X')/T);
+ 	W	= inv(IW);
+end;
+Y	= W*X;
+
+%%% Cumulant estimation
+R	= (Y*Y' )/T ;
+C	= (Y*Y.')/T ;
+Yl	= zeros(1,T);
+Ykl	= zeros(1,T);
+Yjkl	= zeros(1,T);
+Q	= zeros(m*m*m*m,1) ;
+index	= 1;
+for lx = 1:m ; Yl 	= Y(lx,:);
+for kx = 1:m ; Ykl 	= Yl.*conj(Y(kx,:));
+for jx = 1:m ; Yjkl	= Ykl.*conj(Y(jx,:));
+for ix = 1:m ;
+	Q(index) = (Yjkl * Y(ix,:).')/T -  R(ix,jx)*R(lx,kx) -  R(ix,kx)*R(lx,jx) -  C(ix,lx)*conj(C(jx,kx))  ;
+	index	= index + 1 ;
+end ;
+end ;
+end ;
+end ;
+
+%%%computation and reshaping of the significant eigen matrices
+[U,D]	= eig(reshape(Q,m*m,m*m));
+[la,K]	= sort(abs(diag(D)));
+%% reshaping the most (there are 'nem' of them) significant eigenmatrice
+M	= zeros(m,nem*m);	% array to hold the significant eigen-matrices
+Z	= zeros(m)	; % buffer
+h	= m*m;
+for u=1:m:nem*m,
+	Z(:) 		= U(:,K(h));
+	M(:,u:u+m-1)	= la(h)*Z;
+	h		= h-1;
+end;
+%%% joint approximate diagonalization of the eigen-matrices
+%% Better declare the variables used in the loop :
+B 	= [ 1 0 0 ; 0 1 1 ; 0 -i i ] ;
+Bt	= B' ;
+Ip	= zeros(1,nem) ;
+Iq	= zeros(1,nem) ;
+g	= zeros(3,nem) ;
+G	= zeros(2,2) ;
+vcp	= zeros(3,3);
+D	= zeros(3,3);
+la	= zeros(3,1);
+K	= zeros(3,3);
+angles	= zeros(3,1);
+pair	= zeros(1,2);
+c	= 0 ;
+s	= 0 ;
+encore	= 1;
+V	= eye(m);
+
+% Main loop
+while encore, encore=0;
+ for p=1:m-1,
+  for q=p+1:m,
+
+ 	Ip = p:m:nem*m ;
+	Iq = q:m:nem*m ;
+
+	% Computing the Givens angles
+ 	g	= [ M(p,Ip)-M(q,Iq)  ; M(p,Iq) ; M(q,Ip) ] ;
+ 	[vcp,D] = eig(real(B*(g*g')*Bt));
+	[la, K]	= sort(diag(D));
+ 	angles	= vcp(:,K(3));
+	if angles(1)<0 , angles= -angles ; end ;
+ 	c	= sqrt(0.5+angles(1)/2);
+ 	s	= 0.5*(angles(2)-j*angles(3))/c;
+
+ 	if abs(s)>seuil, %%% updates matrices M and V by a Givens rotation
+	 	encore 		= 1 ;
+		pair 		= [p;q] ;
+ 		G 		= [ c -conj(s) ; s c ] ;
+		V(:,pair) 	= V(:,pair)*G ;
+	 	M(pair,:)	= G' * M(pair,:) ;
+		M(:,[Ip Iq]) 	= [ c*M(:,Ip)+s*M(:,Iq) -conj(s)*M(:,Ip)+c*M(:,Iq) ] ;
+ 	end;%% if
+  end;%% q loop
+ end;%% p loop
+end;%% while
+
+%%%estimation of the mixing matrix and signal separation
+A	= IW*V;
+if 1<nargout, S	= V'*Y ; end;
+end`);
+// stats utils
+
+// correlation functions
+function tiedrank(x, symmetric)
 {
-    x = real(x);
-    var t, sgn = realMath.sign(x) || 1;
-
-    if (sgn < 0) x = n_neg(x);
-
-    t = n_inv(n_add(n_mul(__p, x), I));
-    return n_mul(sgn, n_sub(
-    I, n_mul(n_add(n_mul(n_add(n_mul(n_add(n_mul(n_add(n_mul(__a5, t), __a4), t), __a3), t), __a2), t), __a1), n_mul(t, realMath.exp(n_neg(n_mul(x, x)))))));
+    var n = x.length,
+        ord = x.map(function(xi, i) {return [xi, i];}).sort(function(a, b) {
+            return eq(a[0], b[0]) ? a[1] - b[1] : (lt(a[0], b[0]) ? -1 : 1);
+        }),
+        rank = new Array(n), i, j, k;
+    for (i=0; i<n;)
+    {
+        k = 1;
+        j = i;
+        while ((j+k < n) && eq(ord[j][0], ord[j+k][0])) ++k;
+        while (j < i+k)
+        {
+            rank[ord[j][1]] = is_nan(ord[j][0]) ? nan : (symmetric ? __((2*i <= n ? i+1 : n-i) + (1 < k ? 1/k : 0)) : __(i+1 + (1 < k ? 1/k : 0)));
+            ++j;
+        }
+        i = j;
+    }
+    return rank;
 }
-fn.erf = function(x) {
-    return apply(erf, x, true);
+function pearson(a, b)
+{
+    // https://en.wikipedia.org/wiki/Pearson_correlation_coefficient
+    var n = a.length;
+    return 1 < n ? scalar_div(sum(dotmul(dotdiv(sub(a, mean(a)), std(a)), dotdiv(sub(b, mean(b)), std(b)))), n-1) : I;
+}
+function spearman(a, b)
+{
+    // https://en.wikipedia.org/wiki/Spearman%27s_rank_correlation_coefficient
+    return pearson(tiedrank(a), tiedrank(b));
+}
+function kendall(a, b)
+{
+    // https://en.wikipedia.org/wiki/Kendall_rank_correlation_coefficient
+    if (1 < a.length)
+    {
+        var n = a.length, i, j, sa, sb, tau = O;
+        for (i=0; i<n; ++i)
+        {
+            for (j=i+1; j<n; ++j)
+            {
+                sa = scalar_sign(scalar_sub(a[i], a[j]));
+                sb = scalar_sign(scalar_sub(b[i], b[j]));
+                tau = scalar_add(tau, scalar_mul(sa, sb));
+            }
+        }
+        return scalar_div(scalar_div(scalar_mul(tau, two), n), n-1);
+    }
+    return I;
+}
+function chi2_contingency(observed)
+{
+    var sz = !is_array(observed) ? [1] : (is_1d(observed) ? [observed.length] : size(observed)),
+        dof = n_add(n_sub(prod(sz), sum(sz)), sz.length-1),
+        sums, expected = null, stat, p = null;
+    if (n_eq(dof, O))
+    {
+        stat = O;
+        p = I;
+    }
+    else
+    {
+        sums = array(sz.length, function(dim) {
+            var sumaxes = sum(
+                observed,
+                array(sz.length-1, function(axis) {
+                    return axis < dim ? (axis+1) : (axis+2);
+                })
+            );
+            return ndarray(sz.slice(), function(index) {return sumaxes[index[dim]];});
+        });
+        expected = dotdiv(sums.slice(1).reduce(function(r, s) {
+            return dotmul(r, s);
+        }, sums[0]), scalar_pow(sum(observed, "all"), sz.length-1));
+        // Pearson's chi-squared statistic
+        stat = sum(dotdiv(dotpow(sub(observed, expected), 2), expected), "all");
+        p = chi2cdf(stat, dof, 'upper');
+    }
+    return {
+        stat: stat,
+        p: p,
+        dof: dof,
+        expected: expected
+    };
+}
+function cramer_v(a, b, correctbias)
+{
+    // https://en.wikipedia.org/wiki/Cram%C3%A9r%27s_V
+    if (1 < a.length)
+    {
+        var n = a.length,
+            chi2 = chi2_contingency(crosstab([a, b])),
+            phi2 = n_div(chi2.stat, n),
+            sz = size(chi2.expected),
+            k = sz[0], r = sz[1];
+        if ('correctbias' === correctbias)
+        {
+            phi2 = max([O, n_sub(phi2, ((k-1)*(r-1))/(n-1))]);
+            k -= stdMath.pow(k-1, 2)/(n-1);
+            r -= stdMath.pow(r-1, 2)/(n-1);
+        }
+        return realMath.sqrt(n_div(phi2, stdMath.min(k-1, r-1)));
+    }
+    return I;
+}
+
+// distributions
+function cdf(pdf, min_x, max_x, n)
+{
+    // compute cdf from pdf between min_x and max_x
+    // via numerical approximation of integral of pdf
+    n = n || 100;
+    var cum = O, eps = n_div(n_sub(max_x, min_x), n), x;
+    for (x=min_x;n_le(x, max_x);x=n_add(x, eps))
+    {
+        cum = n_add(cum, pdf(x));
+    }
+    return cum;
+}
+function pdf(cdf, x, eps)
+{
+    // compute pdf from cdf at x
+    // via numerical approximation of derivative of cdf
+    eps = __(eps || 1e-12);
+    return n_div(n_sub(cdf(n_add(x, eps)), cdf(n_sub(x, eps))), n_mul(constant['2'], eps));
+}
+
+var __td1 = 0.000345,
+    __td2 = 0.069547,
+    __td3 = 1.604326
+    //__sqrt_pi = realMath.sqrt(constant.pi)
+;
+update.push(function() {
+__td1 = __(0.000345);
+__td2 = __(0.069547);
+__td3 = __(1.604326);
+
+//__sqrt_pi = realMath.sqrt(constant.pi);
+});
+
+function unifpdf(x, a, b)
+{
+    // pdf of Uniform distribution
+    // https://en.wikipedia.org/wiki/Continuous_uniform_distribution
+    if (n_gt(a, b)) return nan;
+    return n_lt(x, a) || n_gt(x, b) ? O : n_div(I, n_sub(b, a));
+}
+function unifcdf(x, a, b, tail)
+{
+    // cdf of Uniform distribution
+    // https://en.wikipedia.org/wiki/Continuous_uniform_distribution
+    if (n_gt(a, b)) return nan;
+    var p = n_le(x, a) ? O : (n_ge(x, b) ? I : n_div(n_sub(x, a), n_sub(b, a)));
+    return 'upper' === tail ? n_sub(I, p) : p;
+}
+function unifinv(p, a, b)
+{
+    // icdf of Uniform distribution
+    // https://en.wikipedia.org/wiki/Continuous_uniform_distribution
+    if (n_gt(a, b)) return nan;
+    return n_le(p, O) ? a : (n_ge(p, I) ? b : n_add(a, n_mul(p, n_sub(b, a))));
+}
+
+function normpdf(x, mu, sigma)
+{
+    // pdf of Normal distribution
+    // https://en.wikipedia.org/wiki/Normal_distribution
+    x = n_div(n_sub(x, mu), sigma); // normalize
+    return n_div(realMath.exp(n_neg(n_div(n_mul(x, x), constant['2']))), n_mul(sigma, __sqrt_2pi));
+}
+function normcdf(x, mu, sigma, tail)
+{
+    // cdf of Normal distribution, via erf
+    // https://en.wikipedia.org/wiki/Normal_distribution
+    x = n_div(n_sub(x, mu), sigma); // normalize
+    var p = n_mul(constant['1/2'], n_add(I, erf(n_div(x, sqrt2))));
+    return 'upper' === tail ? n_sub(I, p) : p;
+}
+function norminv(p, mu, sigma)
+{
+    // icdf of Normal distribution
+    // https://en.wikipedia.org/wiki/Normal_distribution
+    if (n_lt(p, O)) return nan;
+    var limit = n_mul(sigma, 100); // 100 x sigma
+    return monotone_inverse_newton(
+        function(x) {return normcdf(x, mu, sigma);},
+        function(x) {return normpdf(x, mu, sigma);},
+        p, n_sub(mu, limit), n_add(mu, limit)
+    );
+}
+
+function chi2pdf(x, nu)
+{
+    // pdf of Chi-squared distribution with nu degrees of freedom
+    // https://en.wikipedia.org/wiki/Chi-squared_distribution
+    if (n_lt(nu, O)) return nan;
+    else if (n_eq(nu, O)) return n_eq(x, O) ? O : nan;
+    else if (n_lt(x, O)) return O;
+    if (n_eq(constant['2'], nu))
+    {
+        return n_div(realMath.exp(n_neg(n_div(x, constant['2']))), constant['2']);
+    }
+    else
+    {
+        nu = n_div(nu, constant['2']);
+        return n_div(n_mul(n_pow(x, n_sub(nu, I)), realMath.exp(n_neg(n_div(x, constant['2'])))), n_mul(n_pow(constant['2'], nu), gamma(nu)));
+        /*
+        // "A normal approximation for the chi-square distribution", Luisa Canal, 2005
+        // accuracy at least within 2-3 decimal places
+        return pdf(function(x) {return chi2cdf(x, nu);}, x);
+        // Wilson-Hilferty Transformation to approximately a Normal
+        // accuracy at least within 1-2 decimal places
+        if ((null == chi2pdf.nu) || !n_eq(chi2pdf.nu, nu))
+        {
+            chi2pdf.nu = nu;
+            var sigma2 = n_div(constant['2'], n_mul(nu, 9));
+            chi2pdf.mu = n_sub(I, sigma2);
+            chi2pdf.sigma = realMath.sqrt(sigma2);
+        }
+        return pdf(function(x) {return normcdf(n_pow(n_div(x, nu), 1/3), chi2pdf.mu, chi2pdf.sigma);}, x);
+        */
+    }
+}
+function chi2cdf(x, nu, tail)
+{
+    // cdf of Chi-squared distribution with nu degrees of freedom
+    // https://en.wikipedia.org/wiki/Chi-squared_distribution
+    if (n_lt(nu, O) || n_lt(x, O)) return nan;
+    else if (n_eq(nu, O)) return n_eq(x, O) ? O : nan;
+    var p = O;
+    if (n_eq(constant['2'], nu))
+    {
+        p = n_sub(I, realMath.exp(n_neg(n_div(x, constant['2']))));
+    }
+    else
+    {
+        p = gammainc(n_div(x, constant['2']), n_div(nu, constant['2']));
+        /*
+        // "A normal approximation for the chi-square distribution", Luisa Canal, 2005
+        // accuracy at least within 2-3 decimal places
+        if ((null == chi2cdf.nu) || !n_eq(chi2cdf.nu, nu))
+        {
+            chi2cdf.nu = nu;
+            var nu2 = n_mul(nu, nu), nu3 = n_mul(nu2, nu);
+            chi2cdf.mu = n_add(n_add(5/6, n_div(-1/9, nu)), n_add(n_div(-7/648, nu2), n_div(25/2187, nu3)));
+            chi2cdf.sigma = realMath.sqrt(n_add(n_add(n_div(1/18, nu), n_div(1/162, nu2)), n_div(-37/11664, nu3)));
+        }
+        var xn = n_div(x, nu), L = n_add(n_sub(n_pow(xn, 1/6), n_mul(n_pow(xn, 1/3), 1/2)), n_mul(realMath.sqrt(xn), 1/3));
+        p = normcdf(L, chi2cdf.mu, chi2cdf.sigma);
+        // Wilson-Hilferty Transformation to approximately a Normal
+        // accuracy at least within 1-2 decimal places
+        if ((null == chi2cdf.nu) || !n_eq(chi2cdf.nu, nu))
+        {
+            chi2cdf.nu = nu;
+            var sigma2 = n_div(constant['2'], n_mul(nu, 9));
+            chi2cdf.mu = n_sub(I, sigma2);
+            chi2cdf.sigma = realMath.sqrt(sigma2);
+        }
+        p = normcdf(n_pow(n_div(x, nu), 1/3), chi2cdf.mu, chi2cdf.sigma);
+        */
+    }
+    return 'upper' === tail ? n_sub(I, p) : p;
+}
+function chi2inv(p, nu)
+{
+    // icdf of Chi-squared distribution with nu degrees of freedom
+    // https://en.wikipedia.org/wiki/Chi-squared_distribution
+    if (n_lt(nu, O) || n_lt(p, O)) return nan;
+    /*
+    // may fail because chi2cdf may return nan or inf if precision is exceeded
+    return monotone_inverse_newton(
+        function(x) {return chi2cdf(x, nu);},
+        function(x) {return chi2pdf(x, nu);},
+        p, O, __(1e6), O, I, O, inf
+    );
+    */
+    // Wilson-Hilferty Transformation to approximately a Normal
+    // accuracy at least within 1-2 decimal places
+    if ((null == chi2inv.nu) || !n_eq(chi2inv.nu, nu))
+    {
+        chi2inv.nu = nu;
+        var sigma2 = n_div(constant['2'], n_mul(nu, 9));
+        chi2inv.mu = n_sub(I, sigma2);
+        chi2inv.sigma = realMath.sqrt(sigma2);
+    }
+    return max([O, n_mul(n_pow(norminv(p, chi2inv.mu, chi2inv.sigma), 3), nu)]);
+}
+
+function tpdf(x, nu)
+{
+    // pdf of t distribution with nu degrees of freedom
+    // https://en.wikipedia.org/wiki/Student%27s_t-distribution
+    if (n_le(nu, O)) return nan;
+    var tpdfx = O;
+    if (n_eq(nu, I))
+    {
+        tpdfx = n_div(
+            I,
+            n_mul(
+                constant.pi,
+                n_add(I, n_mul(x, x))
+            )
+        );
+    }
+    else if (n_eq(nu, constant['2']))
+    {
+        tpdfx = n_div(
+            I,
+            n_mul(
+                constant['2'],
+            n_mul(
+                sqrt2,
+                n_pow(n_add(I, n_div(n_mul(x, x), constant['2'])), 3/2)
+            )
+            )
+        );
+    }
+    else if (n_eq(nu, 3))
+    {
+        tpdfx = n_div(
+            constant['2'],
+            n_mul(
+                constant.pi,
+            n_mul(
+                realMath.sqrt(3),
+                n_pow(n_add(I, n_div(n_mul(x, x), 3)), constant['2'])
+            )
+            )
+        );
+    }
+    else if (n_eq(nu, 4))
+    {
+        tpdfx = n_div(
+            3,
+            n_mul(
+                8,
+                n_pow(n_add(I, n_div(n_mul(x, x), 4)), 5/2)
+            )
+        );
+    }
+    else
+    {
+        tpdfx = n_mul(
+            n_div(
+                gamma(n_div(n_add(nu, I), constant['2'])),
+                n_mul(realMath.sqrt(n_mul(constant.pi, nu)), gamma(n_div(nu, constant['2'])))
+            ),
+            n_pow(
+                n_add(I, n_div(n_mul(x, x), nu)),
+                n_neg(n_div(n_add(nu, I), constant['2']))
+            )
+        );
+        // approximation
+        //tpdfx = pdf(function(x) {return tcdf(x, nu);}, x);
+    }
+    return tpdfx;
+}
+function tcdf(x, nu, tail)
+{
+    // cdf of t distribution with nu degrees of freedom
+    // https://en.wikipedia.org/wiki/Student%27s_t-distribution
+    if (n_le(nu, O)) return nan;
+    var p = O, z, z2, z3, z5;
+    if (n_eq(nu, I))
+    {
+        p = n_add(
+            constant['1/2'],
+            n_div(realMath.atan(x), constant.pi)
+        );
+    }
+    else if (n_eq(nu, constant['2']))
+    {
+        p = n_add(
+            constant['1/2'],
+            n_div(
+                x,
+                realMath.sqrt(n_mul(constant['2'], n_mul(sqrt2, n_add(I, n_div(n_mul(x, x), constant['2'])))))
+            )
+        );
+    }
+    else if (n_eq(nu, 3))
+    {
+        z2 = n_div(n_mul(x, x), 3);
+        z = realMath.sqrt(z2);
+        p = n_add(
+            constant['1/2'],
+            n_div(
+                n_add(n_div(z, n_add(I, z2)), realMath.atan(z)),
+                constant.pi
+            )
+        );
+    }
+    else if (n_eq(nu, 4))
+    {
+        z = n_div(x, constant['2']);
+        z2 = n_mul(z, z);
+        p = n_add(
+            constant['1/2'],
+            n_mul(
+                n_mul(
+                    n_div(z, realMath.sqrt(n_add(I, z2))),
+                    n_sub(0.25, n_div(z2, n_mul(n_add(I, z2), 12)))
+                ),
+                3
+            )
+        );
+    }
+    else if (n_gt(nu, 30))
+    {
+        p = normcdf(x, O, I); // has become almost precisely normal
+    }
+    else
+    {
+        // approximation
+        // "Approximations to the t Distribution", Bashar Zogheib1 and Ali Elsaheli, 2015
+        // http://dx.doi.org/10.12988/ams.2015.52148
+        // accuracy at least within 2-3 decimal places
+        z = n_div(
+            n_mul(x, n_sub(I, n_div(I, n_mul(nu, 4)))), realMath.sqrt(n_add(I, n_div(n_mul(x, x), n_mul(nu, constant['2']))))
+        );
+        z2 = n_mul(z, z);
+        z3 = n_mul(z2, z);
+        z5 = n_mul(z3, z2);
+        p = n_div(I, n_add(I, realMath.exp(n_sub(n_sub(n_mul(z5, __td1), n_mul(z3, __td2)), n_mul(z, __td3)))));
+    }
+    return 'upper' === tail ? n_sub(I, p) : p;
+}
+function tinv(p, nu)
+{
+    // icdf of t distribution with nu degrees of freedom
+    // https://en.wikipedia.org/wiki/Student%27s_t-distribution
+    // accuracy at least within 2-3 decimal places
+    if (n_le(nu, O) || n_lt(p, O)) return nan;
+    var limit = n_gt(nu, constant['2']) ? n_mul(n_div(nu, n_sub(nu, constant['2'])), 100) : __(1e7);
+    return monotone_inverse_newton(
+        function(x) {return tcdf(x, nu);},
+        function(x) {return tpdf(x, nu);},
+        p, n_neg(limit), limit
+    );
+}
+// various distributions
+// TODO add more and/or improve speed and/or accuracy
+
+// uniform continuous distribution
+fn.unifpdf = function(x, a, b) {
+    if (null == b) b = I;
+    if (null == a) a = O;
+    return apply_(unifpdf, [x, a, b], real);
+};
+fn.unifcdf = function(x, a, b, tail) {
+    if (null == b) b = I;
+    if (null == a) a = O;
+    return apply_(function(x, a, b) {return unifcdf(x, a, b, tail);}, [x, a, b], real);
+};
+fn.unifinv = function(p, a, b) {
+    if (null == b) b = I;
+    if (null == a) a = O;
+    return apply_(unifinv, [p, a, b], real);
+};
+
+// normal distribution
+fn.normpdf = function(x, mu, sigma) {
+    if (null == sigma) sigma = I;
+    if (null == mu) mu = O;
+    return apply_(normpdf, [x, mu, sigma], real);
+};
+fn.normcdf = varargout(function(nargout, x, mu, sigma, tail) {
+    if (1 < nargout) throw "normcdf: only 1 output is supported";
+    if (null == sigma) sigma = I;
+    if (null == mu) mu = O;
+    if (is_string(sigma))
+    {
+        tail = sigma;
+        sigma = I;
+    }
+    if (is_string(mu))
+    {
+        tail = mu;
+        mu = O;
+        sigma = I;
+    }
+    return apply_(function(x, mu, sigma) {return normcdf(x, mu, sigma, tail);}, [x, mu, sigma], real);
+});
+fn.norminv = varargout(function(nargout, p, mu, sigma) {
+    if (1 < nargout) throw "norminv: only 1 output is supported";
+    if (null == sigma) sigma = I;
+    if (null == mu) mu = O;
+    return apply_(norminv, [p, mu, sigma], real);
+});
+
+// chi2 distribution
+fn.chi2pdf = function(x, nu) {
+    if (null == nu) nu = I;
+    return apply_(chi2pdf, [x, nu], real);
+};
+fn.chi2cdf = function(x, nu, tail) {
+    if (null == nu) nu = I;
+    return apply_(function(x, nu) {return chi2cdf(x, nu, tail);}, [x, nu], real);
+};
+fn.chi2inv = function(p, nu) {
+    if (null == nu) nu = I;
+    return apply_(chi2inv, [p, nu], real);
+};
+
+// t distribution
+fn.tpdf = function(x, nu) {
+    if (null == nu) nu = I;
+    return apply_(tpdf, [x, nu], real);
+};
+fn.tcdf = function(x, nu, tail) {
+    if (null == nu) nu = I;
+    return apply_(function(x, nu) {return tcdf(x, nu, tail);}, [x, nu], real);
+};
+fn.tinv = function(p, nu) {
+    if (null == nu) nu = I;
+    return apply_(tinv, [p, nu], real);
 };
 function mean(x, dim)
 {
@@ -9482,7 +12126,8 @@ function corrcoef(a, b)
         {
             return I;
         }
-        else if (is_vector(a) && is_vector(b))
+        a = vec(a); b = vec(b);
+        if (is_vector(a) && is_vector(b))
         {
             if (a.length !== b.length) throw "corrcoef: inputs not of same dimension";
             return pearson(a, b);
@@ -9499,24 +12144,25 @@ function corrcoef(a, b)
     not_supported("corrcoef");
 }
 fn.corrcoef = corrcoef;
-fn.corr = varargout(function(nargout, X) {
+fn.corr = varargout(namevalueargs(function(nargout, X) {
     if (1 < nargout) throw "corr: only one output is supported";
     if (is_scalar(X)) X = [[X]];
     if (!is_matrix(X)) not_supported("corr");
-    var i = 2, corrfunc = pearson, Y;
-    if ((i < arguments.length) && is_array(arguments[i]))
+    var nv = arguments[arguments.length-1]._,
+        Y = (2 < arguments.length) && is_array(arguments[2]) ? arguments[2] : X,
+        corrfunc = pearson, promises = [], ans;
+    if (!is_matrix(Y) || (ROWS(X) !== ROWS(Y))) not_supported("corr");
+    if (is_callable(nv.Type))
     {
-        Y = arguments[i];
-        ++i;
+        corrfunc = nv.Type;
     }
     else
     {
-        Y = X;
-    }
-    if ((i < arguments.length) && ("Type" === arguments[i]))
-    {
-        switch (arguments[i+1])
+        switch (nv.Type)
         {
+            case "CramerV":
+            corrfunc = _(nv.CorrectBias) ? function(a, b) {return cramer_v(a, b, 'correctbias');} : function(a, b) {return cramer_v(a, b);};
+            break;
             case "Spearman":
             corrfunc = spearman;
             break;
@@ -9529,11 +12175,15 @@ fn.corr = varargout(function(nargout, X) {
             break;
         }
     }
-    if (!is_matrix(Y) || (ROWS(X) !== ROWS(Y))) not_supported("corr");
-    return matrix(COLS(X), COLS(Y), function(i, j) {
-        return corrfunc(COL(X, i), COL(Y, j));
+    ans = matrix(COLS(X), COLS(Y), function(i, j) {
+        var c = corrfunc(COL(X, i), COL(Y, j));
+        if (is_instance(c, Promise)) promises.push(c);
     });
-});fn.tiedrank = varargout(function(nargout, x, a, b) {
+    return promises.length ? Promise.all(promises).then(function() {return ans;}) : ans;
+}, {
+    Type: "Pearson",
+    CorrectBias: 0
+}));fn.tiedrank = varargout(function(nargout, x, a, b) {
     if (1 < nargout) throw "tiedrank: only one output is supported";
     if (is_scalar(x)) x = [x];
     x = vec(x);
@@ -9606,15 +12256,17 @@ fn.corr = varargout(function(nargout, X) {
             }
         }
     }
-    var ans = [], n = COLS(X), i, j;
+    var ans = [], n = COLS(X), i, j, d, is_promise = false;
     for (i=0; i<n; ++i)
     {
         for (j=i+1; j<n; ++j)
         {
-            ans.push(dist(COL(X, j), COL(X, i), j, i));
+            d = dist(COL(X, j), COL(X, i), j, i);
+            is_promise = is_promise || is_instance(d, Promise);
+            ans.push(d);
         }
     }
-    return ans;
+    return is_promise ? Promise.all(ans) : ans;
 };
 fn.pdist2 = function(X, Y) {
     var dist = d_euclidean, m, p;
@@ -9675,9 +12327,14 @@ fn.pdist2 = function(X, Y) {
             }
         }
     }
-    return matrix(COLS(X), COLS(Y), function(i, j, mat) {
-        return i <= j ? dist(COL(X, i), COL(Y, j), i, j) : mat[j][i];
-    });
+    var promises = [],
+        ans = matrix(COLS(X), COLS(Y), function(i, j) {
+            var d = dist(COL(X, i), COL(Y, j), i, j);
+            if (is_instance(d, Promise)) promises.push(d);
+            return d;
+        })
+    ;
+    return promises.length ? Promise.all(promises).then(function() {return ans;}) : ans;
 };
 fn.mahal = function(Y, X) {
     if (is_vector(X)) X = vec2col(X);
@@ -9722,61 +12379,151 @@ fn.squareform = function(d, output) {
         }
     }
     return ans;
-};function kmeans(X, k, C, D, max_iter, speedup)
+};function crosstab(args, nargout)
+{
+    nargout = nargout || 1;
+    args = args.map(function(arg) {return is_array(arg) ? colon(arg) : [arg];});
+    if (args.length !== args.filter(function(arg) {return args[0].length === arg.length;}).length) throw "crosstab: inputs not of same length";
+    var labels = cellarray(array(args.length, function(i) {
+            return sort(args[i].reduce(function(_, v) {
+                var k = String(v);
+                if (!HAS.call(_.h, k))
+                {
+                    _.h[k] = 1;
+                    _.v.push(v);
+                }
+                return _;
+            }, {h:{},v:[]}).v);
+        }), [args.length]),
+        arg0 = args[0],
+        tab = ndarray(labels.map(function(values) {return values.length;}), function(i) {
+            return arg0.reduce(function(s, _, j) {
+                for (var found=0,k=0,n=i.length; k<n; ++k)
+                {
+                    if (String(labels[k][i[k]]) !== String(args[k][j])) break;
+                    ++found;
+                }
+                if (n === found) ++s;
+                return s;
+            }, 0);
+        }),
+        chi2 = 1 < nargout ? chi2_contingency(tab) : {stat:null, p:null}
+    ;
+    return 1 < nargout ? [tab, chi2.stat, chi2.p, labels] : tab;
+}
+fn.crosstab = varargout(function(nargout /*..args*/) {
+    return crosstab([].slice.call(arguments, 1), nargout);
+});
+fn.chi2contingency = varargout(function(nargout, table) {
+    var chi2 = chi2_contingency(table);
+    return 1 < nargout ? [chi2.stat, chi2.p, chi2.dof, chi2.expected] : chi2.stat;
+});function kmeans(X, k, D, init, max_iter, run_async, speedup)
 {
     // https://en.wikipedia.org/wiki/K-means_clustering
     // Lloyd's algorithm with triangle speedup heuristic
-
-    var n = ROWS(X), p = COLS(X), iter,
-        i, ci, idx, centroids_changed;
-
-    idx = X.map(function(Xi) {return closest_cluster(Xi, C, D, speedup)[0];});
-    C = compute_centroids(X, k, idx);
-
-    for (iter=1; iter<=max_iter; ++iter)
+    var n = X.length, idx = array(n, -1), C, centroids_changed = 0, iter;
+    if (run_async)
     {
-        // Assign each point to the nearest centroid
-        centroids_changed = 0;
-        for (i=0; i<n; ++i)
-        {
-            ci = closest_cluster(X[i], C, D, speedup)[0];
-            if (idx[i] !== ci) ++centroids_changed;
-            idx[i] = ci;
-        }
+        return (async function() {
+            await closest_clusters(idx, null, X, is_matrix(init) ? init : await init(X, k, D, run_async), D, run_async);
 
-        // Check for convergence
-        if (0 === centroids_changed)
-        {
-            break; // converged
-        }
-        else
-        {
-            // Recalculate centroids
-            C = compute_centroids(X, k, idx);
-        }
+            for (iter=1; iter<=max_iter; ++iter)
+            {
+                // calculate centroids
+                C = compute_centroids(idx, X, k);
+                // assign each point to the nearest centroid
+                centroids_changed = await closest_clusters(idx, null, X, C, D, run_async);
+                if (!centroids_changed) break; // converged
+            }
+            if (centroids_changed) fn.warning('kmeans failed to converge in '+max_iter+' iteration(s).');
+            return [idx, C];
+        })();
     }
-    return [idx, C];
+    else
+    {
+        closest_clusters(idx, null, X, is_matrix(init) ? init : init(X, k, D), D);
+
+        for (iter=1; iter<=max_iter; ++iter)
+        {
+            // calculate centroids
+            C = compute_centroids(idx, X, k);
+            // assign each point to the nearest centroid
+            centroids_changed = closest_clusters(idx, null, X, C, D);
+            if (!centroids_changed) break; // converged
+        }
+        if (centroids_changed) fn.warning('kmeans failed to converge in '+max_iter+' iteration(s).');
+        return [idx, C];
+    }
 }
-function closest_cluster(x, C, D, speedup)
+function closest_clusters(idx, min, X, C, D, run_async)
 {
-    var k = C.length, i, d, idx = 0, min = inf;
-    for (i=0; i<k; ++i)
+    var n = X.length, k = C.length, i, j, x, d, cj, minj, nchanged = 0;
+    if (run_async)
     {
-        if (!C[i] || !C[i].length) continue;
-        d = D(x, C[i]);
-        if (n_lt(d, min))
+        return (async function() {
+        for (j=0; j<n; ++j)
         {
-            min = d;
-            idx = i;
+            x = X[j];
+            cj = 0;
+            minj = inf;
+            for (i=0; i<k; ++i)
+            {
+                if (!C[i] || !C[i].length) continue;
+                d = await D(x, C[i]);
+                if (n_lt(d, minj))
+                {
+                    minj = d;
+                    cj = i;
+                }
+            }
+            if (idx)
+            {
+                if (cj !== idx[j]) ++nchanged;
+                idx[j] = cj;
+            }
+            if (min)
+            {
+                min[j] = minj;
+            }
         }
+        return nchanged;
+        })();
     }
-    return [idx, min];
+    else
+    {
+        for (j=0; j<n; ++j)
+        {
+            x = X[j];
+            cj = 0;
+            minj = inf;
+            for (i=0; i<k; ++i)
+            {
+                if (!C[i] || !C[i].length) continue;
+                d = D(x, C[i]);
+                if (n_lt(d, minj))
+                {
+                    minj = d;
+                    cj = i;
+                }
+            }
+            if (idx)
+            {
+                if (cj !== idx[j]) ++nchanged;
+                idx[j] = cj;
+            }
+            if (min)
+            {
+                min[j] = minj;
+            }
+        }
+        return nchanged;
+    }
 }
 function compute_centroid(cluster)
 {
     return cluster.length ? mean(cluster) : cluster;
 }
-function compute_centroids(X, k, idx)
+function compute_centroids(idx, X, k)
 {
     return array(k, function(cluster_index) {
         return compute_centroid(idx.reduce(function(cluster, index, i) {
@@ -9785,7 +12532,7 @@ function compute_centroids(X, k, idx)
         }, []));
     });
 }
-function kmeans_init_forgy(X, k, dist, speedup)
+function kmeans_init_forgy(X, k, D, run_async)
 {
     X = X.slice();
     return array(k, function(cluster) {
@@ -9793,7 +12540,7 @@ function kmeans_init_forgy(X, k, dist, speedup)
         return -1 < i ? X.splice(i, 1)[0] : [];
     });
 }
-function kmeans_init_random_partition(X, k, dist, speedup)
+function kmeans_init_random_partition(X, k, D, run_async)
 {
     var n = X.length;
     return shuffle(X.slice()).reduce(function(clusters, xi) {
@@ -9803,135 +12550,228 @@ function kmeans_init_random_partition(X, k, dist, speedup)
         return clusters;
     }, []).map(compute_centroid);
 }
-function kmeans_init_plusplus(X, k, dist, speedup)
+function kmeans_init_plusplus(X, k, D, run_async)
 {
     // https://en.wikipedia.org/wiki/K-means%2B%2B
     // Initialize list of centroids with one randomly selected point
     var n = X.length,
         centroids = [X[stdMath.round(stdMath.random()*(n-1))]],
-        D2 = new Array(n), d, i, total, thresh, cum;
+        D2 = new Array(n), d = new Array(n), i, total, thresh, cum;
 
-    // Choose remaining k - 1 centroids
-    while (centroids.length < k)
+    if (run_async)
     {
-        // For each point, compute squared distance to nearest selected centroid
-        total = O;
-        for (i=0; i<n; ++i)
+        return (async function() {
+        // Choose remaining k - 1 centroids
+        while (centroids.length < k)
         {
-            d = closest_cluster(X[i], centroids, dist, speedup)[1];
-            D2[i] = scalar_abs(scalar_mul(d, scalar_conj(d)));
-            total = n_add(total, D2[i]);
-        }
+            await closest_clusters(null, d, X, centroids, D, run_async);
+            // For each point, compute squared distance to nearest selected centroid
+            total = O;
+            for (i=0; i<n; ++i)
+            {
+                D2[i] = scalar_abs(scalar_mul(d[i], scalar_conj(d[i])));
+                total = n_add(total, D2[i]);
+            }
 
-        // Choose next centroid with probability proportional to D(x)^2
-        thresh = n_mul(total, stdMath.random());
-        cum = O;
-        for (i=0; i<n; ++i)
-        {
-            cum = n_add(cum, D2[i]);
-            if (n_ge(cum, thresh))
+            // Choose next centroid with probability proportional to D(x)^2
+            thresh = n_mul(total, stdMath.random());
+            cum = O;
+            for (i=0; i<n; ++i)
             {
-                centroids.push(X[i]);
-                break;
-            }
-        }
-    }
-    return centroids;
-}
-fn.kmeans = varargout(function(nargout, X, k) {
-    var i = 3,
-        init = kmeans_init_plusplus,
-        dist = d_sqeuclidean,
-        max_iter = 100,
-        speedup = false,
-        ans;
-    if (!is_matrix(X)) not_supported("kmeans");
-    while (i < arguments.length)
-    {
-        if ("Start" === arguments[i])
-        {
-            if (is_matrix(arguments[i+1]))
-            {
-                init = arguments[i+1];
-                if (COLS(init) !== COLS(X)) throw "kmeans: centroids and input must have same number of columns";
-                k = ROWS(init);
-            }
-            else
-            {
-                switch (arguments[i+1])
+                cum = n_add(cum, D2[i]);
+                if (n_ge(cum, thresh))
                 {
-                    case "cluster":
-                    // not used
-                    break;
-                    case "uniform":
-                    init = kmeans_init_random_partition;
-                    break;
-                    case "sample":
-                    init = kmeans_init_forgy;
-                    break;
-                    case "plus":
-                    default:
-                    init = kmeans_init_plusplus;
+                    centroids.push(X[i]);
                     break;
                 }
             }
         }
-        else if ("Distance" === arguments[i])
+        return centroids;
+        })();
+    }
+    else
+    {
+        // Choose remaining k - 1 centroids
+        while (centroids.length < k)
         {
-            switch (arguments[i+1])
+            closest_clusters(null, d, X, centroids, D);
+            // For each point, compute squared distance to nearest selected centroid
+            total = O;
+            for (i=0; i<n; ++i)
             {
-                case "hamming":
-                dist = d_hamming;
-                break;
-                case "correlation":
-                dist = d_correlation;
-                break;
-                case "cosine":
-                dist = d_cosine;
-                break;
-                case "cityblock":
-                dist = d_cityblock;
-                break;
-                case "euclidean":
-                dist = d_euclidean;
-                break;
-                case "sqeuclidean":
-                default:
-                dist = d_sqeuclidean;
-                break;
+                D2[i] = scalar_abs(scalar_mul(d[i], scalar_conj(d[i])));
+                total = n_add(total, D2[i]);
+            }
+
+            // Choose next centroid with probability proportional to D(x)^2
+            thresh = n_mul(total, stdMath.random());
+            cum = O;
+            for (i=0; i<n; ++i)
+            {
+                cum = n_add(cum, D2[i]);
+                if (n_ge(cum, thresh))
+                {
+                    centroids.push(X[i]);
+                    break;
+                }
             }
         }
-        else if ("MaxIter" === arguments[i])
-        {
-            max_iter = stdMath.ceil(stdMath.abs(_(sca(arguments[i+1], true))));
-        }
-        i += 2;
+        return centroids;
     }
-    ans = kmeans(X, k, is_matrix(init) ? init : init(X, k, dist, speedup), dist, max_iter, speedup);
-    ans[0] = ans[0].map(function(idx) {return idx+1;});
-    if (1 === nargout)
+}
+fn.kmeans = varargout(namevalueargs(function(nargout, X, k) {
+    var nv = arguments[arguments.length-1]._,
+        dist, init, max_iter, speedup = false,
+        run_async = false, i, j, n, m, idx, C, ans;
+    if (!is_matrix(X)) not_supported("kmeans");
+    if (is_matrix(nv.Start))
     {
-        ans = ans[0];
+        init = nv.Start;
+        if (COLS(init) !== COLS(X)) throw "kmeans: centroids and input must have same number of columns";
+        k = ROWS(init);
     }
-    else if (2 < nargout)
+    else
     {
-        // sumd
-        ans.push(array(k, function(cluster) {
-            return idx.reduce(function(s, index, i) {
-                if (index === cluster) s = scalar_add(s, dist(X[i], C[cluster]));
-                return s;
-            }, O);
-        }));
-        if (3 < nargout)
+        switch (nv.Start)
         {
-            // D
-            ans.push(matrix(ROWS(X), k, function(i, j) {
-                return dist(X[i], C[j]);
-            }));
+            /*case "cluster":
+            // not used
+            break;*/
+            case "uniform":
+            init = kmeans_init_random_partition;
+            break;
+            case "sample":
+            init = kmeans_init_forgy;
+            break;
+            case "plus":
+            default:
+            init = kmeans_init_plusplus;
+            break;
         }
     }
-    return ans;
-});function pwcdanneal(D, k, alpha, max_iter)
+    if (is_callable(nv.Distance))
+    {
+        dist = nv.Distance;
+        run_async = is_instance(dist(X[0], array(X[0].length, O)), Promise);
+    }
+    else
+    {
+        switch (nv.Distance)
+        {
+            case "hamming":
+            dist = d_hamming;
+            break;
+            case "correlation":
+            dist = d_correlation;
+            break;
+            case "cosine":
+            dist = d_cosine;
+            break;
+            case "cityblock":
+            dist = d_cityblock;
+            break;
+            case "euclidean":
+            dist = d_euclidean;
+            break;
+            case "sqeuclidean":
+            default:
+            dist = d_sqeuclidean;
+            break;
+        }
+    }
+    max_iter = stdMath.ceil(stdMath.abs(_(sca(nv.MaxIter, true))));
+
+    if (run_async)
+    {
+        return (async function() {
+        ans = await kmeans(X, k, dist, init, max_iter, run_async);
+        idx = ans[0]; C = ans[1];
+        ans[0] = ans[0].map(function(idx) {return idx+1;});
+        if (1 === nargout)
+        {
+            ans = ans[0];
+        }
+        else if (2 < nargout)
+        {
+            // sumd
+            n = idx.length;
+            m = array(k, O);
+            ans.push(m);
+            for (j=0; j<k; ++j)
+            {
+                for (i=0; i<n; ++i)
+                {
+                    if (idx[i] === j)
+                    {
+                        m[j] = scalar_add(m[j], await dist(X[i], C[j]));
+                    }
+                }
+            }
+            if (3 < nargout)
+            {
+                // D
+                n = ROWS(X);
+                m = matrix(n, k, O);
+                ans.push(m);
+                for (i=0; i<n; ++i)
+                {
+                    for (j=0; j<k; ++j)
+                    {
+                        m[i][j] = await dist(X[i], C[j]);
+                    }
+                }
+            }
+        }
+        return ans;
+        })();
+    }
+    else
+    {
+        ans = kmeans(X, k, dist, init, max_iter);
+        idx = ans[0]; C = ans[1];
+        ans[0] = ans[0].map(function(idx) {return idx+1;});
+        if (1 === nargout)
+        {
+            ans = ans[0];
+        }
+        else if (2 < nargout)
+        {
+            // sumd
+            n = idx.length;
+            m = array(k, O);
+            ans.push(m);
+            for (j=0; j<k; ++j)
+            {
+                for (i=0; i<n; ++i)
+                {
+                    if (idx[i] === j)
+                    {
+                        m[j] = scalar_add(m[j], dist(X[i], C[j]));
+                    }
+                }
+            }
+            if (3 < nargout)
+            {
+                // D
+                n = ROWS(X);
+                m = matrix(n, k, O);
+                ans.push(m);
+                for (i=0; i<n; ++i)
+                {
+                    for (j=0; j<k; ++j)
+                    {
+                        m[i][j] = dist(X[i], C[j]);
+                    }
+                }
+            }
+        }
+        return ans;
+    }
+}, {
+   Start: "plus",
+   Distance: "sqeuclidean",
+   MaxIter: 100
+}));function pwcdanneal(D, k, alpha, max_iter)
 {
     /*
     "Pairwise Data Clustering by Deterministic Annealing",
@@ -10047,24 +12887,17 @@ fn.kmeans = varargout(function(nargout, X, k) {
         return cluster+1;
     });
 }
-fn.pwcdanneal = function(D, k) {
+fn.pwcdanneal = namevalueargs(function(D, k) {
     k = stdMath.round(_(sca(k, true)));
     if ((0 >= k) || !is_matrix(D) || (ROWS(D) !== COLS(D))) not_supported("pwcdanneal");
-    var i = 2, alpha = 0.75, max_iter = 100;
-    while (i < arguments.length)
-    {
-        if ("Alpha" === arguments[i])
-        {
-            alpha = stdMath.abs(_(sca(arguments[i+1], true)));
-        }
-        else if ("MaxIter" === arguments[i])
-        {
-            max_iter = stdMath.ceil(stdMath.abs(_(sca(arguments[i+1], true))));
-        }
-        i += 2;
-    }
+    var nv = arguments[arguments.length-1]._,
+        alpha = stdMath.abs(_(sca(nv.Alpha, true))),
+        max_iter = stdMath.ceil(stdMath.abs(_(sca(nv.MaxIter, true))));
     return pwcdanneal(D, k, alpha, max_iter);
-};function pwcaffinity(s, damping, max_iter)
+}, {
+    Alpha: 0.75,
+    MaxIter: 100
+});function pwcaffinity(s, damping, max_iter)
 {
     /*
     "Clustering by passing messages between data points",
@@ -10203,23 +13036,16 @@ fn.pwcdanneal = function(D, k) {
         return cluster + 1;
     });
 }
-fn.pwcaffinity = function(S) {
+fn.pwcaffinity = namevalueargs(function(S) {
     if (!is_matrix(S) || (ROWS(S) !== COLS(S))) not_supported("pwcaffinity");
-    var i = 1, damping = 0.5, max_iter = 100;
-    while (i < arguments.length)
-    {
-        if ("Damping" === arguments[i])
-        {
-            damping = stdMath.abs(_(sca(arguments[i+1], true)));
-        }
-        else if ("MaxIter" === arguments[i])
-        {
-            max_iter = stdMath.ceil(stdMath.abs(_(sca(arguments[i+1], true))));
-        }
-        i += 2;
-    }
+    var nv = arguments[arguments.length-1]._,
+        damping = stdMath.abs(_(sca(nv.Damping, true))),
+        max_iter = stdMath.ceil(stdMath.abs(_(sca(nv.MaxIter, true))));
     return pwcaffinity(S, damping, max_iter);
-};function confusionmat(actual, predicted, order, nargout)
+}, {
+    Damping: 0.5,
+    MaxIter: 100
+});function confusionmat(actual, predicted, order, nargout)
 {
     if (!is_array(actual) || !is_array(predicted)) not_supported("confusionmat");
     nargout = nargout || 1;
@@ -10257,9 +13083,12 @@ fn.pwcaffinity = function(S) {
     ;
     return 1 < nargout ? [mat, order] : mat;
 }
-fn.confusionmat = varargout(function(nargout, actual, predicted) {
-    return confusionmat(actual, predicted, "Order" === arguments[3] ? arguments[4] : null, nargout);
-});// window functions
+fn.confusionmat = varargout(namevalueargs(function(nargout, actual, predicted) {
+    var nv = arguments[arguments.length-1]._;
+    return confusionmat(actual, predicted, vec(nv.Order), nargout);
+}, {
+    Order: null
+}));// window functions
 fn.rectwin = function(L) {
     L = stdMath.round(_(sca(L, true)));
     return vec2col(array(L, function(n) {return I;}));
@@ -10848,43 +13677,24 @@ function stft(inp, win, FFTLEN, OVERLAP, inv)
 {
     // short-time fourier transform and inverse
     var out,
-        WLEN = win.length,
-        nw,
-        HOP = stdMath.max(1, WLEN - OVERLAP),
-        before = stdMath.floor((FFTLEN - WLEN)/2),
-        //after = FFTLEN - WLEN - before,
-        N, SEGMENTS,
-        zero = new complex(O, O),
         i, j, k,
+        N, SEGMENTS,
+        WLEN = FFTLEN < win.length ? FFTLEN : win.length,
+        HOP = stdMath.max(1, WLEN - OVERLAP),
+        zero = new complex(O, O),
         wx = new Array(FFTLEN),
-        fx = new Array(FFTLEN);
+        fx = new Array(FFTLEN),
+        pad = stdMath.floor((FFTLEN-WLEN)/2);
 
+    if (WLEN < win.length) win = win.slice(0, WLEN);
+    win = dotdiv(win, norm(win));
     if (inv)
     {
-        // normalize win.*win to unit energy
-        //nw = win.^2
-        nw = dotpow(abs(win), two);
-        for (i=HOP; i<WLEN; i+=HOP)
-        {
-            //nw[1:end-i+1] += win[i:end].^2
-            for (j=i; j<WLEN; ++j)
-            {
-                nw[j-i] = scalar_add(nw[j], scalar_pow(scalar_abs(win[j]), two));
-            }
-            //nw[i:end] += win[1:end-i+1].^2
-            for (j=i; j<WLEN; ++j)
-            {
-                nw[j] = scalar_add(nw[j], scalar_pow(scalar_abs(win[j-i]), two));
-            }
-        }
-        //win = win ./ sqrt(real(norm))
-        win = win.map(function(wi, i) {return scalar_div(wi, realMath.sqrt(real(nw[i])));});
-
         // inverse short-time fourier transform using ifft
         SEGMENTS = COLS(inp);
-        N = stdMath.max(0, SEGMENTS * HOP + OVERLAP);
+        N = SEGMENTS * HOP;
         out = array(N, zero);
-
+        win = dotdiv(win, sum(dotmul(win, win)));
         for (j=0,i=0; i<SEGMENTS; ++i,j+=HOP)
         {
             // get segment
@@ -10899,39 +13709,31 @@ function stft(inp, win, FFTLEN, OVERLAP, inv)
             // win should satisfy certain conditions (COLA) for exact inverse reconstruction
             for (k=0; k<WLEN; ++k)
             {
-                if (j+k >= N) break;
-                out[j+k] = scalar_add(out[j+k], scalar_mul(win[k], wx[before+k]));
+                if (j+pad+k >= N) break;
+                out[j+pad+k] = scalar_add(out[j+pad+k], scalar_mul(wx[pad+k], win[k]));
             }
         }
     }
     else
     {
-        // normalize win.*win to unit energy
-        //nw = win.^2
-        nw = dotpow(abs(win), two);
-        //win = win ./ sqrt(real(norm))
-        win = win.map(function(wi, i) {return scalar_div(wi, realMath.sqrt(real(nw[i])));});
-
         // short-time fourier transform using fft
-        N = inp.length;
         // if (N - OVERLAP) / HOP is integer istft produces output of same length as original input
-        SEGMENTS = stdMath.floor((N - OVERLAP) / HOP),
-        out = matrix(FFTLEN, SEGMENTS, zero);
-
-        for (j=0,i=0; i<SEGMENTS; ++i,j+=HOP)
+        N = inp.length;
+        out = [];
+        for (j=0,i=0; j<N; ++i,j+=HOP)
         {
-            // apply win to segment with zero padding before and after
-            for (k=0; k<before; ++k)
+            // apply win to segment with zero padding
+            for (k=0; k<pad; ++k)
             {
                 wx[k] = zero;
                 fx[k] = zero;
             }
             for (k=0; k<WLEN; ++k)
             {
-                wx[before+k] = j+k < N ? scalar_mul(win[k], inp[j+k]) : zero;
-                fx[before+k] = zero;
+                wx[pad+k] = j+k < N ? scalar_mul(win[k], inp[j+k]) : zero;
+                fx[pad+k] = zero;
             }
-            for (k=before+WLEN; k<FFTLEN; ++k)
+            for (k=pad+WLEN; k<FFTLEN; ++k)
             {
                 wx[k] = zero;
                 fx[k] = zero;
@@ -10939,127 +13741,94 @@ function stft(inp, win, FFTLEN, OVERLAP, inv)
             // fft
             fft1(/*fftshift(*/wx/*)*/, false, fx);
             // store
-            for (k=0; k<FFTLEN; ++k)
-            {
-                out[k][i] = fx[k];
-            }
+            out.push(fx.slice());
         }
+        out = transpose(out);
     }
     return out;
 }
-fn.stft = varargout(function(nargout, x) {
-    var i = 2, fs = 2*pi,
+fn.stft = varargout(namevalueargs(function(nargout, x) {
+    var nv = arguments[arguments.length-1]._,
         win = null, ovrl = null, nfft = null,
-        ans, f = null, t = null;
-    while (i < arguments.length)
+        fs = 2*pi, f = null, t = null, ans;
+    if ((2 < arguments.length) && is_scalar(arguments[2]))
     {
-        if ((2 === i) && is_scalar(arguments[i]))
-        {
-            fs = _(real(arguments[i]));
-            i += 1;
-        }
-        else if (("Window" === arguments[i]) && is_array(arguments[i+1]))
-        {
-            win = vec(arguments[i+1]);
-            i += 2;
-        }
-        else if (("OverlapLength" === arguments[i]) && is_scalar(arguments[i+1]))
-        {
-            ovrl = stdMath.round(_(real(arguments[i+1])));
-            i += 2;
-        }
-        else if (("FFTLength" === arguments[i]) && is_scalar(arguments[i+1]))
-        {
-            nfft = stdMath.round(_(real(arguments[i+1])));
-            i += 2;
-        }
-        else
-        {
-            i += 1;
-        }
+        fs = _(real(arguments[2]));
     }
-    if (null == win) win = vec(fn.hann(stdMath.min(x.length, 128), "periodic"));
-    if (null == nfft) nfft = stdMath.max(128, win.length);
-    if (null == ovrl) ovrl = stdMath.floor(0.75*win.length);
     x = vec(x);
-    if (is_matrix(x))
+    if (is_vector(x))
     {
-        ans = array(COLS(x), function(column) {
-            return realify(stft(complexify(COL(x, column)), win, nfft, ovrl, false));
-        });
-    }
-    else if (is_vector(x))
-    {
+        win = nv.Window;
+        nfft = nv.FFTLength;
+        ovrl = nv.OverlapLength;
+        win = null == win ? vec(fn.hann(128, "periodic")) : vec(win);
+        nfft = null == nfft ? stdMath.max(128, win.length) : stdMath.round(_(real(nfft)));
+        ovrl = null == ovrl ? stdMath.floor(0.75*win.length) : stdMath.round(_(real(ovrl)));
         ans = realify(stft(complexify(x), win, nfft, ovrl, false));
+        if (1 < nargout)
+        {
+            f = array(nfft, function(k) {
+                return __((k/nfft - 0.5/*nyquist rate*/)*fs);
+            });
+        }
+        if (2 < nargout)
+        {
+            t = array(COLS(ans), function(m) {
+                return __(m*stdMath.max(1, win.length - ovrl + 1)/fs);
+            });
+        }
     }
     else
     {
         not_supported("stft");
     }
-    if (1 < nargout)
-    {
-        f = array(nfft, function(k) {
-            return __((k/nfft /*- 0.5*//*nyquist rate*/)*fs);
-        });
-    }
-    if (2 < nargout)
-    {
-        t = array(stdMath.floor((x.length - ovrl) / (win.length - ovrl)), function(m) {
-            return __(m*stdMath.max(1, win.length - ovrl)/fs);
-        });
-    }
     return 1 < nargout ? [ans, f, t] : ans;
-});
-fn.istft = varargout(function(nargout, X) {
-    var i = 2, fs = 2*pi,
+}, {
+   Window: null,
+   FFTLength: null,
+   OverlapLength: null
+}));
+fn.istft = varargout(namevalueargs(function(nargout, X) {
+    var nv = arguments[arguments.length-1]._,
         win = null, ovrl = null, nfft = null,
-        ans, t = null;
-    while (i < arguments.length)
+        fs = 2*pi, t = null, ans;
+    if ((2 < arguments.length) && is_scalar(arguments[2]))
     {
-        if ((2 === i) && is_scalar(arguments[i]))
+        fs = _(real(arguments[2]));
+    }
+    if (is_matrix(X))
+    {
+        win = nv.Window;
+        nfft = nv.FFTLength;
+        ovrl = nv.OverlapLength;
+        win = null == win ? vec(fn.hann(128, "periodic")) : vec(win);
+        nfft = null == nfft ? stdMath.max(128, win.length) : stdMath.round(_(real(nfft)));
+        ovrl = null == ovrl ? stdMath.floor(0.75*win.length) : stdMath.round(_(real(ovrl)));
+        if (nfft === ROWS(X))
         {
-            fs = _(real(arguments[i]));
-            i += 1;
-        }
-        else if (("Window" === arguments[i]) && is_array(arguments[i+1]))
-        {
-            win = vec(arguments[i+1]);
-            i += 2;
-        }
-        else if (("OverlapLength" === arguments[i]) && is_scalar(arguments[i+1]))
-        {
-            ovrl = stdMath.round(_(real(arguments[i+1])));
-            i += 2;
-        }
-        else if (("FFTLength" === arguments[i]) && is_scalar(arguments[i+1]))
-        {
-            nfft = stdMath.round(_(real(arguments[i+1])));
-            i += 2;
+            ans = realify(stft(complexify(X), win, nfft, ovrl, true));
+            if (1 < nargout)
+            {
+                t = array(COLS(X), function(m) {
+                    return __(m*stdMath.max(1, win.length - ovrl + 1)/fs);
+                });
+            }
         }
         else
         {
-            i += 1;
+            not_supported("istft");
         }
-    }
-    if (null == win) win = vec(fn.hann(stdMath.min(X.length, 128), "periodic"));
-    if (null == nfft) nfft = stdMath.max(128, win.length);
-    if (null == ovrl) ovrl = stdMath.floor(0.75*win.length);
-    if (is_matrix(X) && (nfft === ROWS(X)))
-    {
-        ans = realify(stft(complexify(X), win, nfft, ovrl, true));
     }
     else
     {
         not_supported("istft");
     }
-    if (1 < nargout)
-    {
-        t = array(stdMath.floor((X.length - ovrl) / (win.length - ovrl)), function(m) {
-            return __(m*stdMath.max(1, win.length - ovrl)/fs);
-        });
-    }
     return 1 < nargout ? [ans, t] : ans;
-});
+}, {
+   Window: null,
+   FFTLength: null,
+   OverlapLength: null
+}));
 function addp(p, q)
 {
     // adapted from https://github.com/foo123/Abacus
@@ -11443,7 +14212,7 @@ fn.convhull = varargout(function(nargout, x, y, z) {
     var hull2d = convex_hull_2d(x, y);
     return 1 < nargout ? [hull2d.map(function(i) {return i+1;}), polyarea(hull2d.map(function(i) {return x[i];}), hull2d.map(function(i) {return y[i];}))] : (hull2d.map(function(i) {return i+1;}));
 });
-function mod(x, n)
+/*function mod(x, n)
 {
     n = sca(n || 0);
     return eq(n, 0) ? x : apply(function(x) {
@@ -11456,7 +14225,19 @@ function mod(x, n)
         return x;
     }, x, true);
 }
-fn.mod = mod;
+fn.mod = mod;*/
+fn.mod = function(x, n) {
+    return apply_(function(x, n) {
+        n = real(n);
+        if (!n_eq(O, n) && is_num(x))
+        {
+            var m = n_mod(x, n);
+            if (n_lt(m, O) && n_gt(n, O)) m = n_add(m, n);
+            return m;
+        }
+        return x;
+    }, [x, n || 0]);
+};
 function n_gcd(/* args */)
 {
     // adapted from https://github.com/foo123/Abacus
@@ -11551,7 +14332,7 @@ function n_xgcd(args)
         }
     }
 }
-function gcd(a, b, want_bezout_coeffs)
+/*function gcd(a, b, want_bezout_coeffs)
 {
     if (want_bezout_coeffs)
     {
@@ -11627,9 +14408,10 @@ function gcd(a, b, want_bezout_coeffs)
         }
     }
     not_supported("gcd");
-}
+}*/
 fn.gcd = varargout(function(nargout, a, b) {
-    return gcd(a, b, 1 < nargout);
+    //return gcd(a, b, 1 < nargout);
+    return apply_(1 < nargout ? function(a, b) {return n_xgcd([a, b]);} : function(a, b) {return n_gcd(a, b);}, [a, b], function(x) {return realMath.fix(real(x));}, nargout);
 });function n_lcm2(a, b)
 {
     // adapted from https://github.com/foo123/Abacus
@@ -11651,7 +14433,7 @@ function n_lcm(/* args */)
     }
     return LCM;
 }
-function lcm(a, b)
+/*function lcm(a, b)
 {
     if (is_array(a))
     {
@@ -11665,20 +14447,32 @@ function lcm(a, b)
     }
     return a;
 }
-fn.lcm = lcm;var small_primes = [__(2),__(3),__(5),__(7),__(11),__(13),__(17),__(19),__(23),__(29),__(31),__(37),__(41),__(43),__(47),__(53),__(59),__(61),__(67),__(71),__(73),__(79),__(83),__(89),__(97),__(101),__(103),__(107),__(109)];
-
+fn.lcm = lcm;*/
+fn.lcm = function(a, b) {
+    return apply_(n_lcm, [a, b], function(x) {return realMath.fix(real(x));});
+};function small_primes()
+{
+    // adapted from https://github.com/foo123/Abacus
+    var N = __;
+    if (!small_primes.list)
+    {
+        // a list of the first primes up to a limit (first 2000 primes)
+        small_primes.list = [N(2),N(3),N(5),N(7),N(11),N(13),N(17),N(19),N(23),N(29),N(31),N(37),N(41),N(43),N(47),N(53),N(59),N(61),N(67),N(71),N(73),N(79),N(83),N(89),N(97),N(101),N(103),N(107),N(109),N(113),N(127),N(131),N(137),N(139),N(149),N(151),N(157),N(163),N(167),N(173),N(179),N(181),N(191),N(193),N(197),N(199),N(211),N(223),N(227),N(229),N(233),N(239),N(241),N(251),N(257),N(263),N(269),N(271),N(277),N(281),N(283),N(293),N(307),N(311),N(313),N(317),N(331),N(337),N(347),N(349),N(353),N(359),N(367),N(373),N(379),N(383),N(389),N(397),N(401),N(409),N(419),N(421),N(431),N(433),N(439),N(443),N(449),N(457),N(461),N(463),N(467),N(479),N(487),N(491),N(499),N(503),N(509),N(521),N(523),N(541),N(547),N(557),N(563),N(569),N(571),N(577),N(587),N(593),N(599),N(601),N(607),N(613),N(617),N(619),N(631),N(641),N(643),N(647),N(653),N(659),N(661),N(673),N(677),N(683),N(691),N(701),N(709),N(719),N(727),N(733),N(739),N(743),N(751),N(757),N(761),N(769),N(773),N(787),N(797),N(809),N(811),N(821),N(823),N(827),N(829),N(839),N(853),N(857),N(859),N(863),N(877),N(881),N(883),N(887),N(907),N(911),N(919),N(929),N(937),N(941),N(947),N(953),N(967),N(971),N(977),N(983),N(991),N(997),N(1009),N(1013),N(1019),N(1021),N(1031),N(1033),N(1039),N(1049),N(1051),N(1061),N(1063),N(1069),N(1087),N(1091),N(1093),N(1097),N(1103),N(1109),N(1117),N(1123),N(1129),N(1151),N(1153),N(1163),N(1171),N(1181),N(1187),N(1193),N(1201),N(1213),N(1217),N(1223),N(1229),N(1231),N(1237),N(1249),N(1259),N(1277),N(1279),N(1283),N(1289),N(1291),N(1297),N(1301),N(1303),N(1307),N(1319),N(1321),N(1327),N(1361),N(1367),N(1373),N(1381),N(1399),N(1409),N(1423),N(1427),N(1429),N(1433),N(1439),N(1447),N(1451),N(1453),N(1459),N(1471),N(1481),N(1483),N(1487),N(1489),N(1493),N(1499),N(1511),N(1523),N(1531),N(1543),N(1549),N(1553),N(1559),N(1567),N(1571),N(1579),N(1583),N(1597),N(1601),N(1607),N(1609),N(1613),N(1619),N(1621),N(1627),N(1637),N(1657),N(1663),N(1667),N(1669),N(1693),N(1697),N(1699),N(1709),N(1721),N(1723),N(1733),N(1741),N(1747),N(1753),N(1759),N(1777),N(1783),N(1787),N(1789),N(1801),N(1811),N(1823),N(1831),N(1847),N(1861),N(1867),N(1871),N(1873),N(1877),N(1879),N(1889),N(1901),N(1907),N(1913),N(1931),N(1933),N(1949),N(1951),N(1973),N(1979),N(1987),N(1993),N(1997),N(1999),N(2003),N(2011),N(2017),N(2027),N(2029),N(2039),N(2053),N(2063),N(2069),N(2081),N(2083),N(2087),N(2089),N(2099),N(2111),N(2113),N(2129),N(2131),N(2137),N(2141),N(2143),N(2153),N(2161),N(2179),N(2203),N(2207),N(2213),N(2221),N(2237),N(2239),N(2243),N(2251),N(2267),N(2269),N(2273),N(2281),N(2287),N(2293),N(2297),N(2309),N(2311),N(2333),N(2339),N(2341),N(2347),N(2351),N(2357),N(2371),N(2377),N(2381),N(2383),N(2389),N(2393),N(2399),N(2411),N(2417),N(2423),N(2437),N(2441),N(2447),N(2459),N(2467),N(2473),N(2477),N(2503),N(2521),N(2531),N(2539),N(2543),N(2549),N(2551),N(2557),N(2579),N(2591),N(2593),N(2609),N(2617),N(2621),N(2633),N(2647),N(2657),N(2659),N(2663),N(2671),N(2677),N(2683),N(2687),N(2689),N(2693),N(2699),N(2707),N(2711),N(2713),N(2719),N(2729),N(2731),N(2741),N(2749),N(2753),N(2767),N(2777),N(2789),N(2791),N(2797),N(2801),N(2803),N(2819),N(2833),N(2837),N(2843),N(2851),N(2857),N(2861),N(2879),N(2887),N(2897),N(2903),N(2909),N(2917),N(2927),N(2939),N(2953),N(2957),N(2963),N(2969),N(2971),N(2999),N(3001),N(3011),N(3019),N(3023),N(3037),N(3041),N(3049),N(3061),N(3067),N(3079),N(3083),N(3089),N(3109),N(3119),N(3121),N(3137),N(3163),N(3167),N(3169),N(3181),N(3187),N(3191),N(3203),N(3209),N(3217),N(3221),N(3229),N(3251),N(3253),N(3257),N(3259),N(3271),N(3299),N(3301),N(3307),N(3313),N(3319),N(3323),N(3329),N(3331),N(3343),N(3347),N(3359),N(3361),N(3371),N(3373),N(3389),N(3391),N(3407),N(3413),N(3433),N(3449),N(3457),N(3461),N(3463),N(3467),N(3469),N(3491),N(3499),N(3511),N(3517),N(3527),N(3529),N(3533),N(3539),N(3541),N(3547),N(3557),N(3559),N(3571),N(3581),N(3583),N(3593),N(3607),N(3613),N(3617),N(3623),N(3631),N(3637),N(3643),N(3659),N(3671),N(3673),N(3677),N(3691),N(3697),N(3701),N(3709),N(3719),N(3727),N(3733),N(3739),N(3761),N(3767),N(3769),N(3779),N(3793),N(3797),N(3803),N(3821),N(3823),N(3833),N(3847),N(3851),N(3853),N(3863),N(3877),N(3881),N(3889),N(3907),N(3911),N(3917),N(3919),N(3923),N(3929),N(3931),N(3943),N(3947),N(3967),N(3989),N(4001),N(4003),N(4007),N(4013),N(4019),N(4021),N(4027),N(4049),N(4051),N(4057),N(4073),N(4079),N(4091),N(4093),N(4099),N(4111),N(4127),N(4129),N(4133),N(4139),N(4153),N(4157),N(4159),N(4177),N(4201),N(4211),N(4217),N(4219),N(4229),N(4231),N(4241),N(4243),N(4253),N(4259),N(4261),N(4271),N(4273),N(4283),N(4289),N(4297),N(4327),N(4337),N(4339),N(4349),N(4357),N(4363),N(4373),N(4391),N(4397),N(4409),N(4421),N(4423),N(4441),N(4447),N(4451),N(4457),N(4463),N(4481),N(4483),N(4493),N(4507),N(4513),N(4517),N(4519),N(4523),N(4547),N(4549),N(4561),N(4567),N(4583),N(4591),N(4597),N(4603),N(4621),N(4637),N(4639),N(4643),N(4649),N(4651),N(4657),N(4663),N(4673),N(4679),N(4691),N(4703),N(4721),N(4723),N(4729),N(4733),N(4751),N(4759),N(4783),N(4787),N(4789),N(4793),N(4799),N(4801),N(4813),N(4817),N(4831),N(4861),N(4871),N(4877),N(4889),N(4903),N(4909),N(4919),N(4931),N(4933),N(4937),N(4943),N(4951),N(4957),N(4967),N(4969),N(4973),N(4987),N(4993),N(4999),N(5003),N(5009),N(5011),N(5021),N(5023),N(5039),N(5051),N(5059),N(5077),N(5081),N(5087),N(5099),N(5101),N(5107),N(5113),N(5119),N(5147),N(5153),N(5167),N(5171),N(5179),N(5189),N(5197),N(5209),N(5227),N(5231),N(5233),N(5237),N(5261),N(5273),N(5279),N(5281),N(5297),N(5303),N(5309),N(5323),N(5333),N(5347),N(5351),N(5381),N(5387),N(5393),N(5399),N(5407),N(5413),N(5417),N(5419),N(5431),N(5437),N(5441),N(5443),N(5449),N(5471),N(5477),N(5479),N(5483),N(5501),N(5503),N(5507),N(5519),N(5521),N(5527),N(5531),N(5557),N(5563),N(5569),N(5573),N(5581),N(5591),N(5623),N(5639),N(5641),N(5647),N(5651),N(5653),N(5657),N(5659),N(5669),N(5683),N(5689),N(5693),N(5701),N(5711),N(5717),N(5737),N(5741),N(5743),N(5749),N(5779),N(5783),N(5791),N(5801),N(5807),N(5813),N(5821),N(5827),N(5839),N(5843),N(5849),N(5851),N(5857),N(5861),N(5867),N(5869),N(5879),N(5881),N(5897),N(5903),N(5923),N(5927),N(5939),N(5953),N(5981),N(5987),N(6007),N(6011),N(6029),N(6037),N(6043),N(6047),N(6053),N(6067),N(6073),N(6079),N(6089),N(6091),N(6101),N(6113),N(6121),N(6131),N(6133),N(6143),N(6151),N(6163),N(6173),N(6197),N(6199),N(6203),N(6211),N(6217),N(6221),N(6229),N(6247),N(6257),N(6263),N(6269),N(6271),N(6277),N(6287),N(6299),N(6301),N(6311),N(6317),N(6323),N(6329),N(6337),N(6343),N(6353),N(6359),N(6361),N(6367),N(6373),N(6379),N(6389),N(6397),N(6421),N(6427),N(6449),N(6451),N(6469),N(6473),N(6481),N(6491),N(6521),N(6529),N(6547),N(6551),N(6553),N(6563),N(6569),N(6571),N(6577),N(6581),N(6599),N(6607),N(6619),N(6637),N(6653),N(6659),N(6661),N(6673),N(6679),N(6689),N(6691),N(6701),N(6703),N(6709),N(6719),N(6733),N(6737),N(6761),N(6763),N(6779),N(6781),N(6791),N(6793),N(6803),N(6823),N(6827),N(6829),N(6833),N(6841),N(6857),N(6863),N(6869),N(6871),N(6883),N(6899),N(6907),N(6911),N(6917),N(6947),N(6949),N(6959),N(6961),N(6967),N(6971),N(6977),N(6983),N(6991),N(6997),N(7001),N(7013),N(7019),N(7027),N(7039),N(7043),N(7057),N(7069),N(7079),N(7103),N(7109),N(7121),N(7127),N(7129),N(7151),N(7159),N(7177),N(7187),N(7193),N(7207),N(7211),N(7213),N(7219),N(7229),N(7237),N(7243),N(7247),N(7253),N(7283),N(7297),N(7307),N(7309),N(7321),N(7331),N(7333),N(7349),N(7351),N(7369),N(7393),N(7411),N(7417),N(7433),N(7451),N(7457),N(7459),N(7477),N(7481),N(7487),N(7489),N(7499),N(7507),N(7517),N(7523),N(7529),N(7537),N(7541),N(7547),N(7549),N(7559),N(7561),N(7573),N(7577),N(7583),N(7589),N(7591),N(7603),N(7607),N(7621),N(7639),N(7643),N(7649),N(7669),N(7673),N(7681),N(7687),N(7691),N(7699),N(7703),N(7717),N(7723),N(7727),N(7741),N(7753),N(7757),N(7759),N(7789),N(7793),N(7817),N(7823),N(7829),N(7841),N(7853),N(7867),N(7873),N(7877),N(7879),N(7883),N(7901),N(7907),N(7919),N(7927),N(7933),N(7937),N(7949),N(7951),N(7963),N(7993),N(8009),N(8011),N(8017),N(8039),N(8053),N(8059),N(8069),N(8081),N(8087),N(8089),N(8093),N(8101),N(8111),N(8117),N(8123),N(8147),N(8161),N(8167),N(8171),N(8179),N(8191),N(8209),N(8219),N(8221),N(8231),N(8233),N(8237),N(8243),N(8263),N(8269),N(8273),N(8287),N(8291),N(8293),N(8297),N(8311),N(8317),N(8329),N(8353),N(8363),N(8369),N(8377),N(8387),N(8389),N(8419),N(8423),N(8429),N(8431),N(8443),N(8447),N(8461),N(8467),N(8501),N(8513),N(8521),N(8527),N(8537),N(8539),N(8543),N(8563),N(8573),N(8581),N(8597),N(8599),N(8609),N(8623),N(8627),N(8629),N(8641),N(8647),N(8663),N(8669),N(8677),N(8681),N(8689),N(8693),N(8699),N(8707),N(8713),N(8719),N(8731),N(8737),N(8741),N(8747),N(8753),N(8761),N(8779),N(8783),N(8803),N(8807),N(8819),N(8821),N(8831),N(8837),N(8839),N(8849),N(8861),N(8863),N(8867),N(8887),N(8893),N(8923),N(8929),N(8933),N(8941),N(8951),N(8963),N(8969),N(8971),N(8999),N(9001),N(9007),N(9011),N(9013),N(9029),N(9041),N(9043),N(9049),N(9059),N(9067),N(9091),N(9103),N(9109),N(9127),N(9133),N(9137),N(9151),N(9157),N(9161),N(9173),N(9181),N(9187),N(9199),N(9203),N(9209),N(9221),N(9227),N(9239),N(9241),N(9257),N(9277),N(9281),N(9283),N(9293),N(9311),N(9319),N(9323),N(9337),N(9341),N(9343),N(9349),N(9371),N(9377),N(9391),N(9397),N(9403),N(9413),N(9419),N(9421),N(9431),N(9433),N(9437),N(9439),N(9461),N(9463),N(9467),N(9473),N(9479),N(9491),N(9497),N(9511),N(9521),N(9533),N(9539),N(9547),N(9551),N(9587),N(9601),N(9613),N(9619),N(9623),N(9629),N(9631),N(9643),N(9649),N(9661),N(9677),N(9679),N(9689),N(9697),N(9719),N(9721),N(9733),N(9739),N(9743),N(9749),N(9767),N(9769),N(9781),N(9787),N(9791),N(9803),N(9811),N(9817),N(9829),N(9833),N(9839),N(9851),N(9857),N(9859),N(9871),N(9883),N(9887),N(9901),N(9907),N(9923),N(9929),N(9931),N(9941),N(9949),N(9967),N(9973),N(10007),N(10009),N(10037),N(10039),N(10061),N(10067),N(10069),N(10079),N(10091),N(10093),N(10099),N(10103),N(10111),N(10133),N(10139),N(10141),N(10151),N(10159),N(10163),N(10169),N(10177),N(10181),N(10193),N(10211),N(10223),N(10243),N(10247),N(10253),N(10259),N(10267),N(10271),N(10273),N(10289),N(10301),N(10303),N(10313),N(10321),N(10331),N(10333),N(10337),N(10343),N(10357),N(10369),N(10391),N(10399),N(10427),N(10429),N(10433),N(10453),N(10457),N(10459),N(10463),N(10477),N(10487),N(10499),N(10501),N(10513),N(10529),N(10531),N(10559),N(10567),N(10589),N(10597),N(10601),N(10607),N(10613),N(10627),N(10631),N(10639),N(10651),N(10657),N(10663),N(10667),N(10687),N(10691),N(10709),N(10711),N(10723),N(10729),N(10733),N(10739),N(10753),N(10771),N(10781),N(10789),N(10799),N(10831),N(10837),N(10847),N(10853),N(10859),N(10861),N(10867),N(10883),N(10889),N(10891),N(10903),N(10909),N(10937),N(10939),N(10949),N(10957),N(10973),N(10979),N(10987),N(10993),N(11003),N(11027),N(11047),N(11057),N(11059),N(11069),N(11071),N(11083),N(11087),N(11093),N(11113),N(11117),N(11119),N(11131),N(11149),N(11159),N(11161),N(11171),N(11173),N(11177),N(11197),N(11213),N(11239),N(11243),N(11251),N(11257),N(11261),N(11273),N(11279),N(11287),N(11299),N(11311),N(11317),N(11321),N(11329),N(11351),N(11353),N(11369),N(11383),N(11393),N(11399),N(11411),N(11423),N(11437),N(11443),N(11447),N(11467),N(11471),N(11483),N(11489),N(11491),N(11497),N(11503),N(11519),N(11527),N(11549),N(11551),N(11579),N(11587),N(11593),N(11597),N(11617),N(11621),N(11633),N(11657),N(11677),N(11681),N(11689),N(11699),N(11701),N(11717),N(11719),N(11731),N(11743),N(11777),N(11779),N(11783),N(11789),N(11801),N(11807),N(11813),N(11821),N(11827),N(11831),N(11833),N(11839),N(11863),N(11867),N(11887),N(11897),N(11903),N(11909),N(11923),N(11927),N(11933),N(11939),N(11941),N(11953),N(11959),N(11969),N(11971),N(11981),N(11987),N(12007),N(12011),N(12037),N(12041),N(12043),N(12049),N(12071),N(12073),N(12097),N(12101),N(12107),N(12109),N(12113),N(12119),N(12143),N(12149),N(12157),N(12161),N(12163),N(12197),N(12203),N(12211),N(12227),N(12239),N(12241),N(12251),N(12253),N(12263),N(12269),N(12277),N(12281),N(12289),N(12301),N(12323),N(12329),N(12343),N(12347),N(12373),N(12377),N(12379),N(12391),N(12401),N(12409),N(12413),N(12421),N(12433),N(12437),N(12451),N(12457),N(12473),N(12479),N(12487),N(12491),N(12497),N(12503),N(12511),N(12517),N(12527),N(12539),N(12541),N(12547),N(12553),N(12569),N(12577),N(12583),N(12589),N(12601),N(12611),N(12613),N(12619),N(12637),N(12641),N(12647),N(12653),N(12659),N(12671),N(12689),N(12697),N(12703),N(12713),N(12721),N(12739),N(12743),N(12757),N(12763),N(12781),N(12791),N(12799),N(12809),N(12821),N(12823),N(12829),N(12841),N(12853),N(12889),N(12893),N(12899),N(12907),N(12911),N(12917),N(12919),N(12923),N(12941),N(12953),N(12959),N(12967),N(12973),N(12979),N(12983),N(13001),N(13003),N(13007),N(13009),N(13033),N(13037),N(13043),N(13049),N(13063),N(13093),N(13099),N(13103),N(13109),N(13121),N(13127),N(13147),N(13151),N(13159),N(13163),N(13171),N(13177),N(13183),N(13187),N(13217),N(13219),N(13229),N(13241),N(13249),N(13259),N(13267),N(13291),N(13297),N(13309),N(13313),N(13327),N(13331),N(13337),N(13339),N(13367),N(13381),N(13397),N(13399),N(13411),N(13417),N(13421),N(13441),N(13451),N(13457),N(13463),N(13469),N(13477),N(13487),N(13499),N(13513),N(13523),N(13537),N(13553),N(13567),N(13577),N(13591),N(13597),N(13613),N(13619),N(13627),N(13633),N(13649),N(13669),N(13679),N(13681),N(13687),N(13691),N(13693),N(13697),N(13709),N(13711),N(13721),N(13723),N(13729),N(13751),N(13757),N(13759),N(13763),N(13781),N(13789),N(13799),N(13807),N(13829),N(13831),N(13841),N(13859),N(13873),N(13877),N(13879),N(13883),N(13901),N(13903),N(13907),N(13913),N(13921),N(13931),N(13933),N(13963),N(13967),N(13997),N(13999),N(14009),N(14011),N(14029),N(14033),N(14051),N(14057),N(14071),N(14081),N(14083),N(14087),N(14107),N(14143),N(14149),N(14153),N(14159),N(14173),N(14177),N(14197),N(14207),N(14221),N(14243),N(14249),N(14251),N(14281),N(14293),N(14303),N(14321),N(14323),N(14327),N(14341),N(14347),N(14369),N(14387),N(14389),N(14401),N(14407),N(14411),N(14419),N(14423),N(14431),N(14437),N(14447),N(14449),N(14461),N(14479),N(14489),N(14503),N(14519),N(14533),N(14537),N(14543),N(14549),N(14551),N(14557),N(14561),N(14563),N(14591),N(14593),N(14621),N(14627),N(14629),N(14633),N(14639),N(14653),N(14657),N(14669),N(14683),N(14699),N(14713),N(14717),N(14723),N(14731),N(14737),N(14741),N(14747),N(14753),N(14759),N(14767),N(14771),N(14779),N(14783),N(14797),N(14813),N(14821),N(14827),N(14831),N(14843),N(14851),N(14867),N(14869),N(14879),N(14887),N(14891),N(14897),N(14923),N(14929),N(14939),N(14947),N(14951),N(14957),N(14969),N(14983),N(15013),N(15017),N(15031),N(15053),N(15061),N(15073),N(15077),N(15083),N(15091),N(15101),N(15107),N(15121),N(15131),N(15137),N(15139),N(15149),N(15161),N(15173),N(15187),N(15193),N(15199),N(15217),N(15227),N(15233),N(15241),N(15259),N(15263),N(15269),N(15271),N(15277),N(15287),N(15289),N(15299),N(15307),N(15313),N(15319),N(15329),N(15331),N(15349),N(15359),N(15361),N(15373),N(15377),N(15383),N(15391),N(15401),N(15413),N(15427),N(15439),N(15443),N(15451),N(15461),N(15467),N(15473),N(15493),N(15497),N(15511),N(15527),N(15541),N(15551),N(15559),N(15569),N(15581),N(15583),N(15601),N(15607),N(15619),N(15629),N(15641),N(15643),N(15647),N(15649),N(15661),N(15667),N(15671),N(15679),N(15683),N(15727),N(15731),N(15733),N(15737),N(15739),N(15749),N(15761),N(15767),N(15773),N(15787),N(15791),N(15797),N(15803),N(15809),N(15817),N(15823),N(15859),N(15877),N(15881),N(15887),N(15889),N(15901),N(15907),N(15913),N(15919),N(15923),N(15937),N(15959),N(15971),N(15973),N(15991),N(16001),N(16007),N(16033),N(16057),N(16061),N(16063),N(16067),N(16069),N(16073),N(16087),N(16091),N(16097),N(16103),N(16111),N(16127),N(16139),N(16141),N(16183),N(16187),N(16189),N(16193),N(16217),N(16223),N(16229),N(16231),N(16249),N(16253),N(16267),N(16273),N(16301),N(16319),N(16333),N(16339),N(16349),N(16361),N(16363),N(16369),N(16381),N(16411),N(16417),N(16421),N(16427),N(16433),N(16447),N(16451),N(16453),N(16477),N(16481),N(16487),N(16493),N(16519),N(16529),N(16547),N(16553),N(16561),N(16567),N(16573),N(16603),N(16607),N(16619),N(16631),N(16633),N(16649),N(16651),N(16657),N(16661),N(16673),N(16691),N(16693),N(16699),N(16703),N(16729),N(16741),N(16747),N(16759),N(16763),N(16787),N(16811),N(16823),N(16829),N(16831),N(16843),N(16871),N(16879),N(16883),N(16889),N(16901),N(16903),N(16921),N(16927),N(16931),N(16937),N(16943),N(16963),N(16979),N(16981),N(16987),N(16993),N(17011),N(17021),N(17027),N(17029),N(17033),N(17041),N(17047),N(17053),N(17077),N(17093),N(17099),N(17107),N(17117),N(17123),N(17137),N(17159),N(17167),N(17183),N(17189),N(17191),N(17203),N(17207),N(17209),N(17231),N(17239),N(17257),N(17291),N(17293),N(17299),N(17317),N(17321),N(17327),N(17333),N(17341),N(17351),N(17359),N(17377),N(17383),N(17387),N(17389)];
+    }
+    return small_primes.list;
+}
 update.push(function() {
-    small_primes = [__(2),__(3),__(5),__(7),__(11),__(13),__(17),__(19),__(23),__(29),__(31),__(37),__(41),__(43),__(47),__(53),__(59),__(61),__(67),__(71),__(73),__(79),__(83),__(89),__(97),__(101),__(103),__(107),__(109)];
+    small_primes.list = null;
 });
 
 function trial_div_fac(n, maxlimit)
 {
     // adapted from https://github.com/foo123/Abacus
-    var factors = [], n0 = n, i, l, p, p2;
+    var factors = [], primes = small_primes(), n0 = n, i, l, p, p2;
 
-    for (i=0,l=small_primes.length; i<l; ++i)
+    for (i=0,l=primes.length; i<l; ++i)
     {
-        p = small_primes[i];
+        p = primes[i];
         if (n_eq(n0, p)) return [p];
 
         p2 = n_mul(p, p);
@@ -11733,6 +14527,8 @@ fn.randperm = function(n) {
 function next_perm(item)
 {
     // adapted from https://github.com/foo123/Abacus
+    if (!item.length) return null;
+
     // LEX
     var n = item.length,
         k, kl, s, l, r,
@@ -11741,19 +14537,13 @@ function next_perm(item)
         a = 1, b = 0,
         da = 1, db = 0;
 
-    //Find the largest index k such that a[k] < a[k + 1].
-    // taking into account equal elements, generates multiset permutations
     k = k0-DK;
     while ((MIN <= k) && (k <= MAX) && (a*item[k] >= a*item[k+DK])) k -= DK;
-    // If no such index exists, the permutation is the last permutation.
     if ((MIN <= k) && (k <= MAX))
     {
-        //Find the largest index kl greater than k such that a[k] < a[kl].
         kl = k0;
         while ((MIN <= kl) && (kl <= MAX) && (DK*(kl-k) > 0) && (a*item[k] >= a*item[kl])) kl -= DK;
-        //Swap the value of a[k] with that of a[l].
         s = item[k]; item[k] = item[kl]; item[kl] = s;
-        //Reverse the sequence from a[k + 1] up to and including the final element a[n].
         l = k+DK; r = k0;
         while ((MIN <= l) && (l <= MAX) && (MIN <= r) && (r <= MAX) && (DK*(r-l) > 0))
         {
@@ -11761,7 +14551,6 @@ function next_perm(item)
             l += DK; r -= DK;
         }
     }
-    //else last item
     else item = null;
 
     return item;
@@ -11770,18 +14559,79 @@ function perms(v)
 {
     // adapted from https://github.com/foo123/Abacus
     v = vec(v);
-    if (!is_vector(v)) not_supported("perms");
+    if (!is_1d(v)) not_supported("perms");
     var n = v.length,
         perm = array(n, function(i) {return i;}),
         ans = [];
     while (perm && perm.length)
     {
-        ans.push(perm.map(function(i) {return v[i];}));
+        ans.unshift(perm.map(function(i) {return v[i];})); // revlex order
         perm = next_perm(perm);
     }
+    if (v.$scilitecell$) ans = cellarray(ans, [ans.length]);
     return ans;
 }
-fn.perms = perms;function next_tensor(item, n)
+fn.perms = perms;function next_comb(item, n, k)
+{
+    // adapted from https://github.com/foo123/Abacus
+    var i, j, index, curr, i0, DI, MIN, MAX, a, b, da, db, inc;
+
+    if ((0 > n) || (0 > k) || !item.length) return null;
+
+    // LEX
+    MIN = 0; MAX = k-1;
+    DI = 1; i0 = MAX;
+    a = 1; b = 0;
+    da = 1; db = 0;
+    inc = 1;
+
+    for (index=-1,j=n-k,i=i0; (MIN<=i) && (i<=MAX); i-=DI)
+        if (item[i] < j+da*i+db) {index = i; break;}
+
+    if ((MIN <= index) && (index <= MAX))
+    {
+        curr = item[index]+1;
+        j = n-k+da*index+db;
+        if (curr === j)
+        {
+            item[index] = curr;
+        }
+        else if (curr < j)
+        {
+            for (i=index; (MIN<=i) && (i<=MAX); i+=DI) {item[i] = curr; curr += inc;}
+        }
+    }
+    else item = null;
+
+    return item;
+}
+function nchoosek(n, k)
+{
+    // adapted from https://github.com/foo123/Abacus
+    var v = is_array(n) ? vec(n) : null, comb, ans;
+    if (!is_scalar(k) || (!is_scalar(n) && !is_1d(v))) not_supported("nchoosek");
+    if (is_scalar(n))
+    {
+        // return binomial coefficient
+        return binom(n, k);
+    }
+    // return all choices of k items from n items
+    ans = [];
+    k = stdMath.round(_(real(k)));
+    n = v.length;
+    if ((0 <= k) && (k <= n))
+    {
+        comb = array(k, function(i) {return i;});
+        while (comb)
+        {
+            ans.push(comb.map(function(i) {return v[i];}));
+            comb = next_comb(comb, n, k);
+        }
+    }
+    if (v.$scilitecell$) ans = cellarray(ans, [ans.length]);
+    return ans;
+}
+fn.nchoosek = nchoosek;function next_tensor(item, n)
 {
     // adapted from https://github.com/foo123/Abacus
     var k = n.length, i, j, i0, i1, DI, a, b, MIN, MAX;
@@ -11818,115 +14668,7 @@ function combinations(A)
 }
 fn.combinations = function() {
     return combinations(arguments);
-};fn.string = function string(x) {
-    if (is_array(x))
-    {
-        return x.map(string);
-    }
-    if (is_string(x))
-    {
-        return x;
-    }
-    return String(x);
-};
-fn.strlength = function(str) {
-    if (is_string(str))
-    {
-        return str.length;
-    }
-    not_supported("strlength");
-};
-fn['char'] = function tochar(x) {
-    x = vec(x);
-    if (is_array(x))
-    {
-        return x.map(tochar);
-    }
-    if (is_string(x))
-    {
-        return x.split('');
-    }
-    if (is_int(x))
-    {
-        return String.fromCharCode(_(x));
-    }
-    return String(x);
-};
-fn.lower = fn.tolower = function tolower(x) {
-    if (is_array(x))
-    {
-        return x.map(tolower);
-    }
-    else if (is_string(x))
-    {
-        return x.toLowerCase();
-    }
-    return x;
-};
-fn.upper = fn.toupper = function toupper(x) {
-    if (is_array(x))
-    {
-        return x.map(toupper);
-    }
-    else if (is_string(x))
-    {
-        return x.toUpperCase();
-    }
-    return x;
-};
-fn.dec2bin = function dec2bin(x) {
-    if (is_array(x))
-    {
-        return x.map(dec2bin);
-    }
-    else if (is_number(x))
-    {
-        return x.toString(2);
-    }
-    else if (is_decimal(x))
-    {
-        return x.toBinary();
-    }
-    return x;
-};
-fn.bin2dec = function bin2dec(x) {
-    if (is_array(x))
-    {
-        return x.map(bin2dec);
-    }
-    else if (is_string(x))
-    {
-        return parseInt(x, 2);
-    }
-    return x;
-};
-fn.dec2hex = function dec2hex(x) {
-    if (is_array(x))
-    {
-        return x.map(dec2hex);
-    }
-    else if (is_number(x))
-    {
-        return x.toString(16);
-    }
-    else if (is_decimal(x))
-    {
-        return x.toHexadecimal();
-    }
-    return x;
-};
-fn.hex2dec = function hex2dec(x) {
-    if (is_array(x))
-    {
-        return x.map(hex2dec);
-    }
-    else if (is_string(x))
-    {
-        return parseInt(x, 16);
-    }
-    return x;
-};
-// interpreter
+};// interpreter
 function TRUE(x)
 {
     if (is_string(x))
@@ -11981,7 +14723,7 @@ var OP = {
     ,commutativity: NONCOMMUTATIVE
     ,priority     : 0
     ,fn           : function(/*args..*/) {
-                        var arr = [], row = [], cols = null;
+                        var arr = [], row = [], cols = null, dtype = null;
                         [].forEach.call(arguments, function(arg) {
                             if (',' === arg)
                             {
@@ -12008,13 +14750,23 @@ var OP = {
                             }
                             else
                             {
+                                if (null == dtype)
+                                {
+                                    dtype = data_type(arg);
+                                    if ('' === dtype) throw "array with incompatible data types";
+                                }
+                                else if (dtype !== data_type(arg))
+                                {
+                                    throw "array with incompatible data types";
+                                }
                                 if (is_instance(arg, variable))
                                 {
                                     row.push(arg);
                                 }
                                 else if (is_array(arg))
                                 {
-                                    row = row.length ? cat_horz(row, arg) : arg;
+                                    // pass array by value
+                                    row = row.length ? cat_horz(row, copy(arg)) : copy(arg);
                                 }
                                 else
                                 {
@@ -12376,6 +15128,23 @@ var OP = {
                         return bitor(arg0, arg1);
                     }
     },
+    '(=)': {
+     name         : 'set-name-value'
+    ,arity        : 2
+    ,fixity       : INFIX
+    ,associativity: LEFT
+    ,commutativity: NONCOMMUTATIVE
+    ,priority     : 45
+    ,fn           : function(nv, name, value) {
+                        if (is_instance(nv, namevalue) && is_string(name))
+                        {
+                            // if nv already has name, create new one
+                            if (nv.has(name)) nv = namevalue();
+                            nv.set(name, value);
+                        }
+                        return nv;
+                    }
+    },
     '=': {
      name         : 'set'
     ,breakpoint   : 'set'
@@ -12404,6 +15173,10 @@ var OP = {
                             vars.$scilitevarargout$ = true;
                             return vars;
                         }
+                        else if (is_instance(arg1, variable))
+                        {
+                            return await set_var(arg0, await arg1.get('ref'));
+                        }
                         else
                         {
                             // set whole array as one variable, do not assume de-structuring
@@ -12422,32 +15195,35 @@ async function set_var($var, $val)
     return await $var.get(true);
 }
 
-async function if_end($arg, v, $)
+async function if_end($arg, v, $$)
 {
-    var i, j, k, n, statements, res, ans = null;
-    if (TRUE(await vale($arg['if'].cond, v, $)))
+    var i, j, k, n, statements, echoed = [], ans = null;
+    echoed.$scilitevarargout$ = true;
+    if (TRUE(await vale($arg['if'].cond, v, $$)))
     {
         statements = $arg['if'].statements;
         for (i=0,n=statements.length; i<n; ++i)
         {
-            res = await vale(statements[i], v, $);
-            if (null != res) ans = res;
+            ans = await vale(statements[i], v, $$, null, echoed);
+            if (/*null != ans*/ $$ && $$.ctx) $$.ctx.ans = ans;
+            if ((1 < echoed.length) && is_array(echoed[echoed.length-1]) && (echoed[echoed.length-1] === echoed[echoed.length-2])) echoed.pop();
         }
-        return ans;
+        return echoed;
     }
     if ($arg['elseif'].length)
     {
         for (j=0,k=$arg['elseif'].length; j<k; ++j)
         {
-            if (TRUE(await vale($arg['elseif'][j].cond, v, $)))
+            if (TRUE(await vale($arg['elseif'][j].cond, v, $$)))
             {
                 statements = $arg['elseif'][j].statements;
                 for (i=0,n=statements.length; i<n; ++i)
                 {
-                    res = await vale(statements[i], v, $);
-                    if (null != res) ans = res;
+                    ans = await vale(statements[i], v, $$, null, echoed);
+                    if (/*null != ans*/ $$ && $$.ctx) $$.ctx.ans = ans;
+                    if ((1 < echoed.length) && is_array(echoed[echoed.length-1]) && (echoed[echoed.length-1] === echoed[echoed.length-2])) echoed.pop();
                 }
-                return ans;
+                return echoed;
             }
         }
     }
@@ -12456,29 +15232,31 @@ async function if_end($arg, v, $)
         statements = $arg['else'].statements;
         for (i=0,n=statements.length; i<n; ++i)
         {
-            res = await vale(statements[i], v, $);
-            if (null != res) ans = res;
+            ans = await vale(statements[i], v, $$, null, echoed);
+            if (/*null != ans*/ $$ && $$.ctx) $$.ctx.ans = ans;
+            if ((1 < echoed.length) && is_array(echoed[echoed.length-1]) && (echoed[echoed.length-1] === echoed[echoed.length-2])) echoed.pop();
         }
-        return ans;
+        return echoed;
     }
 }
 
-async function for_end($arg, v, $)
+async function for_end($arg, v, $$)
 {
-    var i, n, j, k, res, ans = [],
+    var i, n, j, k, ans, echoed = [],
         brk, is_break = false,
         cont, is_continue = false,
-        values = await vale($arg.val, v, $),
+        values = await vale($arg.val, v, $$),
         values_is_2d = false, sz,
         statements = $arg.statements;
-    ans.$scilitevarargout$ = true;
+    echoed.$scilitevarargout$ = true;
     if (is_array(values))
     {
-        $ = $ || {};
-        brk = $.brk;
-        cont = $.cont;
-        $.brk = function() {is_break = true;};
-        $.cont = function() {is_continue = true;};
+        $$ = $$ || {};
+        //$$.ctx = $$.ctx || {ans:null};
+        brk = $$.brk;
+        cont = $$.cont;
+        $$.brk = function() {is_break = true;};
+        $$.cont = function() {is_continue = true;};
         values = vec(values);
         values_is_2d = is_2d(values);
         if (values_is_2d)
@@ -12487,6 +15265,7 @@ async function for_end($arg, v, $)
             // reshape nd-array to 2d-array by columns
             if (2 < sz.length) values = reshape(values, [sz[0], prod(sz.slice(1))]);
         }
+        if ($$.ctx) $arg.ind.new_ctx($$.ctx);
         for (j=0,k=values_is_2d?COLS(values):(values.length); j<k; ++j)
         {
             is_break = false;
@@ -12494,73 +15273,198 @@ async function for_end($arg, v, $)
             await $arg.ind.set(values_is_2d ? vec2col(COL(values, j)) : values[j]);
             for (i=0,n=statements.length; i<n; ++i)
             {
-                res = await vale(statements[i], v, $);
+                ans = await vale(statements[i], v, $$, null, echoed);
                 if (is_break || is_continue) break;
-                if (null != res) ans.push(res);
+                if (/*null != ans*/ $$.ctx) $$.ctx.ans = ans;
+                if ((1 < echoed.length) && is_array(echoed[echoed.length-1]) && (echoed[echoed.length-1] === echoed[echoed.length-2])) echoed.pop();
             }
             if (is_break) break;
             else if (is_continue) continue;
         }
-        $.brk = brk;
-        $.cont = cont;
+        if ($$.ctx) $arg.ind.new_ctx(false);
+        $$.brk = brk;
+        $$.cont = cont;
     }
-    return ans;
+    return echoed;
 }
 
-async function while_end($arg, v, $)
+async function while_end($arg, v, $$)
 {
-    var i, n, res, ans = [],
+    var i, n, ans, echoed = [],
         brk, is_break = false,
         cont, is_continue = false,
         statements = $arg.statements;
-    ans.$scilitevarargout$ = true;
-    $ = $ || {};
-    brk = $.brk;
-    cont = $.cont;
-    $.brk = function() {is_break = true;};
-    $.cont = function() {is_continue = true;};
-    while (TRUE(await vale($arg.cond, v, $)))
+    echoed.$scilitevarargout$ = true;
+    $$ = $$ || {};
+    //$$.ctx = $$.ctx || {ans:null};
+    brk = $$.brk;
+    cont = $$.cont;
+    $$.brk = function() {is_break = true;};
+    $$.cont = function() {is_continue = true;};
+    while (TRUE(await vale($arg.cond, v, $$)))
     {
         is_break = false;
         is_continue = false;
         for (i=0,n=statements.length; i<n; ++i)
         {
-            res = await vale(statements[i], v, $);
+            ans = await vale(statements[i], v, $$, null, echoed);
             if (is_break || is_continue) break;
-            if (null != res) ans.push(res);
+            if (/*null != ans*/ $$.ctx) $$.ctx.ans = ans;
+            if ((1 < echoed.length) && is_array(echoed[echoed.length-1]) && (echoed[echoed.length-1] === echoed[echoed.length-2])) echoed.pop();
         }
         if (is_break) break;
         else if (is_continue) continue;
     }
-    $.brk = brk;
-    $.cont = cont;
-    return ans;
+    $$.brk = brk;
+    $$.cont = cont;
+    return echoed;
 }
 
 function def_fn(fn_def)
 {
     var fn = varargout(async function(nargout) {
-        var i, nargin = arguments.length-1, argout,
-            $ = {ctx:{ans:null}}, ans;
-        for (i=1; i<=nargin; ++i)
+        var args = [].slice.call(arguments, 1),
+            nargin, argin = fn_def.argin, argout,
+            NameValueDefaults = fn_def.nv,
+            NameValueArgs, NameValueAltArgs, AltBackup,
+            $$ = {ctx:{ans:null}, "@fn":merge({}, (fn_def["@fns"]||[]).concat(fn_def["@fn"]||{}))},
+            is_return = false, ans,
+            i, nexti = -1, a, arg, n;
+
+        if (NameValueDefaults)
         {
-            if ('varargin' === fn_def.argin[i-1])
+            argin = argin.filter(function(arg) {
+                if (('varargin' !== arg) && NameValueDefaults.has(arg))
+                {
+                    // Name=Value default arguments
+                    return false;
+                }
+                return true;
+            });
+            for (i=0,n=args.length; i<n; ++i)
             {
-                $.ctx.varargin = cellarray([].slice.call(arguments, i).map(copy), [arguments.length-i]); // pass by value
+                if (is_instance(args[i], namevalue))
+                {
+                    NameValueArgs = args[i]; // Name=Value args present
+                    break;
+                }
+            }
+            a = args;
+            args = [];
+            for (i=0,n=a.length; i<n; ++i)
+            {
+                arg = a[i];
+                if (i === nexti)
+                {
+                    nexti = -1;
+                    continue;
+                }
+                else if (is_instance(arg, namevalue))
+                {
+                    // Name=Value arguments
+                    /*NameValueArgs = arg;
+                    if (NameValueAltArgs)
+                    {
+                        NameValueArgs.fill(NameValueAltArgs, 'defaults');
+                        NameValueAltArgs = null;
+                    }*/
+                    continue;
+                }
+                else if (!NameValueArgs && is_string(arg) && (i+1 < a.length) && NameValueDefaults.has(arg))
+                {
+                    // older alternative "Name",Value argument pairs
+                    /*if (NameValueArgs)
+                    {
+                        NameValueArgs.set(arg, a[i+1]);
+                    }
+                    else
+                    {*/
+                        if (!NameValueAltArgs)
+                        {
+                            NameValueAltArgs = {};
+                            AltBackup = [];
+                        }
+                        NameValueAltArgs[arg] = a[i+1];
+                        AltBackup.push(arg);
+                        AltBackup.push(a[i+1]);
+                    /*}*/
+                    nexti = i+1;
+                    continue;
+                }
+                if (NameValueAltArgs)
+                {
+                    // "Name",Value argument pairs are not last, push them back
+                    args.push.apply(args, AltBackup);
+                    NameValueAltArgs = null;
+                    AltBackup = null;
+                }
+                args.push(arg);
+            }
+        }
+        AltBackup = null;
+        a = null;
+        /* The value that nargin returns does not include optional input arguments that are not included in the function call.
+        Also, nargin does not count any name-value arguments, but counts varargin args.
+        */
+        nargin = 0;
+        for (i=0; i<argin.length; ++i)
+        {
+            if ('varargin' === argin[i])
+            {
+                // must be last
+                $$.ctx.varargin = args.slice(i).map(copy); // pass by value
+                $$.ctx.varargin = cellarray($$.ctx.varargin, [$$.ctx.varargin.length]);
+                nargin += $$.ctx.varargin.length;
                 break;
+            }
+            else if (i < args.length)
+            {
+                nargin += 1;
+                $$.ctx[argin[i]] = copy(args[i]); // pass by value
             }
             else
             {
-                $.ctx[fn_def.argin[i-1]] = copy(arguments[i]); // pass by value
+                $$.ctx[argin[i]] = null; // not set
             }
         }
-        $.ctx.nargin = nargin;
-        $.ctx.nargout = nargout;
+        if (NameValueDefaults)
+        {
+            // Name=Value arguments
+            if (NameValueAltArgs)
+            {
+                if (NameValueArgs) NameValueArgs.fill(NameValueAltArgs, 'defaults');
+                else NameValueArgs = namevalue(NameValueAltArgs);
+            }
+            await Promise.all(NameValueDefaults.all(
+            ).filter(function(name) {
+                return -1 === ['varargin','varargout','nargin','nargout'].indexOf(name);
+            }).map(async function(name) {
+                return {name:name, value:await vale(NameValueDefaults.get(name), null, {ctx:{}})};
+            })).then(function(defaults) {
+                defaults.forEach(function(arg) {
+                    $$.ctx[arg.name] = NameValueArgs ? copy(NameValueArgs.get(arg.name, arg.value)) : arg.value;
+                });
+            });
+        }
+        $$.retrn = function() {is_return = true;};
+        $$.ctx.nargin = nargin;
+        $$.ctx.nargout = nargout;
         if (fn_def.argout.length && ('varargout' === fn_def.argout[fn_def.argout.length-1]))
         {
-            $.ctx.varargout = cellarray(array(100, null), [100]); // pre-allocate a large array
+            $$.ctx.varargout = cellarray(array(100, null), [100]); // pre-allocate a large array
         }
-        ans = await vale(1 === fn_def.body.length ? fn_def.body[0] : fn_def.body, null, $);
+        if (1 === fn_def.body.length)
+        {
+            ans = await vale(fn_def.body[0], null, $$);
+        }
+        else
+        {
+            for (i=0,n=fn_def.body.length; i<n; ++i)
+            {
+                await vale(fn_def.body[i], null, $$);
+                if (is_return) break;
+            }
+        }
         if (fn_def.argout.length)
         {
             if ('' === fn_def.name)
@@ -12573,11 +15477,11 @@ function def_fn(fn_def)
                 argout = array(nargout, function(i) {
                     if (('varargout' === fn_def.argout[fn_def.argout.length-1]) && (i >= fn_def.argout.length-1))
                     {
-                        return $.ctx.varargout[i-(fn_def.argout.length-1)];
+                        return $$.ctx.varargout[i-(fn_def.argout.length-1)];
                     }
                     else
                     {
-                        return (i < fn_def.argout.length) && HAS.call($.ctx, fn_def.argout[i]) ? $.ctx[fn_def.argout[i]] : null;
+                        return (i < fn_def.argout.length) && HAS.call($$.ctx, fn_def.argout[i]) ? $$.ctx[fn_def.argout[i]] : null;
                     }
                 });
             }
@@ -12590,15 +15494,14 @@ function def_fn(fn_def)
     return fn;
 }
 
-function variable(ctx, v, i, b)
-{
+variable = function(ctx, v, i, b) {
     var self = this;
     if (!is_instance(self, variable)) return new variable(ctx, v, i, b);
     self.ctx = ctx; // current context
     self.v = v; // variable name or value
     self.i = i; // any indexing applied
     self.b = b || '()'; // type of bracket indexing
-}
+};
 variable.prototype = {
     constructor: variable,
     ctx: null,
@@ -12606,6 +15509,7 @@ variable.prototype = {
     v: null,
     i: null,
     b: null,
+    ln: null,
     new_ctx: function(new_ctx) {
         var self = this;
         if (new_ctx)
@@ -12613,14 +15517,14 @@ variable.prototype = {
             self._ctx = self.ctx;
             self.ctx = new_ctx;
         }
-        else
+        else if (self._ctx)
         {
             self.ctx = self._ctx;
             self._ctx = null;
         }
         return self;
     },
-    get: async function(orig) {
+    get: function(type) {
         var self = this, val, s, i;
         if ('' === self.v)
         {
@@ -12628,7 +15532,7 @@ variable.prototype = {
         }
         else if (is_instance(self.v, expr))
         {
-            val = await vale(self.v);
+            val = vale(self.v, null, {ctx:self.ctx});
         }
         else if (is_array(self.v))
         {
@@ -12638,22 +15542,18 @@ variable.prototype = {
         {
             if (!HAS.call(self.ctx, self.v) && !HAS.call(constant, self.v))
             {
-                throw 'undefined variable "'+self.v+'"';
+                throw 'undefined variable "'+self.v+'"' + (self.ln ? "\nat: " + self.ln : "");
             }
             val = HAS.call(self.ctx, self.v) ? self.ctx[self.v] : constant[self.v];
         }
-        if ((true !== orig) && (null != self.i) && is_array(val))
+        if ((true !== type) && (null != self.i))
         {
-            s = size(val);
-            i = await Promise.all(self.i.map(function(ind, i) {
-                return vale(ind, {end:1 === self.i.length ? prod(s) : s[i]});
-            }));
-            val = get.apply(get, [val, !s[0] || is_cell(val) ? self.b : '()'].concat(i));
+            return is_instance(val, Promise) ? val.then(function(val) {return get_val(self, val, 'ref' === type);}) : get_val(self, val, 'ref' === type);
         }
         return val;
     },
     set: async function(value) {
-        var self = this, val, s, i;
+        var self = this, val, s, i, iscell, dtype, dtypev;
         if ('' === self.v)
         {
             return self; // dummy variable, ignored
@@ -12662,7 +15562,7 @@ variable.prototype = {
         {
             if (is_instance(self.v, expr))
             {
-                val = await vale(self.v);
+                val = await vale(self.v, null, {ctx:self.ctx});
                 s = size(val);
             }
             else if (is_array(self.v))
@@ -12674,7 +15574,6 @@ variable.prototype = {
             {
                 if (!HAS.call(self.ctx, self.v))
                 {
-                    //throw 'undefined variable "'+self.v+'"';
                     val = self.ctx[self.v] = []; // dummy empty array
                     s = [0, 0];
                 }
@@ -12686,18 +15585,36 @@ variable.prototype = {
             }
             if (is_array(val))
             {
+                iscell = is_cell(val);
                 i = await Promise.all(self.i.map(function(ind, i) {
-                    return vale(ind, {end:1 === self.i.length ? prod(s) : s[i]});
+                    return vale(ind, {end:1 === self.i.length ? prod(s) : s[i]}, {ctx:self.ctx});
                 }));
-                val = set.apply(set, [val, !s[0] || is_cell(val) ? self.b : '()'].concat(i).concat([value]));
+                if (!iscell && val.length && !i.filter(function(i) {return ':' !== i;}).length)
+                {
+                    dtype = data_type(val);
+                    dtypev = data_type(is_instance(value, tensorview) ? (is_cell(value.data) ? value.data[0] : value.data) : (is_cell(value) ? value[0] : value));
+                    if (('' === dtypev) || (dtype !== dtypev))
+                    {
+                        throw ('incompatible array data type ("'+dtype+'") with value data type' + (dtypev.length ? ' ("'+dtypev+'")' : ''));
+                    }
+                }
+                val = set.apply(set, [val, !s[0] || iscell ? self.b : '()'].concat(i).concat([value]));
             }
             else
             {
+                if (is_instance(value, tensorview))
+                {
+                    value = value.data.$scilitecell$ ? cellarray(value.toNDArray(), value.shape()) : (value.toNDArray());
+                }
                 val = value;
             }
         }
         else
         {
+            if (is_instance(value, tensorview))
+            {
+                value = value.data.$scilitecell$ ? cellarray(value.toNDArray(), value.shape()) : (value.toNDArray());
+            }
             val = value;
         }
         if (is_string(self.v))
@@ -12717,15 +15634,35 @@ variable.prototype = {
         return (null == this.i);
     }
 };
-async function val(x)
+function get_val(self, val, as_view)
 {
-    return is_instance(x, variable) ? await x.get() : x;
+    if (is_array(val))
+    {
+        var s = size(val);
+        return Promise.all(self.i.map(function(ind, i) {
+            return vale(ind, {end:1 === self.i.length ? prod(s) : s[i]}, {ctx:self.ctx});
+        })).then(function(i) {
+            return get.apply(get, [as_view ? self : val, !s[0] || is_cell(val) ? self.b : '()'].concat(i));
+        });
+    }
+    return val;
+}
+async function val(x, ln)
+{
+    if (is_instance(x, variable))
+    {
+        var _ln = x.ln, v;
+        x.ln = ln || _ln;
+        v = await x.get();
+        x.ln = _ln;
+        return v;
+    }
+    return x;
 }
 
-function expr(op, arg)
-{
+expr = function(op, arg, ln) {
     var self = this;
-    if (!is_instance(self, expr)) return new expr(op, arg);
+    if (!is_instance(self, expr)) return new expr(op, arg, ln);
     if (null == arg)
     {
         arg = op;
@@ -12733,50 +15670,39 @@ function expr(op, arg)
     }
     self.op = op;
     self.arg = arg;
-}
+    self.ln = ln;
+};
 expr.prototype = {
     constructor: expr,
     op: null,
-    arg: null
+    arg: null,
+    ln: null
 };
-async function vale(x, v, $)
-{
-    if (is_instance(x, expr))
-    {
-        return await evaluate(x, v, $);
-    }
-    else if (is_array(x))
-    {
-        //return await Promise.all(x.map(function(xi) {return vale(xi, v, $);}));
-        for (var i=0,n=x.length,y=new Array(n); i<n; ++i)
-        {
-            y[i] = await vale(x[i], v, $);
-        }
-        return y;
-    }
-    return x;
-}
 
 var NL_RE = /\r\n|\r|\n/g, NL = '\n';
 function parse(s, ctx, lineStart, posStart)
 {
     s = s.replace(NL_RE, NL); // normalize newlines
-    var i = 0, l = 0, j, t = s;
+    var i = 0, l = 0, j, t = s, lines = t.split(NL), fns = [];
 
+    function line(ln)
+    {
+        if (null == ln) ln = l;
+        return lines[ln];
+    }
     function error(msg, pos, ln)
     {
         if (null == ln) ln = l;
         if (null == pos) pos = i;
-        var line = t.split(NL)[ln];
         msg = String(msg) + ' at line ' + String((lineStart||0)+ln) + ' position ' + String((posStart||0)+pos) + ':';
-        return (msg + "\n" + line + "\n" + (new Array(pos+1)).join(' ') + '^' + "\n");
+        return (msg + "\n" + (line(ln)||'') + "\n" + (new Array(pos+1)).join(' ') + '^' + "\n");
     }
 
     function parse_until(expected)
     {
         var match, m, n, c,
             op, term, arg,
-            tmp, tmp2,
+            tmp, tmp2, ln,
             terms = [], ops = [],
             statements = [];
 
@@ -12827,7 +15753,7 @@ function parse(s, ctx, lineStart, posStart)
                     {
                         args = terms.splice(0, opc2.arity).reverse();
                     }
-                    result = expr(opc2.fn, args);
+                    result = expr(opc2.fn, args, args[0] ? args[0].ln : null);
                     terms.unshift(result);
                 }
             }
@@ -12855,7 +15781,7 @@ function parse(s, ctx, lineStart, posStart)
                     {
                         args = terms.splice(0, opc.arity).reverse();
                     }
-                    result = expr(opc.fn, args);
+                    result = expr(opc.fn, args, args[0] ? args[0].ln : null);
                     terms.unshift(result);
                 }
                 else if (PREFIX === opc.fixity)
@@ -12907,7 +15833,7 @@ function parse(s, ctx, lineStart, posStart)
                             {
                                 args = terms.splice(0, opc2.arity).reverse();
                             }
-                            result = expr(opc2.fn, args);
+                            result = expr(opc2.fn, args, args[0] ? args[0].ln : null);
                             terms.unshift(result);
                             ops.shift();
                         }
@@ -12921,7 +15847,7 @@ function parse(s, ctx, lineStart, posStart)
             }
         }
 
-        function end(and_reset)
+        function end(and_reset, not_echoed)
         {
             merge(true);
             if ((1 < terms.length) || (0 < ops.length))
@@ -12930,7 +15856,7 @@ function parse(s, ctx, lineStart, posStart)
             }
             if (true === and_reset)
             {
-                if (is_instance(terms[0], expr)) statements.push(terms[0]);
+                if (is_instance(terms[0], expr)) statements.push(not_echoed ? expr('not_echoed', terms[0]) : terms[0]);
                 terms = [];
                 ops = [];
             }
@@ -13029,11 +15955,10 @@ function parse(s, ctx, lineStart, posStart)
             return [r, j+1];
         }
 
-        var arr_id = 0;
         function array_literal(brackets)
         {
             brackets = brackets || '[]';
-            var arg, entry;
+            var arg, entry, ln = line();
             if ('{}' === brackets)
             {
                 eat('{');
@@ -13045,18 +15970,14 @@ function parse(s, ctx, lineStart, posStart)
                     if (entry)
                     {
                         arg.push(entry);
-                        if (eat(","))
-                        {
-                            arg.push(expr(','));
-                        }
-                        else if (eat(";"))
-                        {
-                            arg.push(expr(';'));
-                        }
-                        else
-                        {
-                            break;
-                        }
+                    }
+                    if (eat(","))
+                    {
+                        if (entry) arg.push(expr(','));
+                    }
+                    else if (eat(";"))
+                    {
+                        if (entry) arg.push(expr(';'));
                     }
                     else
                     {
@@ -13077,47 +15998,40 @@ function parse(s, ctx, lineStart, posStart)
                     if (entry)
                     {
                         arg.push(entry);
-                        if (eat(","))
+                    }
+                    if (eat(","))
+                    {
+                        arg.push(expr(','));
+                        eat(/^[ \t\v\f]+/);
+                    }
+                    else if (eat(";"))
+                    {
+                        arg.push(expr(';'));
+                        eat(/^[ \t\v\f]+/);
+                    }
+                    else if (eat("\n"))
+                    {
+                        arg.push(expr(';'));
+                        ++l;
+                        i = 0;
+                        eat(/^[ \t\v\f]+/);
+                    }
+                    else if (eat(/^[ \t\v\f]+/))
+                    {
+                        if (entry && !eat(/^[,;\n\]]/, false))
                         {
                             arg.push(expr(','));
-                            eat(/^[ \t\v\f]+/);
-                        }
-                        else if (eat(";"))
-                        {
-                            arg.push(expr(';'));
-                            eat(/^[ \t\v\f]+/);
-                        }
-                        else if (eat("\n"))
-                        {
-                            arg.push(expr(';'));
-                            ++l;
-                            i = 0;
-                            eat(/^[ \t\v\f]+/);
-                        }
-                        else if (eat(/^[ \t\v\f]+/))
-                        {
-                            if (!eat(/^[,;\n\]]/, false))
-                            {
-                                arg.push(expr(','));
-                            }
-                        }
-                        else
-                        {
-                            break;
                         }
                     }
                     else
                     {
-                        if (!eat(/^[ \t\v\f]+/))
-                        {
-                            break;
-                        }
+                        break;
                     }
                 }
                 eat(/^[ \t\v\f]+/);
                 if (!eat(']')) throw error('mismatched brackets');
             }
-            return expr(OP[brackets].fn, arg);
+            return expr(OP[brackets].fn, arg, ln);
         }
 
         while (0 < s.length)
@@ -13125,6 +16039,7 @@ function parse(s, ctx, lineStart, posStart)
             if (eat(/^if\b/))
             {
                 end(true);
+                ln = line();
                 tmp = parse_until("\n,");
                 if (!tmp) throw error('missing or invalid condition in "if"');
                 if (eat("\n"))
@@ -13174,15 +16089,17 @@ function parse(s, ctx, lineStart, posStart)
                     }
                     else if (eat('end') || !tmp)
                     {
+                        eat(/^[ \t\v\f]*;/); // eat any trailing ';'
                         break;
                     }
                 }
-                statements.push(expr(if_end, arg));
+                statements.push(expr(if_end, arg, ln));
                 continue;
             }
             if (eat(/^for\b/))
             {
                 end(true);
+                ln = line();
                 if (match = eat(/^[ \t\v\f]+([_a-z][_a-z0-9]*)[ \t\v\f]*=[ \t\v\f]*/i))
                 {
                     // pass
@@ -13191,7 +16108,7 @@ function parse(s, ctx, lineStart, posStart)
                 {
                     throw error('missing or invalid declaration in "for"');
                 }
-                tmp = parse_until("\n,");
+                tmp = parse_until("\n,;");
                 if (!tmp) throw error('missing or invalid declaration in "for"');
                 if (eat("\n"))
                 {
@@ -13200,22 +16117,28 @@ function parse(s, ctx, lineStart, posStart)
                 }
                 else
                 {
-                    eat(',');
+                    eat(',') || eat(';');
+
                 }
                 arg = {ind:variable(ctx, match[1]),val:tmp,statements:[]};
                 for (;;)
                 {
                     tmp = parse_until(['end']);
                     if (tmp) arg.statements = arg.statements.concat(tmp);
-                    if (eat('end') || !tmp) break;
+                    if (eat('end') || !tmp)
+                    {
+                        eat(/^[ \t\v\f]*;/); // eat any trailing ';'
+                        break;
+                    }
                 }
-                statements.push(expr(for_end, arg));
+                statements.push(expr(for_end, arg, ln));
                 continue;
             }
             if (eat(/^while\b/))
             {
                 end(true);
-                tmp = parse_until("\n,");
+                ln = line();
+                tmp = parse_until("\n,;");
                 if (!tmp) throw error('missing or invalid condition in "while"');
                 if (eat("\n"))
                 {
@@ -13224,23 +16147,27 @@ function parse(s, ctx, lineStart, posStart)
                 }
                 else
                 {
-                    eat(',');
+                    eat(',') || eat(';');
                 }
                 arg = {cond:tmp,statements:[]};
                 for (;;)
                 {
                     tmp = parse_until(['end']);
                     if (tmp) arg.statements = arg.statements.concat(tmp);
-                    if (eat('end') || !tmp) break;
+                    if (eat('end') || !tmp)
+                    {
+                        eat(/^[ \t\v\f]*;/); // eat any trailing ';'
+                        break;
+                    }
                 }
-                statements.push(expr(while_end, arg));
+                statements.push(expr(while_end, arg, ln));
                 continue;
             }
             if (eat(/^function\b/))
             {
                 end(true);
                 eat(/^[ \t\v\f]+/);
-                arg = {argout:null, name:null, argin:null, body:[]};
+                arg = {argout:null, name:null, argin:null, nv:null, "@fns":fns.slice().reverse(), "@fn":{}, body:[]};
                 if (match = eat(/^([_a-z][_a-z0-9]*)[ \t\v\f]*=[ \t\v\f]*/i))
                 {
                     // single output
@@ -13256,46 +16183,94 @@ function parse(s, ctx, lineStart, posStart)
                     // no output
                     arg.argout = [];
                 }
-                if (match = eat(/^([_a-z][_a-z0-9]*)(?:[ \t\v\f]*\(([ \t\v\f]*([_a-z][_a-z0-9]*(?:[ \t\v\f]*,[ \t\v\f]*[_a-z][_a-z0-9]*)*)?[ \t\v\f]*)\))?/i))
+                //if (match = eat(/^([_a-z][_a-z0-9]*)(?:[ \t\v\f]*\(([ \t\v\f]*([_a-z][_a-z0-9]*(?:[ \t\v\f]*,[ \t\v\f]*[_a-z][_a-z0-9]*)*)?[ \t\v\f]*)\))?/i))
+                if (match = eat(/^([_a-z][_a-z0-9]*)([ \t\v\f]*\()?/i))
                 {
                     arg.name = match[1];
-                    arg.argin = match[2] ? match[2].split(',').map(function(v) {return v.trim();}) : [];
+                    //arg.argin = match[2] ? match[2].split(',').map(function(v) {return v.trim();}) : [];
+                    arg.argin = [];
+                    if (match[2])
+                    {
+                        for (;;)
+                        {
+                            eat(/^[ \t\v\f]*/);
+                            if (match = eat(/^[_a-z][_a-z0-9]*/i))
+                            {
+                                arg.argin.push(match[0]);
+                                if (eat(/^[ \t\v\f]*=/))
+                                {
+                                    // Name=Value default arg
+                                    tmp = parse_until(',)');
+                                    if (is_instance(tmp, expr))
+                                    {
+                                        if (!arg.nv) arg.nv = namevalue();
+                                        arg.nv.set(match[0], tmp);
+                                    }
+                                    else throw error('missing or invalid Name=Value function argument');
+                                }
+                                eat(/^[ \t\v\f]*/);
+                                if (!eat(',')) break;
+                            }
+                            else
+                            {
+                                break;
+                            }
+                        }
+                    }
+                    eat(/^[ \t\v\f]*/);
+                    if (!eat(')')) throw error('missing or invalid function declaration');
                 }
                 else
                 {
                     throw error('missing or invalid function declaration');
                 }
+                fns.unshift(arg["@fn"]); // storage for internal functions to this function
                 for (;;)
                 {
                     tmp = parse_until(['end']);
                     if (tmp) arg.body = arg.body.concat(tmp);
-                    if (eat('end') || !tmp) break;
+                    if (eat('end') || !tmp)
+                    {
+                        eat(/^[ \t\v\f]*;/); // eat any trailing ';'
+                        break;
+                    }
                 }
-                $["@fn"][arg.name] = def_fn(arg);
+                fns.shift();
+                if (fns.length) fns[0][arg.name] = def_fn(arg); // internal/local function
+                else $["@fn"][arg.name] = def_fn(arg); // global function
                 continue;
             }
-            if (match = eat(/^(continue|break|elseif|else|end)\b/, false))
+            if (match = eat(/^(return|continue|break|elseif|else|end)\b/, false))
             {
                 if (expected && (-1 < expected.indexOf(match[1])))
                 {
                     break;
                 }
+                else if ('return' === match[1])
+                {
+                    eat('return');
+                    eat(/^[ \t\v\f]*;/); // eat any trailing ';'
+                    statements.push(expr('return', '', line()));
+                    continue;
+                }
                 else if ('continue' === match[1])
                 {
                     eat('continue');
-                    statements.push(expr('continue', ''));
+                    eat(/^[ \t\v\f]*;/); // eat any trailing ';'
+                    statements.push(expr('continue', '', line()));
                     continue;
                 }
                 else if ('break' === match[1])
                 {
                     eat('break');
-                    statements.push(expr('break', ''));
+                    eat(/^[ \t\v\f]*;/); // eat any trailing ';'
+                    statements.push(expr('break', '', line()));
                     continue;
                 }
                 else if ('end' === match[1])
                 {
                     eat('end');
-                    terms.unshift(expr('v', variable(ctx, 'end')));
+                    terms.unshift(expr('v', variable(ctx, 'end'), line()));
                     continue;
                 }
                 else
@@ -13326,6 +16301,21 @@ function parse(s, ctx, lineStart, posStart)
                 {
                     // statement end
                     eat(";");
+                    // new statement
+                    end(true, 'not_echoed');
+                    continue;
+                }
+            }
+            if (eat(",", false))
+            {
+                if (expected && (-1 < expected.indexOf(',')))
+                {
+                    break;
+                }
+                else
+                {
+                    // alternative statement end
+                    eat(",");
                     // new statement
                     end(true);
                     continue;
@@ -13390,7 +16380,7 @@ function parse(s, ctx, lineStart, posStart)
             {
                 // string
                 term = string_literal(match[0], true)[0];
-                terms.unshift(expr("'" === match[0] ? term.split('') : term));
+                terms.unshift(expr("'" === match[0] ? term.split('') : term, null, line()));
                 continue;
             }
             if (match = eat(/^(&&|\|\||&|\|)[^&\|]/, 1))
@@ -13419,10 +16409,10 @@ function parse(s, ctx, lineStart, posStart)
             }
             if (match = eat("~"))
             {
-                if (eat(/^([ \t\v\f]*)[,\]]/, 1))
+                if (eat(/^([ \t\v\f]*)[,\]\)]/, 1))
                 {
                     // dummy variable
-                    terms.unshift(expr('v', variable(ctx, '')));
+                    terms.unshift(expr('v', variable(ctx, ''), line()));
                 }
                 else
                 {
@@ -13434,8 +16424,8 @@ function parse(s, ctx, lineStart, posStart)
             }
             if (match = eat('='))
             {
-                // set
-                ops.unshift(['=', i, l]);
+                // set or name=value function arg
+                ops.unshift([expected && (-1 < expected.indexOf(')')) ? '(=)' : '=', i, l]);
                 merge();
                 continue;
             }
@@ -13453,14 +16443,15 @@ function parse(s, ctx, lineStart, posStart)
                 arg = null;
                 if ("true" === m)
                 {
-                    term = expr(I);
+                    term = expr(I, null, line());
                 }
                 else if ("false" === m)
                 {
-                    term = expr(O);
+                    term = expr(O, null, line());
                 }
                 else if (match = eat(expected && (-1 < expected.indexOf(' ')) ? /^([\(\{])/ : /^[ \t\v\f]*([\(\{])/))
                 {
+                    ln = line();
                     if ('{' === match[1])
                     {
                         // cell array indexing
@@ -13472,13 +16463,13 @@ function parse(s, ctx, lineStart, posStart)
                             if (!eat(',')) break;
                         }
                         if (!eat('}')) throw error("mismatched curly brackets");
-                        term = expr('v', variable(ctx, m, arg, '{}'));
+                        term = expr('v', variable(ctx, m, arg, '{}'), ln);
                     }
                     else if (eat(/^[ \t\v\f]*\:[ \t\v\f]*\)/))
                     {
                         // variable single colon
-                        arg = '(:)';
-                        term = expr('v', variable(ctx, m));
+                        //arg = '(:)';
+                        term = expr('v', variable(ctx, m, [expr(':')]), ln);
                     }
                     else
                     {
@@ -13487,24 +16478,24 @@ function parse(s, ctx, lineStart, posStart)
                         for (;;)
                         {
                             tmp = parse_until(',)');
-                            if (tmp) arg.push(tmp);
+                            if (tmp) arg.push(expr('arg', tmp));
                             if (!eat(',')) break;
                         }
                         if (!eat(')')) throw error("mismatched parentheses");
-                        term = expr('v_or_f', [m, arg, ctx, '()']);
+                        term = expr('v_or_f', [m, arg, ctx, '()'], ln);
                     }
                 }
                 else
                 {
                     // variable or function
-                    term = expr('v_or_f', [m, null, ctx]);
+                    term = expr('v_or_f', [m, null, ctx], line());
                 }
                 terms.unshift(term);
-                if ('(:)' === arg)
+                /*if ('(:)' === arg)
                 {
                     ops.unshift(['(:)', i, l]);
                     merge();
-                }
+                }*/
                 if (match = eat(/^[ \t\v\f]*(\.?')/))
                 {
                     // transpose
@@ -13518,7 +16509,7 @@ function parse(s, ctx, lineStart, posStart)
                 // number
                 arg = match[1].split(/\s+/).join('');
                 arg = decimal ? decimal(arg) : parseFloat(arg, 10);
-                term = expr(match[4] ? (new complex(0, arg)) : arg);
+                term = expr(match[4] ? (new complex(0, arg)) : arg, null, line());
                 terms.unshift(term);
                 continue;
             }
@@ -13528,10 +16519,11 @@ function parse(s, ctx, lineStart, posStart)
                 arg = match[1].split(/\s+/).join('');
                 arg = '-' === arg.charAt(0) ? ('-0'+arg.slice(1)) : ('0'+arg);
                 arg = decimal ? decimal(arg) : parseFloat(arg, 10);
-                term = expr(match[4] ? (new complex(0, arg)) : arg);
+                term = expr(match[4] ? (new complex(0, arg)) : arg, null, line());
                 terms.unshift(term);
                 continue;
             }
+            ln = line();
             c = s.charAt(0);
             if ('@' === c)
             {
@@ -13539,30 +16531,31 @@ function parse(s, ctx, lineStart, posStart)
                 if (match = eat(/^@\(([ \t\v\f]*[_a-z][_a-z0-9]*(?:[ \t\v\f]*,[ \t\v\f]*[_a-z][_a-z0-9]*)*[ \t\v\f]*)\)/i))
                 {
                     // anonymous function
-                    arg = {argout:['*'], name:'', argin:match[1].split(',').map(function(s) {return s.trim();}), body:[]};
+                    arg = {argout:['*'], name:'', argin:match[1].split(',').map(function(s) {return s.trim();}), nv:null, "@fns":[], "@fn":{}, body:[]};
                     tmp = parse_until(',)]};');
                     if (tmp) arg.body = arg.body.concat(tmp);
-                    terms.unshift(expr(def_fn(arg)));
+                    terms.unshift(expr(def_fn(arg), null, ln));
                     continue;
                 }
                 if (match = eat(/^@([_a-z][_a-z0-9]*)/i))
                 {
                     // defined function
                     m = match[1];
-                    if (HAS.call($["@fn"], m) && is_callable($["@fn"][m]))
+                    /*if (HAS.call($["@fn"], m) && is_callable($["@fn"][m]))
                     {
                         // user-defined function handle
-                        terms.unshift(expr($["@fn"][m]));
+                        terms.unshift(expr($["@fn"][m], null, ln));
                     }
                     else if (HAS.call(fn, m) && is_callable(fn[m]))
                     {
                         // builtin function handle
-                        terms.unshift(expr(fn[m]));
+                        terms.unshift(expr(fn[m], null, ln));
                     }
                     else
                     {
                         throw error('"'+m+'" is not a defined function');
-                    }
+                    }*/
+                    terms.unshift(expr('fh', m, ln));
                     continue;
                 }
             }
@@ -13584,15 +16577,12 @@ function parse(s, ctx, lineStart, posStart)
             }
             if (']' === c)
             {
-                if ((expected) && (-1 < expected.indexOf(']')))
+                if (expected && (-1 < expected.indexOf(']')))
                 {
                     // end bracket
                     break;
                 }
-                else
-                {
-                    throw error('mismatched brackets');
-                }
+                throw error('mismatched brackets');
             }
             if ('{' === c)
             {
@@ -13612,7 +16602,7 @@ function parse(s, ctx, lineStart, posStart)
                     }
                     if (!eat('}')) throw error("mismatched curly brackets");
                     // de-referencing cell array indexing
-                    if (arg.length) term = expr('v', variable(ctx, term, arg, '{}'));
+                    if (arg.length) term = expr('v', variable(ctx, term, arg, '{}'), ln);
                 }
                 else
                 {
@@ -13633,29 +16623,26 @@ function parse(s, ctx, lineStart, posStart)
             }
             if ('}' === c)
             {
-                if ((expected) && (-1 < expected.indexOf('}')))
+                if (expected && (-1 < expected.indexOf('}')))
                 {
                     // end curly bracket
                     break;
                 }
-                else
-                {
-                    throw error('mismatched curly brackets');
-                }
+                throw error('mismatched curly brackets');
             }
             if ('(' === c)
             {
                 // paren
                 s = s.slice(1);
                 i += 1;
-                if (eat(/^[ \t\v\f]*\:[ \t\v\f]*\)/))
+                /*if (eat(/^[ \t\v\f]*\:[ \t\v\f]*\)/))
                 {
                     // single colon
                     ops.unshift(['(:)', i, l]);
                     merge();
                 }
                 else
-                {
+                {*/
                     if (terms.length && can_merge())
                     {
                         merge('set');
@@ -13664,12 +16651,12 @@ function parse(s, ctx, lineStart, posStart)
                         for (;;)
                         {
                             tmp = parse_until(',)');
-                            if (tmp) arg.push(tmp);
+                            if (tmp) arg.push(expr('arg', tmp));
                             if (!eat(',')) break;
                         }
                         if (!eat(')')) throw error("mismatched parentheses");
                         // de-referencing array indexing or function invocation
-                        if (arg.length) term = expr('v_or_f', [term, arg, ctx, '()']);
+                        if (arg.length) term = expr('v_or_f', [term, arg, ctx, '()'], ln);
                     }
                     else
                     {
@@ -13687,24 +16674,17 @@ function parse(s, ctx, lineStart, posStart)
                             merge();
                         }
                     }
-                }
+                /*}*/
                 continue;
             }
             if (')' === c)
             {
-                if ((expected) && (-1 < expected.indexOf(')')))
+                if (expected && (-1 < expected.indexOf(')')))
                 {
                     // end paren
                     break;
                 }
-                else
-                {
-                    throw error('mismatched parentheses');
-                }
-            }
-            if ((',' === c) && (expected) && (-1 < expected.indexOf(',')))
-            {
-                break;
+                throw error('mismatched parentheses');
             }
             if (':' === c)
             {
@@ -13721,14 +16701,14 @@ function parse(s, ctx, lineStart, posStart)
                 else
                 {
                     arg = 0;
-                    terms.unshift(expr(':'));
+                    terms.unshift(expr(':', null, ln));
                 }
                 for (;;)
                 {
-                    term = parse_until(':,;})\n');
+                    term = parse_until(':,;]})\n');
                     eat(/^[ \t\v\f]+/);
                     if (term) {terms.unshift(term); ++arg;}
-                    else if (eat(':', false)) terms.unshift(expr(':'));
+                    else if (eat(':', false)) terms.unshift(expr(':', null, ln));
                     if (!eat(':')) break;
                 }
                 if (1 < arg)
@@ -13748,72 +16728,116 @@ function parse(s, ctx, lineStart, posStart)
     return parse_until(false);
 }
 
-async function evaluate(e, v, $$, vf2v)
+async function v_or_f(e, v, $$, vf2v)
 {
-    var f, argout, nargout, tmp, n, arg, ctx, ret;
-    if (is_instance(e, expr))
-    {
-        if ('v_or_f' === e.op)
+    var ctx, n, arg, ret;
+    /*if ('v_or_f' === e.op)
+    {*/
+        // variable or function
+        if ((true === vf2v) && is_string(e.arg[0]))
         {
-            // variable or function
-            if ((true === vf2v) && is_string(e.arg[0]))
+            // default cast to variable
+            e = expr('v', variable(e.arg[2], e.arg[0], e.arg[1] && e.arg[1].length ? e.arg[1] : null, e.arg[3]), e.ln);
+        }
+        else
+        {
+            ctx = $$ && $$.ctx ? $$.ctx : e.arg[2];
+            n = e.arg[0];
+            arg = e.arg[1];
+            if (is_instance(n, expr))
             {
-                // default cast to variable
-                e = expr('v', variable(e.arg[2], e.arg[0], e.arg[1] && e.arg[1].length ? e.arg[1] : null, e.arg[3]));
+                ret = await evaluate(n, v, $$);
+                if (!is_callable(ret)) ret = [ret];
             }
             else
             {
-                ctx = $$ && $$.ctx ? $$.ctx : e.arg[2];
-                n = e.arg[0];
-                arg = e.arg[1];
-                if (is_instance(n, expr))
+                if (is_obj(v) && HAS.call(v, n))
                 {
-                    ret = await evaluate(n, v, $$);
-                    if (!is_callable(ret)) ret = [ret];
+                    ret = n;
+                }
+                else if (HAS.call(ctx, n))
+                {
+                    ret = is_callable(ctx[n]) ? ctx[n] : n;
+                }
+                else if ($$ && $$["@fn"] && HAS.call($$["@fn"], n) && is_callable($$["@fn"][n]))
+                {
+                    ret = $$["@fn"][n];
+                    arg = arg || []; // support function call without ()
+                }
+                else if (HAS.call($["@fn"], n) && is_callable($["@fn"][n]))
+                {
+                    ret = $["@fn"][n];
+                    arg = arg || []; // support function call without ()
+                }
+                else if (HAS.call(constant, n))
+                {
+                    ret = n;
+                }
+                else if (HAS.call(fn, n) && is_callable(fn[n]))
+                {
+                    ret = fn[n];
+                    arg = arg || []; // support function call without ()
                 }
                 else
                 {
-                    if (is_obj(v) && HAS.call(v, n))
-                    {
-                        ret = n;
-                    }
-                    else if (HAS.call(ctx, n))
-                    {
-                        ret = is_callable(ctx[n]) ? ctx[n] : n;
-                    }
-                    else if (HAS.call($["@fn"], n) && is_callable($["@fn"][n]))
-                    {
-                        ret = $["@fn"][n];
-                    }
-                    else if (HAS.call(constant, n))
-                    {
-                        ret = n;
-                    }
-                    else if (HAS.call(fn, n) && is_callable(fn[n]))
-                    {
-                        ret = fn[n];
-                    }
-                    else
-                    {
-                        ret = n;
-                    }
-                }
-                if (is_callable(ret))
-                {
-                    // function
-                    e = expr(ret, arg);
-                }
-                else
-                {
-                    // variable
-                    e = expr('v', variable(ctx, ret, arg && arg.length ? arg : null, e.arg[3]));
+                    ret = n;
                 }
             }
+            if (is_callable(ret))
+            {
+                // function
+                e = expr(ret, arg);
+            }
+            else
+            {
+                // variable
+                e = expr('v', variable(e.arg[2], ret, arg && arg.length ? arg : null, e.arg[3]));
+            }
+        }
+    /*}*/
+    return e;
+}
+async function evaluate(e, v, $$, vf2v)
+{
+    var f, argout, nargout, tmp, tmpe, n, arg, ctx, ret;
+    if (is_instance(e, expr))
+    {
+        if ('not_echoed' === e.op)
+        {
+            return await evaluate(e.arg, v, $$, vf2v);
+        }
+        if ('arg' === e.op)
+        {
+            // argument, delegate
+            e = e.arg;
+            if ((OP['(=)'].fn !== e.op) && $$ && $$.nv) $$.nv = null; // reset namevalue if needed
+        }
+        if ('v_or_f' === e.op)
+        {
+            e = await v_or_f(e, v, $$, vf2v);
         }
         if ('' === e.op)
         {
             // value
             return e.arg;
+        }
+        else if ('fh' === e.op)
+        {
+            // function handle
+            n = e.arg;
+            if ($$ && $$["@fn"] && HAS.call($$["@fn"], n) && is_callable($$["@fn"][n]))
+            {
+                return $$["@fn"][n];
+            }
+            else if (HAS.call($["@fn"], n) && is_callable($["@fn"][n]))
+            {
+                return $["@fn"][n];
+            }
+            else if (HAS.call(fn, n) && is_callable(fn[n]))
+            {
+                return fn[n];
+            }
+            throw '"'+n+'" is not a defined function' + (e.ln ? "\nat: " + e.ln : "");
         }
         else if ('v' === e.op)
         {
@@ -13825,7 +16849,7 @@ async function evaluate(e, v, $$, vf2v)
             }
             else
             {
-                ret = is_obj(v) && is_string(e.arg.v) && HAS.call(v, e.arg.v) ? v[e.arg.v] : await val(e.arg);
+                ret = is_obj(v) && is_string(e.arg.v) && HAS.call(v, e.arg.v) ? v[e.arg.v] : await val(e.arg, e.ln);
             }
             if ($$ && $$.ctx) e.arg.new_ctx(false); // restore context
             return ret;
@@ -13855,11 +16879,46 @@ async function evaluate(e, v, $$, vf2v)
             if ($$ && is_callable($$.cont)) $$.cont();
             return;
         }
+        else if ('return' === e.op)
+        {
+            if ($$ && is_callable($$.retrn)) $$.retrn();
+            return;
+        }
+        else if (OP['(=)'].fn === e.op)
+        {
+            // Name=Value arg
+            $$ = $$ || {};
+            $$.nv = $$.nv || namevalue(); // init namevalue if needed
+            if (!is_instance($$.nv, namevalue))
+            {
+                throw 'invalid Name=Value argument' + (e.ln ? "\nat: " + e.ln : "");
+            }
+            n = await evaluate(e.arg[0], false, null, true);
+            if (is_string(n))
+            {
+                // pass
+            }
+            else if (is_instance(n, variable) && is_string(n.v))
+            {
+                n = n.v;
+            }
+            else
+            {
+                throw 'invalid Name=Value argument' + (e.ln ? "\nat: " + e.ln : "");
+            }
+            try {
+                ret = await e.op.apply(null, [$$.nv, n, await evaluate(e.arg[1], v, $$)]);
+            } catch (err) {
+                throw ((err.message || err) + (e.ln ? "\nat: " + e.ln : ""));
+            }
+            $$.nv = ret;
+            return ret;
+        }
         else if (OP['='].fn === e.op)
         {
             // set
             $$ = $$ || {};
-            nargout = $.nargout;
+            nargout = $$.nargout;
             argout = await evaluate(e.arg[0], false, null, true);
             if (is_array(argout) && is_instance(argout[0], variable))
             {
@@ -13870,16 +16929,43 @@ async function evaluate(e, v, $$, vf2v)
             {
                 if ($$.ctx) argout.new_ctx($$.ctx);
             }
-            if ((2 === e.arg.length) && ('v' === e.arg[1].op))
+            tmpe = e.arg[1];
+            if ('v_or_f' === tmpe.op)
             {
-                // A = B, A = B(:,:), ..
-                // make sure a copy is set and not by reference
-                ret = await e.op.apply(null, [argout, /*(e.arg[0].arg.v === e.arg[1].arg.v) ||*/ e.arg[1].arg.isByRef() ? copy(await evaluate(e.arg[1], v, $$)) : await evaluate(e.arg[1], v, $$)]);
+                tmpe = await v_or_f(tmpe, v, $$);
+            }
+            if (('v' === tmpe.op) && !is_instance(tmpe.arg.v, expr))
+            {
+                tmp = null;
+                //arg = [argout, /*(e.arg[0].arg.v === e.arg[1].arg.v) ||*/ e.arg[1].arg.isByRef() ? copy(await evaluate(e.arg[1], v, $$)) : await evaluate(e.arg[1], v, $$)];
+                if (is_instance(argout, variable) && ((tmpe.arg.v === argout.v) || (argout.isByRef() && tmpe.arg.isByRef())))
+                {
+                    // eg A(:,[1 2])=A(:,[2 1]), or A=B
+                    // use copy when setting variable from itself, or other but without slicing
+                    arg = [argout, copy(await evaluate(tmpe, v, $$))];
+                }
+                else
+                {
+                    // eg A(:,[1 2])=B(:,[2 1])
+                    // use ref to reduce all these intermediate arrays back and forth
+                    tmp = tmpe.arg;
+                    arg = [argout, tmp.new_ctx($$ && $$.ctx)];
+                }
+                try {
+                    ret = await e.op.apply(null, arg);
+                } catch (err) {
+                    throw ((err.message || err) + (e.ln ? "\nat: " + e.ln : ""));
+                }
+                if (tmp) tmp.new_ctx(false);
             }
             else
             {
-                // A = other expr
-                ret = await e.op.apply(null, [argout].concat(await Promise.all(e.arg.slice(1).map(function(e) {return evaluate(e, v, $$);}))));
+                // eg A = other expr
+                try {
+                    ret = await e.op.apply(null, [argout, await evaluate(tmpe, v, $$)]);
+                } catch (err) {
+                    throw ((err.message || err) + (e.ln ? "\nat: " + e.ln : ""));
+                }
             }
             $$.nargout = nargout;
             if ($$.ctx)
@@ -13898,39 +16984,68 @@ async function evaluate(e, v, $$, vf2v)
         else if (is_callable(e.op))
         {
             // other operator/function
-            f = $$ && is_int($$.nargout) && is_callable(e.op.nargout) ? e.op.nargout($$.nargout) : e.op;
-            return await f.apply(null, await Promise.all(e.arg.map(function(e) {return evaluate(e, v, $$, vf2v);})));
+            $$ = $$ || {};
+            f = is_int($$.nargout) && is_callable(e.op.nargout) ? e.op.nargout($$.nargout) : e.op;
+            try {
+                ret = await f.apply(null, await vale(e.arg, v, $$, vf2v));
+            } catch (err) {
+                throw ((err.message || err) + (e.ln ? "\nat: " + e.ln : ""));
+            }
+            return ret;
         }
     }
     throw "invalid expr";
+}
+async function vale(x, v, $$, vf2v, echoed)
+{
+    if (is_instance(x, expr))
+    {
+        var ans = await evaluate(x, v, $$, vf2v);
+        if ((null != ans) && echoed && ('not_echoed' !== x.op)) echoed.push.apply(echoed, ans.$scilitevarargout$ ? ans : [ans]);
+        return ans;
+    }
+    else if (is_array(x))
+    {
+        for (var i=0,n=x.length,y=new Array(n); i<n; ++i)
+        {
+            y[i] = await vale(x[i], v, $$, vf2v, echoed);
+            if (echoed && (1 < echoed.length) && is_array(echoed[echoed.length-1]) && (echoed[echoed.length-1] === echoed[echoed.length-2])) echoed.pop();
+        }
+        return y;
+    }
+    return x;
 }
 
 $_.createContext = function() {
     return {ans: null};
 };
 
-$_.eval = async function(code, ctx, lineStart) {
+$_.eval = async function(code, ctx, lineStart, cb) {
+    if (!is_callable(cb)) cb = null;
     ctx = ctx || $_.createContext();
-    var ast = parse(String(code), ctx, null == lineStart ? 1 : lineStart, 1);
-    var ans = null, ans_changed = false;
+    var ast = parse(String(code), ctx, null == lineStart ? 1 : lineStart, 1),
+        ans = null, ans_changed = false, echoed = [], i, n;
     if (is_array(ast))
     {
-        for (var i=0,n=ast.length; i<n; ++i)
+        for (i=0,n=ast.length; i<n; ++i)
         {
             if (ast[i])
             {
-                ans = await evaluate(ast[i]);
+                ans = await vale(ast[i], null, null, null, echoed);
+                if ((1 < echoed.length) && is_array(echoed[echoed.length-1]) && (echoed[echoed.length-1] === echoed[echoed.length-2])) echoed.pop();
+                if ((null != ans) && cb) cb(ans);
                 ans_changed = true;
             }
         }
     }
     else if (ast)
     {
-        ans = await evaluate(ast);
+        ans = await vale(ast, null, null, null, echoed);
+        if ((null != ans) && cb) cb(ans);
         ans_changed = true;
     }
     if (ans_changed && (is_array(ans) || is_nan(ans) || is_scalar(ans) || is_string(ans))) ctx.ans = ans;
-    return ans_changed ? ans : null;
+    return echoed;
 };
 
 // export it
