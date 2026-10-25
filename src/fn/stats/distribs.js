@@ -39,7 +39,6 @@ fn.normcdf = varargout(function(nargout, x, mu, sigma, tail) {
         mu = O;
         sigma = I;
     }
-    tail = 'uppper' === tail ? 'upper' : 'lower';
     return apply_(function(x, mu, sigma) {return normcdf(x, mu, sigma, tail);}, [x, mu, sigma], real);
 });
 fn.norminv = varargout(function(nargout, p, mu, sigma) {
