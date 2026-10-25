@@ -1,6 +1,6 @@
 function colon(a, b, c)
 {
-    var ans, sz;
+    var ans, sz, i, n;
     if ((1 === arguments.length) && is_array(a))
     {
         // a(:)
@@ -47,14 +47,22 @@ function colon(a, b, c)
         a = sca(a, true);
         b = sca(b, true);
         c = sca(c, true);
-        ans = [];
-        if (n_gt(b, O))
+        n = stdMath.max(0, stdMath.floor(stdMath.abs(_(n_div(n_sub(c, a), b))))+1);
+        if (n_gt(b, O) && n_le(a, c))
         {
-            for (; n_le(a, c); a=n_add(a, b)) ans.push(a);
+            ans = new Array(n);
+            for (i=0; n_le(a, c); a=n_add(a, b),++i) ans[i] = a;
+            if (null == ans[n-1]) ans[n-1] = min([a, c]);
         }
-        else if (n_lt(b, O))
+        else if (n_lt(b, O) && n_ge(a, c))
         {
-            for (; n_ge(a, c); a=n_add(a, b)) ans.push(a);
+            ans = new Array(n);
+            for (i=0; n_ge(a, c); a=n_add(a, b),++i) ans[i] = a;
+            if (null == ans[n-1]) ans[n-1] = max([a, c]);
+        }
+        else
+        {
+            ans = [];
         }
         return ans;
     }

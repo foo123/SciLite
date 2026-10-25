@@ -886,7 +886,7 @@ function init($)
                 'test1() % local, not accessible',
                 'test2() % local, not accessible',
                 '% function Name=Value arguments',
-                'function s=surround(varargin,Prefix="foo",Suffix="bar") % all the default NameValues must be declared\n s=strjoin(cat(2, {Prefix}, varargin{:}, {Suffix}));\nend',
+                'function s=surround(varargin,Prefix="foo",Suffix="bar") % all the default NameValues must be declared\n s=strjoin(cat(1, {Prefix}, varargin{:}, {Suffix}));\nend',
                 'surround("is","a") % use defaults',
                 'surround("is","the","best",Suffix="baz") % set only some',
                 'surround("is","the","best","Suffix","baz") % alternative way, must come last',

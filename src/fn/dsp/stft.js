@@ -17,7 +17,7 @@ function stft(inp, win, FFTLEN, OVERLAP, inv)
     {
         // inverse short-time fourier transform using ifft
         SEGMENTS = COLS(inp);
-        N = SEGMENTS * HOP;
+        N = (SEGMENTS - 1) * HOP + 1;
         out = array(N, zero);
         win = dotdiv(win, sum(dotmul(win, win)));
         for (j=0,i=0; i<SEGMENTS; ++i,j+=HOP)
@@ -44,8 +44,9 @@ function stft(inp, win, FFTLEN, OVERLAP, inv)
         // short-time fourier transform using fft
         // if (N - OVERLAP) / HOP is integer istft produces output of same length as original input
         N = inp.length;
-        out = [];
-        for (j=0,i=0; j<N; ++i,j+=HOP)
+        SEGMENTS = stdMath.floor((N - 1) / HOP) + 1;
+        out = matrix(FFTLEN, SEGMENTS, zero);
+        for (j=0,i=0; i<SEGMENTS; ++i,j+=HOP)
         {
             // apply win to segment with zero padding
             for (k=0; k<pad; ++k)
@@ -66,9 +67,11 @@ function stft(inp, win, FFTLEN, OVERLAP, inv)
             // fft
             fft1(/*fftshift(*/wx/*)*/, false, fx);
             // store
-            out.push(fx.slice());
+            for (k=0; k<FFTLEN; ++k)
+            {
+                out[k][i] = fx[k];
+            }
         }
-        out = transpose(out);
     }
     return out;
 }

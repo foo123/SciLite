@@ -3,7 +3,7 @@
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab/SciPy in pure JavaScript
 * @version: 0.12.0
-* 2026-10-25 15:22:30
+* 2026-10-25 23:28:10
 * https://github.com/foo123/SciLite
 *
 **//**
@@ -11,7 +11,7 @@
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab/SciPy in pure JavaScript
 * @version: 0.12.0
-* 2026-10-25 15:22:30
+* 2026-10-25 23:28:10
 * https://github.com/foo123/SciLite
 *
 **/
@@ -2762,40 +2762,52 @@ function get(mat /*, ..slices*/)
         {
             slices = slices.map(function(slice) {return is_array(slice) ? vec(slice) : slice;});
             tot = _(prod(sz));
-            sz2 = [tot];
-            ret = tensorview(mat, {shape:sz, ndarray:sz}).permute(array(sz.length, function(i) {return sz.length-1-i;})).reshape(sz2).slice(slices.map(function(slice, dim) {
-                if (is_string(slice))
-                {
-                    return slice;
-                }
-                else if (is_int(slice))
-                {
-                    var index = _(slice);
-                    if (1 <= index && index <= tot) return index-1;
-                    throw "get: index out of bounds";
-                }
-                else if (is_vector(slice))
-                {
-                    return slice.map(function(index) {
-                        index = _(index);
-                        if (1 <= index && index <= tot) return index-1;
-                        throw "get: index out of bounds";
-                    });
-                }
-                else
-                {
-                    throw "get: invalid range";
-                }
-            }));
-            if (is_var)
+            if (':' === slices[0])
             {
-                if ((1 === ret.length) && (':' !== slices[0]) && ('{}' === b || !iscell)) ret = ret.get(array(ret.dimension, 0));
+                // colon op
+                sz2 = [tot, 1];
             }
             else
             {
-                ret = ret.toArray();
-                if ((1 === ret.length) && (':' !== slices[0]) && ('{}' === b || !iscell)) ret = ret[0];
-                else if (iscell) ret = cellarray(ret, [ret.length]);
+                sz2 = [tot];
+            }
+            ret = tensorview(mat, {shape:sz, ndarray:sz}).permute(array(sz.length, function(i) {return sz.length-1-i;})).reshape(sz2);
+            if (':' !== slices[0])
+            {
+                ret = ret.slice(slices.map(function(slice, dim) {
+                    if (is_string(slice))
+                    {
+                        return slice;
+                    }
+                    else if (is_int(slice))
+                    {
+                        var index = _(slice);
+                        if (1 <= index && index <= tot) return index-1;
+                        throw "get: index out of bounds";
+                    }
+                    else if (is_vector(slice))
+                    {
+                        return slice.map(function(index) {
+                            index = _(index);
+                            if (1 <= index && index <= tot) return index-1;
+                            throw "get: index out of bounds";
+                        });
+                    }
+                    else
+                    {
+                        throw "get: invalid range";
+                    }
+                }));
+            }
+            if (is_var)
+            {
+                if ((':' !== slices[0]) && (1 === ret.length) && ('{}' === b || !iscell)) ret = ret.get(array(ret.dimension, 0));
+            }
+            else
+            {
+                ret = ':' === slices[0] ? ret.toNDArray() : ret.toArray();
+                if ((':' !== slices[0]) && (1 === ret.length) && ('{}' === b || !iscell)) ret = ret[0];
+                else if (iscell) ret = cellarray(ret, ':' === slices[0] ? sz2.slice() : [ret.length]);
             }
         }
     }
@@ -5251,7 +5263,7 @@ fn.ndgrid = varargout(function(nargout) {
 });
 function colon(a, b, c)
 {
-    var ans, sz;
+    var ans, sz, i, n;
     if ((1 === arguments.length) && is_array(a))
     {
         // a(:)
@@ -5298,14 +5310,22 @@ function colon(a, b, c)
         a = sca(a, true);
         b = sca(b, true);
         c = sca(c, true);
-        ans = [];
-        if (n_gt(b, O))
+        n = stdMath.max(0, stdMath.floor(stdMath.abs(_(n_div(n_sub(c, a), b))))+1);
+        if (n_gt(b, O) && n_le(a, c))
         {
-            for (; n_le(a, c); a=n_add(a, b)) ans.push(a);
+            ans = new Array(n);
+            for (i=0; n_le(a, c); a=n_add(a, b),++i) ans[i] = a;
+            if (null == ans[n-1]) ans[n-1] = min([a, c]);
         }
-        else if (n_lt(b, O))
+        else if (n_lt(b, O) && n_ge(a, c))
         {
-            for (; n_ge(a, c); a=n_add(a, b)) ans.push(a);
+            ans = new Array(n);
+            for (i=0; n_ge(a, c); a=n_add(a, b),++i) ans[i] = a;
+            if (null == ans[n-1]) ans[n-1] = max([a, c]);
+        }
+        else
+        {
+            ans = [];
         }
         return ans;
     }
@@ -13692,7 +13712,7 @@ function stft(inp, win, FFTLEN, OVERLAP, inv)
     {
         // inverse short-time fourier transform using ifft
         SEGMENTS = COLS(inp);
-        N = SEGMENTS * HOP;
+        N = (SEGMENTS - 1) * HOP + 1;
         out = array(N, zero);
         win = dotdiv(win, sum(dotmul(win, win)));
         for (j=0,i=0; i<SEGMENTS; ++i,j+=HOP)
@@ -13719,8 +13739,9 @@ function stft(inp, win, FFTLEN, OVERLAP, inv)
         // short-time fourier transform using fft
         // if (N - OVERLAP) / HOP is integer istft produces output of same length as original input
         N = inp.length;
-        out = [];
-        for (j=0,i=0; j<N; ++i,j+=HOP)
+        SEGMENTS = stdMath.floor((N - 1) / HOP) + 1;
+        out = matrix(FFTLEN, SEGMENTS, zero);
+        for (j=0,i=0; i<SEGMENTS; ++i,j+=HOP)
         {
             // apply win to segment with zero padding
             for (k=0; k<pad; ++k)
@@ -13741,9 +13762,11 @@ function stft(inp, win, FFTLEN, OVERLAP, inv)
             // fft
             fft1(/*fftshift(*/wx/*)*/, false, fx);
             // store
-            out.push(fx.slice());
+            for (k=0; k<FFTLEN; ++k)
+            {
+                out[k][i] = fx[k];
+            }
         }
-        out = transpose(out);
     }
     return out;
 }

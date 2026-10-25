@@ -1349,40 +1349,52 @@ function get(mat /*, ..slices*/)
         {
             slices = slices.map(function(slice) {return is_array(slice) ? vec(slice) : slice;});
             tot = _(prod(sz));
-            sz2 = [tot];
-            ret = tensorview(mat, {shape:sz, ndarray:sz}).permute(array(sz.length, function(i) {return sz.length-1-i;})).reshape(sz2).slice(slices.map(function(slice, dim) {
-                if (is_string(slice))
-                {
-                    return slice;
-                }
-                else if (is_int(slice))
-                {
-                    var index = _(slice);
-                    if (1 <= index && index <= tot) return index-1;
-                    throw "get: index out of bounds";
-                }
-                else if (is_vector(slice))
-                {
-                    return slice.map(function(index) {
-                        index = _(index);
-                        if (1 <= index && index <= tot) return index-1;
-                        throw "get: index out of bounds";
-                    });
-                }
-                else
-                {
-                    throw "get: invalid range";
-                }
-            }));
-            if (is_var)
+            if (':' === slices[0])
             {
-                if ((1 === ret.length) && (':' !== slices[0]) && ('{}' === b || !iscell)) ret = ret.get(array(ret.dimension, 0));
+                // colon op
+                sz2 = [tot, 1];
             }
             else
             {
-                ret = ret.toArray();
-                if ((1 === ret.length) && (':' !== slices[0]) && ('{}' === b || !iscell)) ret = ret[0];
-                else if (iscell) ret = cellarray(ret, [ret.length]);
+                sz2 = [tot];
+            }
+            ret = tensorview(mat, {shape:sz, ndarray:sz}).permute(array(sz.length, function(i) {return sz.length-1-i;})).reshape(sz2);
+            if (':' !== slices[0])
+            {
+                ret = ret.slice(slices.map(function(slice, dim) {
+                    if (is_string(slice))
+                    {
+                        return slice;
+                    }
+                    else if (is_int(slice))
+                    {
+                        var index = _(slice);
+                        if (1 <= index && index <= tot) return index-1;
+                        throw "get: index out of bounds";
+                    }
+                    else if (is_vector(slice))
+                    {
+                        return slice.map(function(index) {
+                            index = _(index);
+                            if (1 <= index && index <= tot) return index-1;
+                            throw "get: index out of bounds";
+                        });
+                    }
+                    else
+                    {
+                        throw "get: invalid range";
+                    }
+                }));
+            }
+            if (is_var)
+            {
+                if ((':' !== slices[0]) && (1 === ret.length) && ('{}' === b || !iscell)) ret = ret.get(array(ret.dimension, 0));
+            }
+            else
+            {
+                ret = ':' === slices[0] ? ret.toNDArray() : ret.toArray();
+                if ((':' !== slices[0]) && (1 === ret.length) && ('{}' === b || !iscell)) ret = ret[0];
+                else if (iscell) ret = cellarray(ret, ':' === slices[0] ? sz2.slice() : [ret.length]);
             }
         }
     }
