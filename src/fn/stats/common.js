@@ -238,7 +238,8 @@ function chi2cdf(x, nu, tail)
     }
     else
     {
-        p = gammainc(n_div(x, constant['2']), n_div(nu, constant['2']));
+        nu = n_div(nu, constant['2'])
+        p = /*n_div(*/gammainc(n_div(x, constant['2']), nu)/*, n_pow(constant['2'], nu))*/;
         /*
         // "A normal approximation for the chi-square distribution", Luisa Canal, 2005
         // accuracy at least within 2-3 decimal places
@@ -342,6 +343,10 @@ function tpdf(x, nu)
             )
         );
     }
+    else if (n_gt(nu, 30))
+    {
+        tpdfx = normpdf(x, O, I); // has become almost precisely normal
+    }
     else
     {
         tpdfx = n_mul(
@@ -378,7 +383,7 @@ function tcdf(x, nu, tail)
             constant['1/2'],
             n_div(
                 x,
-                realMath.sqrt(n_mul(constant['2'], n_mul(sqrt2, n_add(I, n_div(n_mul(x, x), constant['2'])))))
+                n_mul(constant['2'], n_mul(sqrt2, realMath.sqrt(n_add(I, n_div(n_mul(x, x), constant['2'])))))
             )
         );
     }
@@ -435,10 +440,10 @@ function tinv(p, nu)
     // https://en.wikipedia.org/wiki/Student%27s_t-distribution
     // accuracy at least within 2-3 decimal places
     if (n_le(nu, O) || n_lt(p, O)) return nan;
-    var limit = n_gt(nu, constant['2']) ? n_mul(n_div(nu, n_sub(nu, constant['2'])), 100) : __(1e7);
+    var limit = 1000/*n_gt(nu, constant['2']) ? n_mul(n_div(nu, n_sub(nu, constant['2'])), 100) : __(1e7)*/;
     return monotone_inverse_newton(
         function(x) {return tcdf(x, nu);},
         function(x) {return tpdf(x, nu);},
-        p, n_neg(limit), limit
+        p, __(-limit), __(limit)
     );
 }

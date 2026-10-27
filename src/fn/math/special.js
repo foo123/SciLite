@@ -192,6 +192,31 @@ function monotone_inverse_newton(f, df, y, min_x, max_x, min_f, max_f, lim_0, li
     }
     return x;
 }
+/*function agm(a, b)
+{
+    // arithmetic-geometric mean
+    // https://en.wikipedia.org/wiki/Arithmetic%E2%80%93geometric_mean
+    var a0, g0, a1, g1;
+    if (n_eq(a, b)) return a;
+    if (n_gt(a, b))
+    {
+        a0 = a;
+        g0 = b;
+    }
+    else
+    {
+        a0 = b;
+        g0 = a;
+    }
+    for (;;)
+    {
+        a1 = n_div(n_add(a0, g0), constant['2']);
+        g1 = realMath.sqrt(n_mul(a0, g0));
+        if (n_le(n_sub(a1, g1), __eps)) return g1;
+        a0 = a1;
+        g0 = g1;
+    }
+}*/
 
 // erf
 function erf(x)
@@ -699,6 +724,217 @@ function betaincinv(y, z, w, tail)
     );
 }
 
+function ellipj(u, m, tol, nargout)
+{
+    // https://en.wikipedia.org/wiki/Jacobi_elliptic_functions
+    // Jacobi elliptic functions sn, cn, dn
+    var a0, g0, aN, gN,
+        l, d, y0, y1, x0,
+        x1, x2, q, K, K2,
+        _sn, _cn, _dn, sn, cn, dn,
+        sn_sgn = I, cn_sgn = I, dn_sgn = I,
+        shifted = 0;
+    if (is_nan(u) || is_nan(m) || n_lt(m, O) || n_gt(m, I))
+    {
+        return 1 < nargout ? [nan, nan, nan] : nan;
+    }
+    else if (n_eq(u, O))
+    {
+        return 2 < nargout ? [O, I, I] : (1 < nargout ? [O, I] : O);
+    }
+    else if (n_eq(m, O))
+    {
+        return 2 < nargout ? [realMath.sin(u), realMath.cos(u), I] : (1 < nargout ? [realMath.sin(u), realMath.cos(u)] : realMath.sin(u));
+    }
+    else if (n_eq(m, I))
+    {
+        return 2 < nargout ? [realMath.tanh(u), cn=n_div(I, realMath.cosh(u)), cn] : (1 < nargout ? [realMath.tanh(u), n_div(I, realMath.cosh(u))] : realMath.tanh(u));
+    }
+    if ((null == ellipj.m) || !n_eq(m, ellipj.m) || n_lt(tol, ellipj.tol))
+    {
+        x1 = I;
+        x2 = realMath.sqrt(n_sub(I, m));
+        if (n_ge(x1, x2))
+        {
+            aN = x1;
+            gN = x2;
+        }
+        else
+        {
+            aN = x2;
+            gN = x1;
+        }
+        l = null;
+        d = scalar_abs(n_sub(aN, gN));
+        for (;n_gt(d, tol);)
+        {
+            // arithmetic-geometric mean loop
+            a0 = aN; g0 = gN;
+            aN = n_div(n_add(a0, g0), constant['2']);
+            gN = realMath.sqrt(n_mul(a0, g0));
+            d = scalar_abs(n_sub(aN, gN));
+            l = {ac:n_mul(aN, n_div(d, constant['2'])), p:l}; // after new d produces correct results
+        }
+        // memoize
+        ellipj.m = m;
+        ellipj.tol = tol;
+        ellipj.x2 = x2;
+        ellipj.aN = aN;
+        ellipj.l = l;
+        ellipj.K2 = K2 = n_div(constant.pi, aN);
+        ellipj.K = K = n_div(K2, constant['2']);
+    }
+    else
+    {
+        // memoized
+        x2 = ellipj.x2;
+        aN = ellipj.aN;
+        l = ellipj.l;
+        K2 = ellipj.K2;
+        K = ellipj.K;
+    }
+    // reduce to 0 <= u <= K(m) range through symmetry, shifts and periodicity
+    if (n_lt(u, O))
+    {
+        u = n_neg(u);
+        sn_sgn = n_mul(sn_sgn, J);
+    }
+    // 0 <= u
+    if (n_ge(u, K2))
+    {
+        q = realMath.fix(n_div(u, K2));
+        u = n_sub(u, n_mul(q, K2));
+        q = n_eq(O, n_mod(scalar_abs(q), constant['2'])) ? I : J;
+        sn_sgn = n_mul(sn_sgn, q);
+        cn_sgn = n_mul(cn_sgn, q);
+    }
+    // 0 <= u <= 2K(m)
+    if (n_ge(u, K))
+    {
+        u = n_sub(u, K);
+        shifted = 1;
+    }
+    // 0 <= u <= K(m)
+    if (n_eq(u, O))
+    {
+        // u = 0
+        _sn = O;
+        _cn = I;
+        _dn = I;
+    }
+    else if (n_eq(u, K))
+    {
+        // u = K(m)
+        _sn = I;
+        _cn = O;
+        _dn = x2;
+    }
+    else
+    {
+        // 0 < u < K(m), 0 < m < 1
+        y1 = n_div(aN, realMath.sin(n_mul(aN, u)));
+        for (;l;)
+        {
+            y0 = n_add(y1, n_div(l.ac, y1));
+            y1 = y0; l = l.p;
+        }
+        y0 = n_add(y1, n_div(n_div(m, 4), y1));
+
+        x0 = n_div(I, y0);
+        _sn = x0;
+    }
+    if (shifted)
+    {
+        if (null == _cn)
+        {
+            _cn = realMath.sqrt(n_sub(I, x0=n_mul(x0, x0)));
+            _dn = realMath.sqrt(n_sub(I, n_mul(m, x0)));
+        }
+        sn = n_div(_cn, _dn);
+        sn = n_mul(sn_sgn, sn);
+        if (1 < nargout)
+        {
+            cn = n_neg(n_mul(x2, n_div(_sn, _dn)));
+            cn = n_mul(cn_sgn, cn);
+            if (2 < nargout)
+            {
+                dn = n_div(x2, _dn);
+                dn = n_mul(dn_sgn, dn);
+            }
+        }
+    }
+    else
+    {
+        sn = _sn;
+        sn = n_mul(sn_sgn, sn);
+        if (1 < nargout)
+        {
+            cn = null == _cn ? realMath.sqrt(n_sub(I, x0=n_mul(x0, x0))) : _cn;
+            cn = n_mul(cn_sgn, cn);
+            if (2 < nargout)
+            {
+                dn = null == _dn ? realMath.sqrt(n_sub(I, n_mul(m, x0))) : _dn;
+                dn = n_mul(dn_sgn, dn);
+            }
+        }
+    }
+    return 2 < nargout ? [sn, cn, dn] : (1 < nargout ? [sn, cn] : sn);
+}
+function ellipke(m, tol, nargout)
+{
+    // https://en.wikipedia.org/wiki/Elliptic_integral
+    // complete elliptic integral of 1st and 2nd kind
+    var a0, g0, a1, g1, c0, c1, x1, x2,
+        p2 = constant['1/2'], s = I, ellip1;
+    if (is_nan(m) || n_lt(m, O) || n_gt(m, I))
+    {
+        return 1 < nargout ? [nan, nan] : nan;
+    }
+    else if (n_eq(m, O))
+    {
+        ellip1 = n_div(constant.pi, constant['2']);
+        return 1 < nargout ? [ellip1, ellip1] : ellip1;
+    }
+    else if (n_eq(m, I))
+    {
+        return 1 < nargout ? [inf, I] : inf;
+    }
+    x1 = I;
+    x2 = realMath.sqrt(n_sub(I, m));
+    if (n_ge(x1, x2))
+    {
+        a0 = x1;
+        g0 = x2;
+    }
+    else
+    {
+        a0 = x2;
+        g0 = x1;
+    }
+    if (1 < nargout)
+    {
+        c0 = scalar_abs(n_sub(n_mul(a0, a0), n_mul(g0, g0)));
+        s = n_sub(s, n_mul(c0, p2));
+    }
+    for (;n_gt(scalar_abs(n_sub(a0, g0)), tol);)
+    {
+        // arithmetic-geometric mean loop
+        a1 = n_div(n_add(a0, g0), constant['2']);
+        g1 = realMath.sqrt(n_mul(a0, g0));
+        a0 = a1;
+        g0 = g1;
+        if (1 < nargout)
+        {
+            c1 = n_div(c0, n_mul(a1, 4));
+            c0 = n_mul(c1, c1);
+            p2 = n_mul(p2, constant['2']);
+            s = n_sub(s, n_mul(c0, p2));
+        }
+    }
+    ellip1 = n_div(constant.pi, n_mul(constant['2'], a0));
+    return 1 < nargout ? [ellip1, n_mul(ellip1, s)] : ellip1;
+}
+
 // add them
 fn.erf = function(x) {
     return apply(erf, x, true);
@@ -742,3 +978,13 @@ fn.betainc = function(x, z, w, tail) {
 fn.betaincinv = function(y, z, w, tail) {
     return apply_(function(y, z, w) {return betaincinv(y, z, w, tail);}, [y, z, w]);
 };
+fn.ellipj = varargout(function(nargout, u, m, tol) {
+    tol = __(tol || 1e-15);
+    if (n_lt(tol, __eps)) tol = __eps; // otherwise too slow
+    return apply_(function(u, m) {return ellipj(u, m, tol, nargout);}, [u, m], real, stdMath.min(3, nargout));
+});
+fn.ellipke = varargout(function(nargout, m, tol) {
+    tol = __(tol || 1e-15);
+    if (n_lt(tol, __eps)) tol = __eps; // otherwise too slow
+    return apply_(function(m) {return ellipke(m, tol, nargout);}, [m], real, stdMath.min(2, nargout));
+});

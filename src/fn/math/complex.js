@@ -272,5 +272,5 @@ fn.sqrt = function(x) {
 });
 
 fn.tofixed = function(x, d) {
-    return is_num(x) ? x.toFixed(d || 10) : x;
+    return is_num(x) ? x.toFixed(_(d || 10)) : x;
 };
