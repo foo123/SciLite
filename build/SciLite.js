@@ -2,16 +2,16 @@
 *
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab/SciPy in pure JavaScript
-* @version: 0.12.0
-* 2026-10-25 23:28:10
+* @version: 0.12.1
+* 2026-10-29 00:48:43
 * https://github.com/foo123/SciLite
 *
 **//**
 *
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab/SciPy in pure JavaScript
-* @version: 0.12.0
-* 2026-10-25 23:28:10
+* @version: 0.12.1
+* 2026-10-29 00:48:43
 * https://github.com/foo123/SciLite
 *
 **/
@@ -41,7 +41,8 @@ var tensorview = null,
     log_2 = stdMath.log(2),
     inf = Infinity,
     nan = NaN,
-    eps = 1e-15,
+    __eps = 1e-15, // default precision
+    eps = __eps,
     realmax = Number.MAX_VALUE,
     realmin = Number.MIN_VALUE,
     intmax = Number.MAX_SAFE_INTEGER,
@@ -62,7 +63,7 @@ var tensorview = null,
 
     // lib
     $ = {
-        VERSION: "0.12.0",
+        VERSION: "0.12.1",
         // common functions
         _: {},
         // builtin functions
@@ -77,7 +78,7 @@ var tensorview = null,
         op: {},
         // constants
         constant: {
-            __version__: "0.12.0",
+            __version__: "0.12.1",
             pi: pi, e: e,
             eps: eps,
             realmax: realmax,
@@ -87,9 +88,9 @@ var tensorview = null,
             inf: inf, Inf: inf,
             nan: nan, NaN: nan,
             "true": I, "false": O,
-            on: "on", off: "off",
             "0": O, "1": I, "-1": J,
-            "1/2": half, "2": two, "10": ten
+            "1/2": half, "2": two, "10": ten,
+            on: "on", off: "off"
         }
     },
     $_ = $._,
@@ -134,7 +135,7 @@ $_.decimal = function(Decimal) {
         log_2 = decimal(stdMath.log(2));
         sqrt2 = decimal(stdMath.SQRT2);
         sqrt1_2 = decimal(stdMath.SQRT1_2);
-        constant.eps = decimal(eps);
+        constant.eps = eps = decimal(__eps);
         constant.pi = decimal(pi);
         constant.e = decimal(e);
         constant.realmax = decimal(realmax);
@@ -156,7 +157,7 @@ $_.decimal = function(Decimal) {
         log_10 = stdMath.log(10);
         sqrt2 = stdMath.SQRT2;
         sqrt1_2 = stdMath.SQRT1_2;
-        constant.eps = eps;
+        constant.eps = eps = __eps;
         constant.pi = pi;
         constant.e = e;
         constant.realmax = realmax;
@@ -893,19 +894,19 @@ function group_apply(type, f, f0, ferr, x, dim, dir)
 }
 $_.group_apply = group_apply;
 
-function roundoff(x, eps)
+function roundoff(x, tol)
 {
-    eps = __(eps);
-    if (is_num(eps) && n_gt(eps, O))
+    tol = __(tol || eps);
+    if (is_num(tol) && n_gt(tol, O))
     {
         if (is_scalar(x))
         {
-            return le(scalar_abs(x), eps) ? O : x;
+            return n_le(scalar_abs(x), tol) ? O : x;
         }
         else if (is_array(x))
         {
             return x.map(function(xi) {
-                return roundoff(xi, eps);
+                return roundoff(xi, tol);
             });
         }
         else
@@ -3972,7 +3973,7 @@ fn.sqrt = function(x) {
 });
 
 fn.tofixed = function(x, d) {
-    return is_num(x) ? x.toFixed(d || 10) : x;
+    return is_num(x) ? x.toFixed(_(d || 10)) : x;
 };
 // some special functions,
 // eg erf, erfc, gamma, gammaln, gammainc, beta, betaln, betainc, ..
@@ -4028,7 +4029,7 @@ var __a1 =  0.254829592,
     __log_sqrt_2pi = n_mul(constant['1/2'], realMath.log(n_mul(constant['2'], constant.pi))),
     __log_pi = realMath.log(constant.pi),
     __12 = 12,
-    __eps = 1e-15
+    euler_gamma = parseFloat("0.57721566490153286060651209008240243104215933593992359")
 ;
 update.push(function() {
 __a1 = __( 0.254829592);
@@ -4082,7 +4083,8 @@ __log_sqrt_2pi = n_mul(constant['1/2'], realMath.log(n_mul(constant['2'], consta
 __log_pi = realMath.log(constant.pi);
 
 __12 = __(12);
-__eps = __(1e-15);
+
+euler_gamma = decimal ? decimal("0.57721566490153286060651209008240243104215933593992359") : parseFloat("0.57721566490153286060651209008240243104215933593992359");
 });
 
 // utils
@@ -4097,7 +4099,7 @@ function monotone_inverse_bisearch(f, y, min_x, max_x, min_f, max_f, lim_0, lim_
     else if (n_le(y, min_f)) return 0 > dir ? (null == lim_1 ? inf : lim_1) : (null == lim_0 ? -inf : lim_0);
     else if (n_ge(y, max_f)) return 0 > dir ? (null == lim_0 ? -inf : lim_0) : (null == lim_1 ? inf : lim_1);
 
-    var two = constant['2'], x, fx;
+    var two = constant['2'], x, fx, tol = eps;
     for (;;)
     {
         x = n_div(n_add(min_x, max_x), two);
@@ -4106,6 +4108,32 @@ function monotone_inverse_bisearch(f, y, min_x, max_x, min_f, max_f, lim_0, lim_
         {
             x = nan;
             break; // fails
+        }
+        if (n_gt(min_f, fx))
+        {
+            // possible overflow
+            if (0 > dir)
+            {
+                min_x = x;
+            }
+            else
+            {
+                max_x = x;
+            }
+            continue;
+        }
+        if (n_lt(max_f, fx))
+        {
+            // possible overflow
+            if (0 > dir)
+            {
+                max_x = x;
+            }
+            else
+            {
+                min_x = x;
+            }
+            continue;
         }
         if (n_gt(fx, y))
         {
@@ -4120,7 +4148,7 @@ function monotone_inverse_bisearch(f, y, min_x, max_x, min_f, max_f, lim_0, lim_
         }
         else if (n_lt(fx, y))
         {
-            if (n_lt(n_sub(y, fx), __eps) || n_lt(n_sub(max_x, min_x), __eps)) break;
+            if (n_lt(n_sub(y, fx), tol) || n_lt(n_sub(max_x, min_x), tol)) break;
             if (0 > dir)
             {
                 max_x = x;
@@ -4148,7 +4176,7 @@ function monotone_inverse_newton(f, df, y, min_x, max_x, min_f, max_f, lim_0, li
     else if (n_le(y, min_f)) return 0 > dir ? (null == lim_1 ? inf : lim_1) : (null == lim_0 ? -inf : lim_0);
     else if (n_ge(y, max_f)) return 0 > dir ? (null == lim_0 ? -inf : lim_0) : (null == lim_1 ? inf : lim_1);
 
-    var x = n_div(n_add(min_x, max_x), constant['2']), fx, dfx, max_iter = 100, tries;
+    var x = n_div(n_add(min_x, max_x), constant['2']), fx, dfx, max_iter = 100, tries, tol = eps;
     for (;max_iter;max_iter--)
     {
         fx = n_sub(f(x), y);
@@ -4163,17 +4191,77 @@ function monotone_inverse_newton(f, df, y, min_x, max_x, min_f, max_f, lim_0, li
             if (is_nan(fx)) x = nan;
             break; // fails
         }
-        if (n_lt(scalar_abs(fx), __eps)) break;
-        x = n_sub(x, n_div(fx, n_add(df(x), __eps)));
+        if (n_gt(n_sub(min_f, y), fx))
+        {
+            // possible overflow
+            if (0 > dir)
+            {
+                min_x = x;
+            }
+            else
+            {
+                max_x = x;
+            }
+            x = n_div(n_add(min_x, max_x), constant['2']);
+            max_iter += 2;
+            continue;
+        }
+        if (n_lt(n_sub(max_f, y), fx))
+        {
+            // possible overflow
+            if (0 > dir)
+            {
+                max_x = x;
+            }
+            else
+            {
+                min_x = x;
+            }
+            x = n_div(n_add(min_x, max_x), constant['2']);
+            max_iter += 2;
+            continue;
+        }
+        if (n_lt(scalar_abs(fx), tol))
+        {
+            break;
+        }
+        dfx = df(x); if (n_eq(O, dfx)) dfx = eps;
+        x = n_sub(x, n_div(fx, dfx));
     }
     return x;
 }
+/*function agm(a, b)
+{
+    // arithmetic-geometric mean
+    // https://en.wikipedia.org/wiki/Arithmetic%E2%80%93geometric_mean
+    var a0, g0, a1, g1;
+    if (n_eq(a, b)) return a;
+    if (n_gt(a, b))
+    {
+        a0 = a;
+        g0 = b;
+    }
+    else
+    {
+        a0 = b;
+        g0 = a;
+    }
+    for (;;)
+    {
+        a1 = n_div(n_add(a0, g0), constant['2']);
+        g1 = realMath.sqrt(n_mul(a0, g0));
+        if (n_le(n_sub(a1, g1), eps)) return g1;
+        a0 = a1;
+        g0 = g1;
+    }
+}*/
 
 // erf
 function erf(x)
 {
     // https://en.wikipedia.org/wiki/Error_function#Bounds_and_numerical_approximations
     x = real(x);
+    if (is_nan(x)) return nan;
     var sgn = n_lt(x, O) ? -1 : 1, t, erfx;
     if (sgn < 0) x = n_neg(x);
     t = n_inv(n_add(n_mul(__p, x), I));
@@ -4187,6 +4275,7 @@ function erfc(x)
 {
     // https://en.wikipedia.org/wiki/Error_function#Bounds_and_numerical_approximations
     x = real(x);
+    if (is_nan(x)) return nan;
     //return n_div(n_mul(n_sub(I, realMath.exp(n_neg(n_mul(__A, x)))), realMath.exp(n_neg(n_mul(x, x)))), n_mul(__B, n_mul(__sqrt_pi, x)));
     // better approximation
     var is_neg = n_lt(x, O), x2, erfcx;
@@ -4237,10 +4326,10 @@ function erfc(x)
 function erfinv(x)
 {
     x = real(x);
-    if (n_lt(x, J) || n_gt(x, I)) return nan;
+    if (is_nan(x) || n_lt(x, J) || n_gt(x, I)) return nan;
     return monotone_inverse_bisearch(
         erf,
-        x, __(-100), __(100), J, I
+        x, __(-1000), __(1000), J, I
     );
 }
 
@@ -4248,17 +4337,17 @@ function erfinv(x)
 function erfcinv(x)
 {
     x = real(x);
-    if (n_lt(x, O) || n_gt(x, constant['2'])) return nan;
+    if (is_nan(x) || n_lt(x, O) || n_gt(x, constant['2'])) return nan;
     return monotone_inverse_bisearch(
         erfc,
-        x, __(-100), __(100), O, constant['2'], -inf, inf, -1
+        x, __(-1000), __(1000), O, constant['2'], -inf, inf, -1
     );
 }
 
 function factorial(n)
 {
-    // https://en.wikipedia.org/wiki/Factorial
     // simple factorial
+    // https://en.wikipedia.org/wiki/Factorial
     if (is_int(n) && n_ge(n, O))
     {
         n = realMath.floor(n);
@@ -4278,8 +4367,8 @@ function factorial(n)
 }
 function logfactorial(n)
 {
-    // https://en.wikipedia.org/wiki/Factorial
     // simple log factorial
+    // https://en.wikipedia.org/wiki/Factorial
     if (is_int(n) && n_ge(n, O))
     {
         n = realMath.floor(n);
@@ -4299,8 +4388,8 @@ function logfactorial(n)
 }
 function binom(n, k, inverse)
 {
-    // https://en.wikipedia.org/wiki/Binomial_coefficient
     // binomial = B(n,m) = B(n-1,m-1)+B(n-1,m) = n!/m!(n-m)! = Gamma(n+1)/Gamma(k+1)Gamma(n-k+1)
+    // https://en.wikipedia.org/wiki/Binomial_coefficient
     var Bnk, i;
     if (is_int(n) && is_int(k) && n_le(O, k) && n_le(k, n))
     {
@@ -4347,8 +4436,8 @@ function binom(n, k, inverse)
 }
 function logbinom(n, k, inverse)
 {
-    // https://en.wikipedia.org/wiki/Binomial_coefficient
     // log binomial = log(B(n,m)) = log(n!)-log(m!)-log((n-m)!) = LogGamma(n+1)-LogGamma(k+1)-LogGamma(n-k+1)
+    // https://en.wikipedia.org/wiki/Binomial_coefficient
     var Bnk, i;
     if (is_int(n) && is_int(k) && n_le(O, k) && n_le(k, n))
     {
@@ -4435,7 +4524,7 @@ function gammaln(z)
     // accuracy at least within 13 decimal places
     if (!is_real(z)) return nan;
     z = real(z);
-    if (n_lt(z, O)) return nan;
+    if (is_nan(z) || n_lt(z, O)) return nan;
     if (n_lt(z, constant['1/2']))
     {
         // Lanczos is not valid for this real(z). Use reflection formula.
@@ -4487,17 +4576,26 @@ function gammainc(x, a, type)
     // https://en.wikipedia.org/wiki/Incomplete_gamma_function
     if (!is_real(x) || !is_real(a)) return nan;
     x = real(x); a = real(a);
-    if (n_lt(a, O)) return nan;
-    var Ga = 'scaledlower' === type || 'scaledupper' === type ? a : n_mul(n_div(n_pow(x, a), gamma(a)), realMath.exp(n_neg(x))),
+    if (is_nan(x) || is_nan(a) || n_lt(a, O)) return nan;
+    type = 'scaledlower' === type || 'scaledupper' === type || 'upper' === type ? type : 'lower';
+    if ((null == gammainc.a) || !n_eq(a, gammainc.a) || (type !== gammainc.type))
+    {
+        // memoize
+        gammainc.type = type;
+        gammainc.a = a;
+        gammainc.g = 'scaledlower' === type || 'scaledupper' === type ? I : gamma(a);
+        gammainc.g1 = 'scaledupper' === type ? gamma(n_add(a, I)) : I;
+    }
+    var Ga = 'scaledlower' === type || 'scaledupper' === type ? a : n_mul(n_div(n_pow(x, a), gammainc.g), realMath.exp(n_neg(x))),
         t = n_eq(Ga, a) ? I : n_div(Ga, a),
         g = t;
-    for (var k=1,N=25; k<=N; ++k) // power series up to N terms
+    for (var k=1,N=25,tol=eps; k<=N; ++k) // power series up to N terms
     {
         t = n_mul(t, n_div(x, n_add(a, k)));
         g = n_add(g, t);
-        if ((5 < k) && n_lt(scalar_abs(t), __eps)) break;
+        if ((5 < k) && n_lt(scalar_abs(t), tol)) break;
     }
-    return 'scaledupper' === type ? n_sub(n_mul(gamma(n_add(a, I)), n_div(realMath.exp(x), n_pow(x, a))), g) : ('upper' === type ? n_sub(I, g) : g);
+    return 'scaledupper' === type ? n_sub(n_mul(gammainc.g1, n_div(realMath.exp(x), n_pow(x, a))), g) : ('upper' === type ? n_sub(I, g) : g);
 }
 function gammaincinv(y, a, type)
 {
@@ -4505,13 +4603,24 @@ function gammaincinv(y, a, type)
     // https://en.wikipedia.org/wiki/Incomplete_gamma_function
     if (!is_real(y) || !is_real(a)) return nan;
     y = real(y); a = real(a);
-    if (n_lt(a, O) || n_lt(y, O) || n_gt(y, I)) return nan;
-    var s = 'scaledupper' === type || 'upper' === type ? -1 : 1,
-        g = n_mul(gamma(a), s);
+    if (is_nan(y) || is_nan(a) || n_lt(a, O) || n_lt(y, O) || n_gt(y, I)) return nan;
+    type = 'upper' === type ? type : 'lower';
+    var s = 'upper' === type ? -1 : 1;
+    /*if ((null == gammaincinv.a) || !n_eq(a, gammaincinv.a) || (type !== gammaincinv.type))
+    {
+        // memoize
+        gammaincinv.type = type;
+        gammaincinv.a = a;
+        gammaincinv.g = n_mul(gamma(a), -s);
+    }
     return monotone_inverse_newton(
         function(x) {return gammainc(x, a, type);},
-        function(x) {return n_neg(n_div(n_mul(n_pow(x, n_sub(a, I)), realMath.exp(n_neg(x))), g));},
-        y, O, __(1e6), O, I, O, inf, s
+        function(x) {return n_div(n_mul(n_pow(x, n_sub(a, I)), realMath.exp(n_neg(x))), gammaincinv.g);},
+        y, O, I, O, I, O, inf, s
+    );*/
+    return monotone_inverse_bisearch(
+        function(x) {return gammainc(x, a, type);},
+        y, O, __(10), O, I, O, inf, s
     );
 }
 
@@ -4521,7 +4630,7 @@ function beta(z, w)
     // https://en.wikipedia.org/wiki/Beta_function
     if (!is_real(z) || !is_real(w)) return nan;
     z = real(z); w = real(w);
-    if (n_lt(z, O) || n_lt(w, O)) return nan;
+    if (is_nan(z) || is_nan(w) || n_lt(z, O) || n_lt(w, O)) return nan;
     if (n_eq(z, O) || n_eq(w, O)) return n_eq(z, w) ? nan : inf;
     if (is_int(z) && is_int(w))
     {
@@ -4536,7 +4645,7 @@ function betaln(z, w)
     // https://en.wikipedia.org/wiki/Beta_function
     if (!is_real(z) || !is_real(w)) return nan;
     z = real(z); w = real(w);
-    if (n_lt(z, O) || n_lt(w, O)) return nan;
+    if (is_nan(z) || is_nan(w) || n_lt(z, O) || n_lt(w, O)) return nan;
     if (is_int(z) && is_int(w))
     {
         // reduces to inverse log-binomial coeff
@@ -4544,21 +4653,19 @@ function betaln(z, w)
     }
     return scalar_add(scalar_sub(gammaln(z), gammaln(scalar_add(z, w))), gammaln(w));
 }
-function _betainc_cont_frac(x, z, w, regularized)
+function _betainc_cont_frac(x, z, w, factor)
 {
     var p, q, p1, p0,
         q1, q0, r0, r,
-        m, k, ak, bk
+        m, k, ak, bk,
+        tol = eps
     ;
     p1 = I;
     p0 = O;
     q1 = O;
     q0 = I;
     bk = I;
-    ak = n_div(
-        n_mul(n_div(n_pow(x, z), z), n_pow(n_sub(I, x), w)),
-        'regularized' === regularized ? beta(z, w) : I
-    );
+    ak = n_div(n_mul(n_div(n_pow(x, z), z), n_pow(n_sub(I, x), w)), null == factor ? I : factor);
     p = ak;
     q = I;
     r = ak;
@@ -4581,7 +4688,7 @@ function _betainc_cont_frac(x, z, w, regularized)
         q = n_add(n_mul(bk, q0), n_mul(ak, q1));
         r = n_div(p, q);
 
-        if ((5 < k) && n_lt(scalar_abs(n_sub(r, r0)), __eps)) break;
+        if ((5 < k) && n_lt(scalar_abs(n_sub(r, r0)), tol)) break;
 
         p1 = p0; p0 = p;
         q1 = q0; q0 = q;
@@ -4602,11 +4709,10 @@ function betainc(x, z, w, tail)
 {
     // regularized incomplete beta(x, z, w) function
     // https://en.wikipedia.org/wiki/Beta_function
-
     if (!is_real(x) || !is_real(z) || !is_real(w)) return nan;
     x = real(x); z = real(z); w = real(w);
 
-    if (n_lt(x, O) || n_gt(x, I) || n_lt(z, O) || n_lt(w, O)) return nan;
+    if (is_nan(x) || is_nan(z) || is_nan(w) || n_lt(x, O) || n_gt(x, I) || n_lt(z, O) || n_lt(w, O)) return nan;
 
     if (n_eq(x, O)) return 'upper' === tail ? I : O;
     else if (n_eq(x, I)) return 'upper' === tail ? O : I;
@@ -4647,15 +4753,25 @@ function betainc(x, z, w, tail)
         }
     }
     */
+    if ((null == betainc.z) || !n_eq(z, betainc.z) || !n_eq(w, betainc.w))
+    {
+        // memoize
+        betainc.z = z;
+        betainc.w = w;
+        betainc.b = null;
+        betainc.d = null;
+    }
     if (n_ge(x, xt))
     {
+        if (null == betainc.d) betainc.d = beta(w, z);
         // use reflection, more efficient
-        b = n_sub(I, _betainc_cont_frac(n_sub(I, x), w, z, 'regularized'));
+        b = n_sub(I, _betainc_cont_frac(n_sub(I, x), w, z, betainc.d));
     }
     else
     {
+        if (null == betainc.b) betainc.b = beta(z, w);
         // converges rapidly for x < xt
-        b = _betainc_cont_frac(x, z, w, 'regularized');
+        b = _betainc_cont_frac(x, z, w, betainc.b);
     }
     return 'upper' === tail ? n_sub(I, b) : b;
 }
@@ -4666,13 +4782,346 @@ function betaincinv(y, z, w, tail)
     if (!is_real(y) || !is_real(z) || !is_real(w)) return nan;
     y = real(y); z = real(z); w = real(w);
 
-    if (n_lt(y, O) || n_gt(y, I) || n_lt(z, O) || n_lt(w, O)) return nan;
-    var s = 'upper' === tail ? -1 : 1, b = n_mul(beta(z, w), s);
+    if (s_nan(y) || is_nan(z) || is_nan(w) || n_lt(y, O) || n_gt(y, I) || n_lt(z, O) || n_lt(w, O)) return nan;
+    if ((null == betaincinv.z) || !n_eq(z, betaincinv.z) || !n_eq(w, betaincinv.w))
+    {
+        // memoize
+        betaincinv.z = z;
+        betaincinv.w = w;
+        betaincinv.b = beta(z, w);
+    }
+    var s = 'upper' === tail ? -1 : 1, b = n_mul(betaincinv.b, s);
     return monotone_inverse_newton(
         function(x) {return betainc(x, z, w, tail);},
         function(x) {return n_div(n_mul(n_pow(x, n_sub(z, I)), n_pow(n_sub(I, x), n_sub(w, I))), b);},
         y, O, I, O, I, O, I, s
     );
+}
+
+function ellipj(u, m, tol, nargout)
+{
+    // Jacobi elliptic functions sn, cn, dn
+    // https://en.wikipedia.org/wiki/Jacobi_elliptic_functions
+    var a0, g0, aN, gN,
+        l, d, y0, y1, x0,
+        x1, x2, q, K, K2,
+        _sn, _cn, _dn, sn, cn, dn,
+        sn_sgn = I, cn_sgn = I, dn_sgn = I,
+        shifted = 0;
+    if (is_nan(u) || is_nan(m) || n_lt(m, O) || n_gt(m, I))
+    {
+        return 1 < nargout ? [nan, nan, nan] : nan;
+    }
+    else if (n_eq(u, O))
+    {
+        return 2 < nargout ? [O, I, I] : (1 < nargout ? [O, I] : O);
+    }
+    else if (n_eq(m, O))
+    {
+        return 2 < nargout ? [realMath.sin(u), realMath.cos(u), I] : (1 < nargout ? [realMath.sin(u), realMath.cos(u)] : realMath.sin(u));
+    }
+    else if (n_eq(m, I))
+    {
+        return 2 < nargout ? [realMath.tanh(u), cn=n_div(I, realMath.cosh(u)), cn] : (1 < nargout ? [realMath.tanh(u), n_div(I, realMath.cosh(u))] : realMath.tanh(u));
+    }
+    if ((null == ellipj.m) || !n_eq(m, ellipj.m) || !n_eq(tol, ellipj.tol))
+    {
+        x1 = I;
+        x2 = realMath.sqrt(n_sub(I, m));
+        if (n_ge(x1, x2))
+        {
+            aN = x1;
+            gN = x2;
+        }
+        else
+        {
+            aN = x2;
+            gN = x1;
+        }
+        l = null;
+        d = scalar_abs(n_sub(aN, gN));
+        for (;n_gt(d, tol);)
+        {
+            // arithmetic-geometric mean loop
+            a0 = aN; g0 = gN;
+            aN = n_div(n_add(a0, g0), constant['2']);
+            gN = realMath.sqrt(n_mul(a0, g0));
+            d = scalar_abs(n_sub(aN, gN));
+            l = {ac:n_mul(aN, n_div(d, constant['2'])), p:l}; // after new d produces correct results
+        }
+        // memoize
+        ellipj.m = m;
+        ellipj.tol = tol;
+        ellipj.x2 = x2;
+        ellipj.aN = aN;
+        ellipj.l = l;
+        ellipj.K2 = K2 = n_div(constant.pi, aN);
+        ellipj.K = K = n_div(K2, constant['2']);
+    }
+    else
+    {
+        // memoized
+        x2 = ellipj.x2;
+        aN = ellipj.aN;
+        l = ellipj.l;
+        K2 = ellipj.K2;
+        K = ellipj.K;
+    }
+    // reduce to 0 <= u <= K(m) range through symmetry, shifts and periodicity
+    if (n_lt(u, O))
+    {
+        u = n_neg(u);
+        sn_sgn = n_mul(sn_sgn, J);
+    }
+    // 0 <= u
+    if (n_ge(u, K2))
+    {
+        q = realMath.fix(n_div(u, K2));
+        u = n_sub(u, n_mul(q, K2));
+        q = n_eq(O, n_mod(scalar_abs(q), constant['2'])) ? I : J;
+        sn_sgn = n_mul(sn_sgn, q);
+        cn_sgn = n_mul(cn_sgn, q);
+    }
+    // 0 <= u <= 2K(m)
+    if (n_ge(u, K))
+    {
+        u = n_sub(u, K);
+        shifted = 1;
+    }
+    // 0 <= u <= K(m)
+    if (n_eq(u, O))
+    {
+        // u = 0
+        _sn = O;
+        _cn = I;
+        _dn = I;
+    }
+    else if (n_eq(u, K))
+    {
+        // u = K(m)
+        _sn = I;
+        _cn = O;
+        _dn = x2;
+    }
+    else
+    {
+        // 0 < u < K(m), 0 < m < 1
+        y1 = n_div(aN, realMath.sin(n_mul(aN, u)));
+        for (;l;)
+        {
+            y0 = n_add(y1, n_div(l.ac, y1));
+            y1 = y0; l = l.p;
+        }
+        y0 = n_add(y1, n_div(n_div(m, 4), y1));
+
+        x0 = n_div(I, y0);
+        _sn = x0;
+    }
+    if (shifted)
+    {
+        if (null == _cn)
+        {
+            _cn = realMath.sqrt(n_sub(I, x0=n_mul(x0, x0)));
+            _dn = realMath.sqrt(n_sub(I, n_mul(m, x0)));
+        }
+        sn = n_div(_cn, _dn);
+        sn = n_mul(sn_sgn, sn);
+        if (1 < nargout)
+        {
+            cn = n_neg(n_mul(x2, n_div(_sn, _dn)));
+            cn = n_mul(cn_sgn, cn);
+            if (2 < nargout)
+            {
+                dn = n_div(x2, _dn);
+                dn = n_mul(dn_sgn, dn);
+            }
+        }
+    }
+    else
+    {
+        sn = _sn;
+        sn = n_mul(sn_sgn, sn);
+        if (1 < nargout)
+        {
+            cn = null == _cn ? realMath.sqrt(n_sub(I, x0=n_mul(x0, x0))) : _cn;
+            cn = n_mul(cn_sgn, cn);
+            if (2 < nargout)
+            {
+                dn = null == _dn ? realMath.sqrt(n_sub(I, n_mul(m, x0))) : _dn;
+                dn = n_mul(dn_sgn, dn);
+            }
+        }
+    }
+    return 2 < nargout ? [sn, cn, dn] : (1 < nargout ? [sn, cn] : sn);
+}
+function ellipke(m, tol, nargout)
+{
+    // complete elliptic integral of 1st and 2nd kind
+    // https://en.wikipedia.org/wiki/Elliptic_integral
+    var a0, g0, a1, g1, c0, c1, x1, x2,
+        p2 = constant['1/2'], s = I, ellip1;
+    if (is_nan(m) || n_lt(m, O) || n_gt(m, I))
+    {
+        return 1 < nargout ? [nan, nan] : nan;
+    }
+    else if (n_eq(m, O))
+    {
+        ellip1 = n_div(constant.pi, constant['2']);
+        return 1 < nargout ? [ellip1, ellip1] : ellip1;
+    }
+    else if (n_eq(m, I))
+    {
+        return 1 < nargout ? [inf, I] : inf;
+    }
+    x1 = I;
+    x2 = realMath.sqrt(n_sub(I, m));
+    if (n_ge(x1, x2))
+    {
+        a0 = x1;
+        g0 = x2;
+    }
+    else
+    {
+        a0 = x2;
+        g0 = x1;
+    }
+    if (1 < nargout)
+    {
+        c0 = scalar_abs(n_sub(n_mul(a0, a0), n_mul(g0, g0)));
+        s = n_sub(s, n_mul(c0, p2));
+    }
+    for (;n_gt(scalar_abs(n_sub(a0, g0)), tol);)
+    {
+        // arithmetic-geometric mean loop
+        a1 = n_div(n_add(a0, g0), constant['2']);
+        g1 = realMath.sqrt(n_mul(a0, g0));
+        a0 = a1;
+        g0 = g1;
+        if (1 < nargout)
+        {
+            c1 = n_div(c0, n_mul(a1, 4));
+            c0 = n_mul(c1, c1);
+            p2 = n_mul(p2, constant['2']);
+            s = n_sub(s, n_mul(c0, p2));
+        }
+    }
+    ellip1 = n_div(constant.pi, n_mul(constant['2'], a0));
+    return 1 < nargout ? [ellip1, n_mul(ellip1, s)] : ellip1;
+}
+
+function err_negligible(curr, prev, tol)
+{
+    var err = scalar_sub(curr, prev);
+    return n_le(scalar_abs(real(err)), n_mul(tol, scalar_abs(real(curr)))) && n_le(scalar_abs(imag(err)), n_mul(tol, scalar_abs(imag(curr))));
+}
+function _ei_power_series(z, tol)
+{
+    var modz = scalar_abs(z),
+        ei, old, tmp = 1, k;
+    ei = scalar_add(scalar_add(euler_gamma, realMath.log(modz)), complex(O, n_mul(realMath.sign(imag(z)), scalar_abs(scalar_angle(z)))));
+    for (k=1; k<=/*MAX_ITERATIONS*/24; ++k)
+    {
+        tmp = scalar_mul(tmp, scalar_div(z, k));
+        old = ei;
+        ei = scalar_add(ei, scalar_div(tmp, k));
+        if (err_negligible(ei, old, tol)) break;
+    }
+    return ei;
+}
+function _ei_asymptotic_series(z, tol)
+{
+    var ei = complex(O, n_mul(realMath.sign(imag(z)), constant.pi)),
+        tmp = scalar_div(fn.exp(z), z),
+        k, n = _(realMath.floor(scalar_abs(z)))+1;
+    for (k=1; k<=n; ++k)
+    {
+        old = ei;
+        ei = scalar_add(ei, tmp);
+        if (err_negligible(ei, old, tol)) return ei;
+        tmp = scalar_mul(tmp, scalar_div(k, z));
+    }
+    return false;
+}
+/*function _ei_continued_fraction_backward(z, tol)
+{
+    var ei = O, expz = fn.exp(z), ipi = complex(O, n_mul(realMath.sign(imag(z)), constant.pi)), k;
+    for (k=/*MAX_ITERATIONS* /24; k>=1; --k)
+    {
+        ei = scalar_div(-k*k, scalar_add(scalar_sub(2*k+1, z), ei));
+        ei = scalar_sub(ipi, scalar_div(expz, scalar_add(scalar_sub(I, z), ei)));
+    }
+    return ei;
+}*/
+function _ei_continued_fraction_forward(z, tol)
+{
+    var ei = complex(O, n_mul(realMath.sign(imag(z)), constant.pi)),
+        old, expz = fn.exp(z), c, d, k, k2, kk;
+    if (!n_eq(ei.im, O))
+    {
+        c = scalar_div(I, ei);
+        d = O;
+        c = scalar_div(I, scalar_sub(scalar_sub(I, z), scalar_mul(expz, c)));
+        d = scalar_div(I, scalar_sub(scalar_sub(I, z), scalar_mul(expz, d)));
+        ei = scalar_mul(ei, scalar_div(d, c));
+    }
+    else
+    {
+        c = inf;
+        d = O;
+        c = O;
+        d = scalar_div(I, scalar_sub(scalar_sub(I, z), scalar_mul(expz, d)));
+        ei = scalar_mul(d, scalar_neg(expz));
+    }
+    for (k=1; k<=/*MAX_ITERATIONS*/24; ++k)
+    {
+        k2 = 2*k+1;
+        kk = k*k;
+        c = scalar_div(I, scalar_sub(scalar_sub(k2, z), scalar_mul(kk, c)));
+        d = scalar_div(I, scalar_sub(scalar_sub(k2, z), scalar_mul(kk, d)));
+        old = ei;
+        ei = scalar_mul(ei, scalar_div(d, c));
+        if (err_negligible(ei, old, tol)) break;
+    }
+    return ei;
+}
+function Ei(z)
+{
+    // exponential integral Ei(z)
+    // "On the Evaluation of the Complex-Valued Exponential Integral", Vincent Pegoraro and Philipp Slusallek, 2011
+    if ((is_complex(z) && (is_nan(z.re) || is_nan(z.im))) || (is_real(z) && is_nan(z)))
+    {
+        return z;
+    }
+    var modz = scalar_abs(z), ei, tol = eps, DIST = 1;
+    if (n_lt(n_div(I, modz), eps)/*is_inf(modz)*/)
+    {
+        return scalar_add(complex(O, n_mul(realMath.sign(imag(z)), constant.pi)), scalar_div(fn.exp(z), z));
+    }
+    if (n_gt(modz, n_sub(2, n_mul(1.035, realMath.log(tol)))))
+    {
+        ei = _ei_asymptotic_series(z, tol);
+        if (false !== ei) return ei;
+    }
+    if (n_gt(modz, DIST) && (n_lt(real(z), O) || n_gt(scalar_abs(imag(z)), DIST)))
+    {
+        return _ei_continued_fraction_forward(z, tol);
+    }
+    if (n_gt(modz, O))
+    {
+        return _ei_power_series(z, tol);
+    }
+    if (n_eq(modz, O))
+    {
+        return -inf;
+    }
+    return nan;
+}
+function E1(z)
+{
+    // exponential integral E1(z)
+    // Ei(z) = -(E1(−z) + sgn(arg(-z))*i*pi)
+    // E1(z) = -(Ei(-z) + sgn(arg( z))*i*pi)
+    return scalar_neg(scalar_add(Ei(scalar_neg(z)), complex(O, n_mul(realMath.sign(scalar_angle(z)), constant.pi))));
 }
 
 // add them
@@ -4717,6 +5166,22 @@ fn.betainc = function(x, z, w, tail) {
 };
 fn.betaincinv = function(y, z, w, tail) {
     return apply_(function(y, z, w) {return betaincinv(y, z, w, tail);}, [y, z, w]);
+};
+fn.ellipj = varargout(function(nargout, u, m, tol) {
+    tol = __(tol || eps);
+    if (n_lt(tol, eps)) tol = eps; // otherwise too slow
+    return apply_(function(u, m) {return ellipj(u, m, tol, nargout);}, [u, m], real, stdMath.min(3, nargout));
+});
+fn.ellipke = varargout(function(nargout, m, tol) {
+    tol = __(tol || eps);
+    if (n_lt(tol, eps)) tol = eps; // otherwise too slow
+    return apply_(function(m) {return ellipke(m, tol, nargout);}, [m], real, stdMath.min(2, nargout));
+});
+fn.expint = function(z) {
+    return apply(E1, z, true);
+};
+fn.expinti = function(z) {
+    return apply(Ei, z, true);
 };
 function real(x)
 {
@@ -5204,19 +5669,35 @@ fn.invhilb = function(n) {
 };function linspace(a, b, n)
 {
     if (null == n) n = 100;
-    n = _(n);
-    var step = n_div(n_sub(b, a), n-1), ans = new Array(n);
-    for (var i=0,ai=a; i<n; ++i,ai=n_add(ai, step)) ans[i] = ai;
-    return ans;
+    a = sca(a, true);
+    b = sca(b, true);
+    n = sca(n, true);
+    n = stdMath.floor(_(n));
+    if (0 < n)
+    {
+        var step = n_div(n_sub(b, a), n-1), i, ans = new Array(n);
+        ans[0] = a;
+        for (i=1; i<n; ++i) ans[i] = n_add(a, n_mul(step, i));
+        return ans;
+    }
+    return [];
 }
 fn.linspace = linspace;
 function logspace(a, b, n)
 {
     if (null == n) n = 100;
-    n = _(n);
-    var step = n_pow(n_div(b, a), 1/(n-1)), ans = new Array(n);
-    for (var i=0,ai=a; i<n; ++i,ai=scalar_mul(ai, step)) ans[i] = ai;
-    return ans;
+    a = sca(a, true);
+    b = sca(b, true);
+    n = sca(n, true);
+    n = stdMath.floor(_(n));
+    if (0 < n)
+    {
+        var step = n_pow(n_div(b, a), 1/(n-1)), i, ans = new Array(n);
+        ans[0] = a;
+        for (i=1; i<n; ++i) ans[i] = n_mul(a, n_pow(step, i));
+        return ans;
+    }
+    return [];
 }
 fn.logspace = logspace;
 function meshgrid(x, y)
@@ -5263,7 +5744,7 @@ fn.ndgrid = varargout(function(nargout) {
 });
 function colon(a, b, c)
 {
-    var ans, sz, i, n;
+    var ans, sz, i, n, an;
     if ((1 === arguments.length) && is_array(a))
     {
         // a(:)
@@ -5310,18 +5791,19 @@ function colon(a, b, c)
         a = sca(a, true);
         b = sca(b, true);
         c = sca(c, true);
-        n = stdMath.max(0, stdMath.floor(stdMath.abs(_(n_div(n_sub(c, a), b))))+1);
-        if (n_gt(b, O) && n_le(a, c))
+        if ((n_gt(b, O) && n_le(a, c)) || (n_lt(b, O) && n_ge(a, c)))
         {
-            ans = new Array(n);
-            for (i=0; n_le(a, c); a=n_add(a, b),++i) ans[i] = a;
-            if (null == ans[n-1]) ans[n-1] = min([a, c]);
-        }
-        else if (n_lt(b, O) && n_ge(a, c))
-        {
-            ans = new Array(n);
-            for (i=0; n_ge(a, c); a=n_add(a, b),++i) ans[i] = a;
-            if (null == ans[n-1]) ans[n-1] = max([a, c]);
+            n = stdMath.floor(stdMath.abs(_(n_div(n_sub(c, a), b))));
+            ans = new Array(n+1);
+            ans[0] = a;
+            if (0 < n)
+            {
+                // try to avoid roundoff errors resulting in imprecise values (including last value)
+                // using b*i instead of b+b+..+b seems to avoid that
+                for (i=1; i<n; ++i) ans[i] = n_add(a, n_mul(b, i));
+                an = n_add(a, n_mul(b, n));
+                ans[n] = n_lt(b, O) ? max([an, c]) : min([an, c]);
+            }
         }
         else
         {
@@ -7608,45 +8090,45 @@ function concat(A, B, axis)
         });
     }
 }
-function is_tri(A, type, strict, eps, setzero, setcopy)
+function is_tri(A, type, strict, tol, setzero, setcopy)
 {
-    var nr = ROWS(A), nc = COLS(A), n, r, c, tol;
+    var nr = ROWS(A), nc = COLS(A), n, r, c, tol2;
     if ((false !== strict) && (nr !== nc)) return false;
 
-    eps = __(eps || 0);
+    tol = __(tol || 0);
     n = stdMath.min(nr, nc);
-    tol = n_gt(eps, O) ? n_mul(n_div(sum(array(n, function(i) {return scalar_abs(A[i][i]);})), n), eps) : O;
+    tol2 = n_gt(tol, O) ? n_mul(n_div(sum(array(n, function(i) {return scalar_abs(A[i][i]);})), n), tol) : O;
     for (r=0; r<n; ++r)
     {
-        //tol = n_mul(scalar_abs(A[r][r]), eps);
+        //tol2 = n_mul(scalar_abs(A[r][r]), tol);
         if (('lower' === type) || ('diagonal' === type))
         {
-            for (c=r+1; c<n; ++c) if (!le(scalar_abs(A[r][c]), tol)) return false;
+            for (c=r+1; c<n; ++c) if (!n_le(scalar_abs(A[r][c]), tol2)) return false;
         }
         if (('upper' === type) || ('diagonal' === type))
         {
-            for (c=0; c<r; ++c) if (!le(scalar_abs(A[r][c]), tol)) return false;
+            for (c=0; c<r; ++c) if (!n_le(scalar_abs(A[r][c]), tol2)) return false;
         }
     }
     if (nr > nc)
     {
         // should be all zero
-        //tol = n_mul(scalar_abs(A[n-1][n-1]), eps);
+        //tol2 = n_mul(scalar_abs(A[n-1][n-1]), tol);
         for (r=n; r<nr; ++r)
         {
-            for (c=0; c<nc; ++c) if (!le(scalar_abs(A[r][c]), tol)) return false;
+            for (c=0; c<nc; ++c) if (!n_le(scalar_abs(A[r][c]), tol2)) return false;
         }
     }
     else if (nr < nc)
     {
         // should be all zero
-        //tol = n_mul(scalar_abs(A[n-1][n-1]), eps);
+        //tol2 = n_mul(scalar_abs(A[n-1][n-1]), tol);
         for (c=n; c<nc; ++c)
         {
-            for (r=0; r<nr; ++r) if (!le(scalar_abs(A[r][c]), tol)) return false;
+            for (r=0; r<nr; ++r) if (!n_le(scalar_abs(A[r][c]), tol2)) return false;
         }
     }
-    if ((true === setzero) && n_gt(eps, O))
+    if ((true === setzero) && n_gt(tol2, O))
     {
         if (setcopy && setcopy._) A = setcopy._ = copy(A);
         if (('upper' === type) || ('diagonal' === type))
@@ -7694,18 +8176,18 @@ function is_tri(A, type, strict, eps, setzero, setcopy)
     }
     return true;
 }
-function solve_tri(type, T, y, eps, free_vars)
+function solve_tri(type, T, y, tol, free_vars)
 {
-    eps = __(eps || 0);
+    tol = __(tol || 0);
     if (y) y = vec(y);
     var n = ROWS(T), fk = 0, fn = free_vars ? free_vars.length : 0;
     if ("lower" === type)
     {
         // lower triangular, forward substitution
         return array(n, function(m, x) {
-            if (free_vars && n_le(scalar_abs(T[m][m]), eps))
+            if (free_vars && n_le(scalar_abs(T[m][m]), tol))
             {
-                //if (n_le(scalar_abs(Tx), eps))
+                //if (n_le(scalar_abs(Tx), tol))
                     return fk < fn ? free_vars[fk++] : (free_vars[fn-1] || O); // free variable
             }
             else
@@ -7720,9 +8202,9 @@ function solve_tri(type, T, y, eps, free_vars)
     {
         // upper triangular, backward substitution
         return array(n, function(m, x) {
-            if (free_vars && n_le(scalar_abs(T[n-1-m][n-1-m]), eps))
+            if (free_vars && n_le(scalar_abs(T[n-1-m][n-1-m]), tol))
             {
-                //if (n_le(scalar_abs(Tx), eps))
+                //if (n_le(scalar_abs(Tx), tol))
                     return fk < fn ? free_vars[fk++] : (free_vars[fn-1] || O); // free variable
             }
             else
@@ -7911,7 +8393,7 @@ function jacobi_sweep(A, nsweeps)
     }
     return A;
 }
-function compute_householder(A, hh, i1, i2, j1, j2, eps)
+function compute_householder(A, hh, i1, i2, j1, j2, tol)
 {
     /*
     "Unitary Triangularization of a Nonsymmetric Matrix",
@@ -7919,7 +8401,7 @@ function compute_householder(A, hh, i1, i2, j1, j2, eps)
     Journal of the ACM. 5 (4): 339–342.  1958
     */
     // v(0) is always 1, rest is the essential part
-    if (null == eps) eps = constant.eps;
+    if (null == tol) tol = eps;
     var c0, c, normc, b, bc;
     if (is_vector(A))
     {
@@ -7960,7 +8442,7 @@ function compute_householder(A, hh, i1, i2, j1, j2, eps)
             normc = real(dot(c, c));
         }
     }
-    if (n_le(normc, eps) && n_le(n_pow(scalar_abs(imag(c0)), two), eps))
+    if (n_le(normc, tol) && n_le(n_pow(scalar_abs(imag(c0)), two), tol))
     {
         hh.beta = real(c0);
         hh.tau = O;
@@ -8094,7 +8576,7 @@ function hh_mul(type, hh, A, i1, i2, j1, j2)
     }
     return [b, c];
 }*/
-function gauss_jordan(A, with_pivots, odim, eps)
+function gauss_jordan(A, with_pivots, odim, tol)
 {
     // adapted from https://github.com/foo123/Abacus
     var rows = ROWS(A), columns = COLS(A),
@@ -8102,10 +8584,10 @@ function gauss_jordan(A, with_pivots, odim, eps)
         det, pl = 0, r, i, i0, p0,
         lead, leadc, imin, im, min,
         a, z, m, aug, find_dupl;
-    eps = __(eps || 0);
-    if (is_tri(A, "upper", false, eps))
+    tol = __(tol || 0);
+    if (is_tri(A, "upper", false, tol))
     {
-        return with_pivots ? [A, array(dim, function(col) {return [col, col];}).filter(function(pivot) {return (pivot[0] < rows) && (pivot[1] < columns) && !le(scalar_abs(A[pivot[0]][pivot[1]]), eps);}), prod(diag(A)), eye(rows)] : A;
+        return with_pivots ? [A, array(dim, function(col) {return [col, col];}).filter(function(pivot) {return (pivot[0] < rows) && (pivot[1] < columns) && !n_le(scalar_abs(A[pivot[0]][pivot[1]]), tol);}), prod(diag(A)), eye(rows)] : A;
     }
     // original dimensions, eg when having augmented matrix
     if (is_array(odim)) dim = stdMath.min(dim, odim[1]);
@@ -8124,7 +8606,7 @@ function gauss_jordan(A, with_pivots, odim, eps)
         if (dim <= lead) break;
 
         i = r;
-        while (le(scalar_abs(m[i][lead]), eps))
+        while (n_le(scalar_abs(m[i][lead]), tol))
         {
             ++i;
             if (rows <= i)
@@ -8145,8 +8627,8 @@ function gauss_jordan(A, with_pivots, odim, eps)
         for (i=i0; i<rows; ++i)
         {
             a = scalar_abs(m[i][lead]);
-            if (le(a, eps)) ++z;
-            else if ((null == min) || lt(a, min)) {min = a; imin = i;}
+            if (n_le(a, tol)) ++z;
+            else if ((null == min) || n_lt(a, min)) {min = a; imin = i;}
         }
         for (;;)
         {
@@ -8185,8 +8667,8 @@ function gauss_jordan(A, with_pivots, odim, eps)
 
                     // find again row with min abs value for this column as well for next round
                     a = scalar_abs(m[i][lead]);
-                    if (le(a, eps)) ++z;
-                    else if (lt(a, min)) {min = a; imin = i;}
+                    if (n_le(a, tol)) ++z;
+                    else if (n_lt(a, min)) {min = a; imin = i;}
                 }
             }
         }
@@ -8203,7 +8685,7 @@ function gauss_jordan(A, with_pivots, odim, eps)
     return with_pivots ? [m, pivots, det, aug] : m;
 }
 var ref = gauss_jordan;
-/*function largest_eig(A, N, eps, valueonly)
+/*function largest_eig(A, N, tol, valueonly)
 {
     // power method
     var iter,
@@ -8228,7 +8710,7 @@ var ref = gauss_jordan;
                 v = dotdiv(v, scalar_sign(v[0]));
             }
             v = dotdiv(v, norm(v));
-            if (n_le(realMath.abs(n_sub(real(k), real(prev_k))), eps) && n_le(realMath.abs(n_sub(imag(k), imag(prev_k))), eps)) break;
+            if (n_le(realMath.abs(n_sub(real(k), real(prev_k))), tol) && n_le(realMath.abs(n_sub(imag(k), imag(prev_k))), tol)) break;
         }
         return k;
     }
@@ -8257,7 +8739,7 @@ var ref = gauss_jordan;
             }
             v = dotdiv(v, norm(v));
             w = dotdiv(w, norm(w));
-            if (n_le(realMath.abs(n_sub(real(k), real(prev_k))), eps) && n_le(realMath.abs(n_sub(imag(k), imag(prev_k))), eps)) break;
+            if (n_le(realMath.abs(n_sub(real(k), real(prev_k))), tol) && n_le(realMath.abs(n_sub(imag(k), imag(prev_k))), tol)) break;
         }
         return [k, v, w];
     }
@@ -8277,16 +8759,16 @@ fn.planerot = varargout(function(nargout, x) {
     var ans = ref(x, true, null, tol);
     return 1 < nargout ? [ans[0], ans[1].map(function(pi) {return pi[1]+1;})] : ans[0];
 });
-function rref(A, with_pivots, odim, eps)
+function rref(A, with_pivots, odim, tol)
 {
     // adapted from https://github.com/foo123/Abacus
     var rows = ROWS(A), columns = COLS(A), dim = columns,
         pivots, det, pl, lead, r, i, j, l, a, g, rf, aug;
-    eps = __(eps || 0);
+    tol = __(tol || 0);
     // original dimensions, eg when having augmented matrix
     if (is_array(odim)) dim = stdMath.min(dim, odim[1]);
     // build rref incrementaly from ref
-    rf = ref(A, true, odim, eps);
+    rf = ref(A, true, odim, tol);
     a = concat(rf[0], rf[3]);
     pivots = rf[1]; det = rf[2];
     pl = pivots.length;
@@ -8295,7 +8777,7 @@ function rref(A, with_pivots, odim, eps)
         lead = pivots[r][1];
         for (i=0; i<r; ++i)
         {
-            if (le(scalar_abs(a[i][lead]), eps)) continue;
+            if (n_le(scalar_abs(a[i][lead]), tol)) continue;
 
             ADDR(a, i, r, scalar_neg(a[i][lead]), a[r][lead]);
             if (!eq(a[i][pivots[i][1]], I))
@@ -8401,14 +8883,14 @@ function mldivide(A, b)
 {
     return linsolve(A, b);
 }
-function nullspace(A, eps)
+function nullspace(A, tol)
 {
     // adapted from https://github.com/foo123/Abacus
     var columns, ref, pivots,
         free_vars, pl, tmp, LCM;
 
     columns = COLS(A);
-    tmp = rref(A, true, null, eps);
+    tmp = rref(A, true, null, tol);
     ref = tmp[0];
     pivots = tmp[1];
     pl = pivots.length;
@@ -8440,10 +8922,10 @@ function nullspace(A, eps)
 fn['null'] = function(x, tol) {
     return nullspace(x, tol);
 };
-function rowspace(A, eps)
+function rowspace(A, tol)
 {
     // adapted from https://github.com/foo123/Abacus
-    var pivots = ref(A, true, null, eps);
+    var pivots = ref(A, true, null, tol);
     return pivots[1].map(function(p) {
         return A[p[0]];
     }); // row vector
@@ -8451,10 +8933,10 @@ function rowspace(A, eps)
 fn.rowspace = function(A, tol) {
     return rowspace(A, tol);
 };
-function colspace(A, eps)
+function colspace(A, tol)
 {
     // adapted from https://github.com/foo123/Abacus
-    var pivots = ref(A, true, null, eps);
+    var pivots = ref(A, true, null, tol);
     return pivots[1].map(function(p) {
         return array(A.length, function(i) {
             return A[i][p[1]];
@@ -8551,7 +9033,7 @@ fn.rankf = function(A) {
     if (!is_matrix(A)) not_supported("rankf");
     return rankf(A);
 };
-function pinv(A, eps)
+function pinv(A, tol)
 {
     // adapted from https://github.com/foo123/Abacus
     // pseudo-matrix inverse
@@ -8578,7 +9060,7 @@ function pinv(A, eps)
     }
     else
     {
-        ref = rref(A, true, null, eps || 0);
+        ref = rref(A, true, null, __(tol || 0));
         rank = ref[1].length;
         if (rank === columns)
         {
@@ -8726,11 +9208,11 @@ function detr(m, n)
     }
     return det;
 }
-function det(A, explicit, eps)
+function det(A, explicit, tol)
 {
     // adapted from https://github.com/foo123/Abacus
     // determinant
-    eps = __(eps || 0);
+    tol = __(tol || 0);
     var n = ROWS(A);
     if (n !== COLS(A))
     {
@@ -8742,7 +9224,7 @@ function det(A, explicit, eps)
         // scalar, trivial
         return A[0][0];
     }
-    else if (is_tri(A, "lower", true, eps) || is_tri(A, "upper", true, eps))
+    else if (is_tri(A, "lower", true, tol) || is_tri(A, "upper", true, tol))
     {
         // triangular, product of diagonal entries
         return A.reduce(function(det, ai, i) {
@@ -8752,13 +9234,13 @@ function det(A, explicit, eps)
     else
     {
         // compute either recursively or via ref
-        return true === explicit ? detr(A, n) : (ref(A, true, null, eps)[2]);
+        return true === explicit ? detr(A, n) : (ref(A, true, null, tol)[2]);
     }
 }
 fn.det = function(A) {
     if (is_scalar(A)) A = [[A]];
     if (!is_matrix(A)) not_supported("det");
-    return det(A, false, 1e-15);
+    return det(A, false, eps);
 };
 function charpoly(A)
 {
@@ -8821,7 +9303,7 @@ function balance(A, pnorm, wantt)
         col = new Array(n1),
         row = new Array(n1),
         i, j, ji, f, c, r,
-        eps = __(1e-10),
+        tol = __(1e-10),
         converged, iter;
     for (iter=1; iter<=100; ++iter)
     {
@@ -8842,7 +9324,7 @@ function balance(A, pnorm, wantt)
                 continue;
             }
             f = realMath.sqrt(n_div(r, c));
-            if (n_le(realMath.abs(n_sub(f, I)), eps)) ++converged;
+            if (n_le(realMath.abs(n_sub(f, I)), tol)) ++converged;
             if (wantt) T[i] = n_mul(f, T[i]);
             for (j=0; j<n; ++j)
             {
@@ -8863,10 +9345,10 @@ fn.balance = varargout(function(nargout, A, noperm) {
     var ans = balance(A, two, 1 < nargout);
     return 2 < nargout ? [ans[0], array(ROWS(A), function(i) {return i+1;})/*noperm*/, ans[1]] : (1 < nargout ? [diag(ans[0]), ans[1]] : ans);
 });
-function hess(A, B, wantq, eps)
+function hess(A, B, wantq, tol)
 {
     var n = ROWS(A);
-    eps = __(eps || 0);
+    tol = __(tol || 0);
     if (null == B)
     {
         var Q = wantq ? eye(n) : null,
@@ -8877,7 +9359,7 @@ function hess(A, B, wantq, eps)
             // produces some reflected signs from Octave's hess
             for (i=n; i>=k+2; --i)
             {
-                if (n_le(scalar_abs(H[i-1][k-1]), n_mul(scalar_abs(H[i-1-1][k-1]), eps)))
+                if (n_le(scalar_abs(H[i-1][k-1]), n_mul(scalar_abs(H[i-1-1][k-1]), tol)))
                 {
                     // pass
                 }
@@ -8897,7 +9379,7 @@ function hess(A, B, wantq, eps)
     }
     else
     {
-        var QR = qr(B, true, false, eps),
+        var QR = qr(B, true, false, tol),
             Q = QR[0],
             Q_t = ctranspose(Q),
             Z = eye(n),
@@ -8908,7 +9390,7 @@ function hess(A, B, wantq, eps)
         {
             for (i=n; i>=k+2; --i)
             {
-                if (n_le(scalar_abs(AA[i-1][k-1]), n_mul(scalar_abs(AA[i-1-1][k-1]), eps)))
+                if (n_le(scalar_abs(AA[i-1][k-1]), n_mul(scalar_abs(AA[i-1-1][k-1]), tol)))
                 {
                     // pass
                 }
@@ -8924,7 +9406,7 @@ function hess(A, B, wantq, eps)
                 }
                 AA[i-1][k-1] = O; // zero-out any round-off
 
-                if (n_le(scalar_abs(BB[i-1][i-1-1]), n_mul(scalar_abs(BB[i-1][i-1]), eps)))
+                if (n_le(scalar_abs(BB[i-1][i-1-1]), n_mul(scalar_abs(BB[i-1][i-1]), tol)))
                 {
                     // pass
                 }
@@ -9004,13 +9486,13 @@ fn.chol = varargout(function(nargout, A, triangle) {
     if (!ans.length) not_supported("chol");
     return "lower" === triangle ? (mul(ans[0], fn.sqrt(ans[1]))) : ctranspose(mul(ans[0], fn.sqrt(ans[1])));
 });
-function lu(A, eps)
+function lu(A, tol)
 {
     // adapted from https://github.com/foo123/Abacus
     var n, m, dim, P, L, U, DD,
         oldpivot, k, i, j, kpivot,
         NotFound, Ukk, Uik, defficient;
-    eps = __(eps || 0);
+    tol = __(tol || 0);
     n = ROWS(A);
     m = COLS(A);
     /*
@@ -9031,13 +9513,13 @@ function lu(A, eps)
     oldpivot = I;
     for (k=0; k<n-1; ++k)
     {
-        if (le(scalar_abs(U[k][k]), eps))
+        if (le(scalar_abs(U[k][k]), tol))
         {
             kpivot = k+1;
             NotFound = true;
             while ((kpivot < n) && NotFound)
             {
-                if (!le(scalar_abs(U[kpivot][k]), eps))
+                if (!n_le(scalar_abs(U[kpivot][k]), tol))
                     NotFound = false;
                 else
                     ++kpivot;
@@ -9081,7 +9563,7 @@ fn.lu = varargout(function(nargout, A) {
     invD = diag(ans[0].map(function(di) {return scalar_inv(di);}));
     return 2 < nargout ? [mul(ans[1], invD), ans[2], ans[3]] : [mul(transpose(ans[3]), mul(ans[1], invD)), ans[2]];
 }, 2);
-function qr(A, wantq, wantp, eps)
+function qr(A, wantq, wantp, tol)
 {
     var m = ROWS(A), n = COLS(A),
         Q = wantq ? eye(m) : null,
@@ -9089,8 +9571,8 @@ function qr(A, wantq, wantp, eps)
         T = {_:1},
         colnorms, max,
         i, j, k, G, G_t, hh;
-    eps = __(eps || 0);
-    if (is_tri(R, "upper", false, eps, true, T))
+    tol = __(tol || 0);
+    if (is_tri(R, "upper", false, tol, true, T))
     {
         R = T._;
     }
@@ -9137,7 +9619,7 @@ function qr(A, wantq, wantp, eps)
                 // qr via givens rotations
                 for (i=m-1; i>=(j+1); --i)
                 {
-                    if (n_le(scalar_abs(R[i][j]), n_mul(scalar_abs(R[i-1][j]), eps)))
+                    if (n_le(scalar_abs(R[i][j]), n_mul(scalar_abs(R[i-1][j]), tol)))
                     {
                         R[i][j] = O;
                     }
@@ -9155,7 +9637,7 @@ function qr(A, wantq, wantp, eps)
 
                 // qr via householder reflections
                 hh.v = array(m-j, O);
-                compute_householder(R, hh, j, m-1, j, j, eps);
+                compute_householder(R, hh, j, m-1, j, j, tol);
                 // -- R := HR
                 R = hh_mul('left', hh, R, j);//R(j:end,:) = R(j:end,:)-(tau*w)*(w'*R(j:end,:));
                 // zero-out round-off remainders
@@ -9178,7 +9660,7 @@ function qr(A, wantq, wantp, eps)
             {
                 for (i=m-1; i>=(j+1); --i)
                 {
-                    if (n_le(scalar_abs(R[i][j]), n_mul(scalar_abs(R[i-1][j]), eps)))
+                    if (n_le(scalar_abs(R[i][j]), n_mul(scalar_abs(R[i-1][j]), tol)))
                     {
                         R[i][j] = O;
                     }
@@ -9200,7 +9682,7 @@ function qr(A, wantq, wantp, eps)
             {
                 // -- Find H = I-tau*w*w' to put zeros below R(j,j)
                 hh.v = array(m-j, O);
-                compute_householder(R, hh, j, m-1, j, j, eps);
+                compute_householder(R, hh, j, m-1, j, j, tol);
                 // -- R := HR
                 R = hh_mul('left', hh, R, j);//R(j:end,:) = R(j:end,:)-(tau*w)*(w'*R(j:end,:));
                 // zero-out round-off remainders
@@ -9317,25 +9799,25 @@ function complex_qr_shift(A, i, exceptional)
         return n_lt(scalar_abs(scalar_sub(e1, T11)), scalar_abs(scalar_sub(e2, T11))) ? scalar_mul(e1, normT) : scalar_mul(e2, normT);
     }
 }
-function subdiagonal_negligible(A, i, eps)
+function subdiagonal_negligible(A, i, tol)
 {
-    if (n_le(scalar_abs(A[i+1][i]), n_mul(n_add(scalar_abs(A[i][i]), scalar_abs(A[i+1][i+1])), eps)))
+    if (n_le(scalar_abs(A[i+1][i]), n_mul(n_add(scalar_abs(A[i][i]), scalar_abs(A[i+1][i+1])), tol)))
     {
         A[i+1][i] = O;
         return true;
     }
     return false;
 }
-function subdiagonal_negligible_entry(A, i, eps)
+function subdiagonal_negligible_entry(A, i, tol)
 {
     while (i > 0)
     {
-        if (n_le(scalar_abs(A[i][i-1]), n_mul(n_add(scalar_abs(A[i-1][i-1]), scalar_abs(A[i][i])), eps))) break;
+        if (n_le(scalar_abs(A[i][i-1]), n_mul(n_add(scalar_abs(A[i-1][i-1]), scalar_abs(A[i][i])), tol))) break;
         --i;
     }
     return i;
 }
-function schur(A, wantu, mode, eps)
+function schur(A, wantu, mode, tol)
 {
     /*
     "Understanding the QR Algorithm", David S. Watkins, 1982
@@ -9357,11 +9839,11 @@ function schur(A, wantu, mode, eps)
         lhs, rhs,
         iter = 0,
         total_iter = 0,
-        max_iter = 0, tol;
+        max_iter = 0, tol2;
 
-    eps = __(eps || 1e-10);
+    tol = __(tol || 1e-10);
 
-    if (is_tri(A, "upper", true, eps, true, T))
+    if (is_tri(A, "upper", true, tol, true, T))
     {
         // already upper triangular
         return wantu ? [eye(n), T._] : T._;
@@ -9369,7 +9851,7 @@ function schur(A, wantu, mode, eps)
 
     // reduce to hessenberg form
     // that is invariant under qr algorithm and reduces computations
-    H = hess(A, null, wantu, eps);
+    H = hess(A, null, wantu, tol);
     if (wantu)
     {
         U = H[0];
@@ -9388,7 +9870,7 @@ function schur(A, wantu, mode, eps)
             // find the bottom row of the active submatrix
             while (iu > 0)
             {
-                if (!subdiagonal_negligible(H, iu-1, eps)) break;
+                if (!subdiagonal_negligible(H, iu-1, tol)) break;
                 iter = 0;
                 --iu;
             }
@@ -9402,7 +9884,7 @@ function schur(A, wantu, mode, eps)
 
             // find the top row of the active submatrix
             il = iu-1;
-            while ((il > 0) && !subdiagonal_negligible(H, il-1, eps)) --il;
+            while ((il > 0) && !subdiagonal_negligible(H, il-1, tol)) --il;
 
             // qr step with shift via givens rotation
             s = complex_qr_shift(H, iu, (iter === 10 || iter === 20) && (iu > 1));
@@ -9433,14 +9915,14 @@ function schur(A, wantu, mode, eps)
         // rows 0,...,il-1 are decoupled from the rest because H(il,il-1) is zero
         // rows il,...,iu is the part we are working on
         // rows iu+1,...,end are already brought in triangular form
-        normH = norm(H, inf/*I*/);
-        tol = n_mul(normH, n_mul(eps, eps));
-        //tol = n_gt(normH, constant.realmin) ? normH : constant.realmin;
+        //normH = norm(H, inf/*I*/);
+        //tol2 = n_mul(normH, n_mul(tol, tol));
+        //tol2 = n_gt(normH, constant.realmin) ? normH : constant.realmin;
         s = [O];
         sI = [O, O, O];
         while (iu >= 0)
         {
-            il = subdiagonal_negligible_entry(H, iu, eps);
+            il = subdiagonal_negligible_entry(H, iu, tol);
 
             if (il === iu)
             {
@@ -9479,7 +9961,7 @@ function schur(A, wantu, mode, eps)
                     if (im === il) break;
                     lhs = scalar_mul(H[im][im-1], scalar_add(scalar_abs(v[1]), scalar_abs(v[2])));
                     rhs = scalar_mul(v[0], scalar_add(scalar_add(scalar_abs(H[im-1][im-1]), scalar_abs(Hmm)), scalar_abs(H[im+1][im+1])));
-                    if (lt(scalar_abs(lhs), scalar_mul(rhs, eps))) break;
+                    if (n_lt(scalar_abs(lhs), scalar_mul(rhs, tol))) break;
                 }
 
                 // francis qr step
@@ -9548,10 +10030,10 @@ fn.schur = varargout(function(nargout, A, mode) {
     if (!is_matrix(A) || (ROWS(A) !== COLS(A))) not_supported("schur");
     return schur(A, 1 < nargout, "complex" === mode || !fn.isreal(A) ? "complex" : "real");
 });
-/*function eig_pow(A, wantv, wantw, eps)
+/*function eig_pow(A, wantv, wantw, tol)
 {
     // eig power iteration method
-    eps = __(eps || 1e-10);
+    tol = __(tol || 1e-10);
     var e, d, v, w,
         n, N = ROWS(A),
         V = new Array(N),
@@ -9561,7 +10043,7 @@ fn.schur = varargout(function(nargout, A, mode) {
     A = copy(A);
     for (n=0; n<N; ++n)
     {
-        e = largest_eig(A, N, eps);
+        e = largest_eig(A, N, tol);
         d = e[0];
         v = e[1];
         w = e[2];
@@ -9576,12 +10058,12 @@ fn.schur = varargout(function(nargout, A, mode) {
     realify(transpose(W))
     ];
 }*/
-function eig_schur(A, wantv, wantw, eps)
+function eig_schur(A, wantv, wantw, tol)
 {
     // triangularize via schur
     // eigenvalues are on diagonal
-    // eigenvectors can be found from the nullspace of A-λI via fast backsubstitution
-    var Q = schur(A, true, fn.isreal(A) ? "realcomplex" : "complex", eps),
+    // eigenvectors can be found from the nullspace of A-lambdaI via fast backsubstitution
+    var Q = schur(A, true, fn.isreal(A) ? "realcomplex" : "complex", tol),
         i, j, n,
         D, V, W,
         v, w,
@@ -9622,7 +10104,7 @@ function eig_schur(A, wantv, wantw, eps)
             multiplicity = 1;
             lambda = D[sortperm[i]];
             j = i-1;
-            while ((j >= 0) && n_le(scalar_abs(scalar_sub(lambda, D[sortperm[j]])), eps))
+            while ((j >= 0) && n_le(scalar_abs(scalar_sub(lambda, D[sortperm[j]])), tol))
             {
                 ++multiplicity;
                 --j;
@@ -9633,13 +10115,13 @@ function eig_schur(A, wantv, wantw, eps)
             if (wantv)
             {
                 for (j=0; j<n; ++j) Alambda[j][j] = scalar_sub(A[j][j], lambda);
-                v = solve_tri("upper", Alambda, null, eps, free);
+                v = solve_tri("upper", Alambda, null, tol, free);
                 V[sortperm[i]] = dotdiv(v, norm(v));
             }
             if (wantw)
             {
                 for (j=0; j<n; ++j) AlambdaT[j][j] = scalar_sub(conj(A[j][j]), lambda);
-                w = solve_tri("lower", AlambdaT, null, eps, free);
+                w = solve_tri("lower", AlambdaT, null, tol, free);
                 W[sortperm[i]] = dotdiv(w, norm(w));
             }
             free[multiplicity-1] = O;
@@ -9711,12 +10193,12 @@ fn.eig = varargout(function(nargout, A, nobalance) {
     if (1 < nargout)
     {
         //ans = eig_pow(A, 1 < nargout, 2 < nargout, 1e-16);
-        ans = eig_schur(A, 1 < nargout, 2 < nargout, 1e-16);
+        ans = eig_schur(A, 1 < nargout, 2 < nargout, eps);
         return [T && ans[1] ? mul(diag(T), ans[1]) : ans[1], diag(ans[0]), T && ans[2] ? mul(diag(T.map(function(ti) {return n_inv(ti);})), ans[2]) : ans[2]];
     }
     else
     {
-        if (is_tri(A, "lower", true, 1e-16))
+        if (is_tri(A, "lower", true, eps))
         {
             // lower triangular
             // pass
@@ -9724,7 +10206,7 @@ fn.eig = varargout(function(nargout, A, nobalance) {
         else
         {
             // triangularize via schur, schur checks if already upper triangular
-            A = schur(A, false, fn.isreal(A) ? "realcomplex" : "complex", 1e-16);
+            A = schur(A, false, fn.isreal(A) ? "realcomplex" : "complex", eps);
         }
         // get eigenvalues from diagonal
         return realify(array(ROWS(A), function(i) {return A[i][i];}));
@@ -10278,17 +10760,17 @@ function svd(A, eta, wantu, wantv)
     }
     return wantu && wantv ? [realify(u), s, realify(v)] : (wantu || wantv ? [realify(u || v), s] : s);
 }
-fn.svd = varargout(function(nargout, x, eps) {
+fn.svd = varargout(function(nargout, x, tol) {
     if (is_scalar(x)) x = [[x]];
     if (!is_matrix(x)) not_supported("svd");
     if (1 < nargout)
     {
-        var ans = svd(x, eps, 1 < nargout, 2 < nargout);
+        var ans = svd(x, tol, 1 < nargout, 2 < nargout);
         return [ans[0], diag(ans[1]), ans[2]];
     }
     else
     {
-        return svd(x, eps, false, false);
+        return svd(x, tol, false, false);
     }
 });
 function int_gauss_jordan(A, hermite, wantu)
@@ -10296,7 +10778,7 @@ function int_gauss_jordan(A, hermite, wantu)
     // adapted from https://github.com/foo123/Abacus
     var rows = ROWS(A), columns = COLS(A),
         dim = columns, pl = 0, r, i, i0, p0,
-        lead, imin, im, min, a, z, m, eps = O;
+        lead, imin, im, min, a, z, m, tol = O;
     m = wantu ? concat(A, eye(rows)) : A;
     lead = 0;
     for (r=0; r<rows; ++r)
@@ -10304,7 +10786,7 @@ function int_gauss_jordan(A, hermite, wantu)
         if (dim <= lead) break;
 
         i = r;
-        while (le(scalar_abs(m[i][lead]), eps))
+        while (n_le(scalar_abs(m[i][lead]), tol))
         {
             ++i;
             if (rows <= i)
@@ -10325,8 +10807,8 @@ function int_gauss_jordan(A, hermite, wantu)
         for (i=i0; i<rows; ++i)
         {
             a = scalar_abs(m[i][lead]);
-            if (le(a, eps)) ++z;
-            else if ((null == min) || lt(a, min)) {min = a; imin = i;}
+            if (n_le(a, tol)) ++z;
+            else if ((null == min) || n_lt(a, min)) {min = a; imin = i;}
         }
         for (;;)
         {
@@ -10348,7 +10830,7 @@ function int_gauss_jordan(A, hermite, wantu)
                     a = m[r][lead];
                     for (i=0; i<r; ++i)
                     {
-                        if (ge(scalar_abs(m[i][lead]), a))
+                        if (n_ge(scalar_abs(m[i][lead]), a))
                         {
                             // make strictly smaller
                             ADDR(m, i, r, scalar_neg(fn.floor(scalar_div(m[i][lead], a))), I, lead);
@@ -10374,8 +10856,8 @@ function int_gauss_jordan(A, hermite, wantu)
 
                     // find again row with min abs value for this column as well for next round
                     a = scalar_abs(m[i][lead]);
-                    if (le(a, eps)) ++z;
-                    else if (lt(a, min)) {min = a; imin = i;}
+                    if (n_le(a, tol)) ++z;
+                    else if (n_lt(a, min)) {min = a; imin = i;}
                 }
             }
         }
@@ -10553,10 +11035,10 @@ function sqrtm(A, stat)
         In, I34,
         one_fourth = __(0.25),
         three_fourths = __(0.75),
-        m, a, iter, eps = __(1e-10);
+        m, a, iter, tol = __(1e-10);
     // estimate of 2-norm of A for convergence test
     m = realMath.sqrt(n_mul(norm(A, I), norm(A, inf)));
-    eps = n_mul(eps, m);
+    tol = n_mul(tol, m);
     In = eye(n);
     I34 = eye(n, three_fourths);
     a = half;
@@ -10566,7 +11048,7 @@ function sqrtm(A, stat)
     for (iter=1; iter<=max_iter; ++iter)
     {
         Xnext = mul(X, add(In, dotmul(half, Y)));
-        if (n_le(max(max(abs(sub(Xnext, X)))), eps)) break;
+        if (n_le(max(max(abs(sub(Xnext, X)))), tol)) break;
         Ynext = mul(mul(Y, Y), add(I34, dotmul(one_fourth, Y)));
         X = Xnext; Y = Ynext;
     }
@@ -10603,11 +11085,10 @@ function expm(A, with_neg)
     with_neg = 'with_neg' === with_neg;
 
     var n = ROWS(A),
-        eps = __(1e-15),
         i, N = 25, sgn = -1,
         In = eye(n), An,
-        expA, expA_neg, expA_prev,
-        converged_1 = false, converged_2 = !with_neg,
+        expA, expA_neg,
+        tol = eps,
         k = max([O, n_add(I, realMath.floor(realMath.log2(norm(A, inf))))]);
 
     // down-scaling by a power of 2
@@ -10615,7 +11096,7 @@ function expm(A, with_neg)
 
     // power series of exp(A) up to N terms,
     // I + A + A^2/2! + A^3/3! + ..
-    // in general converges
+    // converges rapidly
     An = A;
     expA = add(In, An);
     expA_neg = with_neg ? sub(In, An) : In;
@@ -10623,20 +11104,9 @@ function expm(A, with_neg)
     {
         sgn = -sgn;
         An = dotdiv(mul(A, An), __(i));
-        /*if (!converged_1)
-        {*/
-            //expA_prev = expA;
-            expA = add(expA, An);
-            //if (n_le(max(max(abs(sub(expA, expA_prev)))), eps)) converged_1 = true; // converged
-        /*}*/
-        if (with_neg/*!converged_2*/)
-        {
-            //expA_prev = expA_neg;
-            expA_neg = 0 > sgn ? sub(expA_neg, An) : add(expA_neg, An);
-            //if (n_le(max(max(abs(sub(expA_neg, expA_prev)))), eps)) converged_2 = true; // converged
-        }
-        if (i > 5 && n_le(max(max(abs(An))), eps)) break;
-        //if (converged_1 && converged_2) break; // converged
+        expA = add(expA, An);
+        if (with_neg) expA_neg = 0 > sgn ? sub(expA_neg, An) : add(expA_neg, An);
+        if ((i > 5) && n_le(max(max(abs(An))), tol)) break;
     }
 
     // fast squaring
@@ -11568,19 +12038,19 @@ function cdf(pdf, min_x, max_x, n)
     // compute cdf from pdf between min_x and max_x
     // via numerical approximation of integral of pdf
     n = n || 100;
-    var cum = O, eps = n_div(n_sub(max_x, min_x), n), x;
-    for (x=min_x;n_le(x, max_x);x=n_add(x, eps))
+    var cum = O, delta = n_div(n_sub(max_x, min_x), n), x;
+    for (x=min_x;n_le(x, max_x);x=n_add(x, delta))
     {
         cum = n_add(cum, pdf(x));
     }
     return cum;
 }
-function pdf(cdf, x, eps)
+function pdf(cdf, x, delta)
 {
     // compute pdf from cdf at x
     // via numerical approximation of derivative of cdf
-    eps = __(eps || 1e-12);
-    return n_div(n_sub(cdf(n_add(x, eps)), cdf(n_sub(x, eps))), n_mul(constant['2'], eps));
+    delta = __(delta || eps);
+    return n_div(n_sub(cdf(n_add(x, delta)), cdf(n_sub(x, delta))), n_mul(constant['2'], delta));
 }
 
 var __td1 = 0.000345,
@@ -11639,7 +12109,7 @@ function norminv(p, mu, sigma)
     // icdf of Normal distribution
     // https://en.wikipedia.org/wiki/Normal_distribution
     if (n_lt(p, O)) return nan;
-    var limit = n_mul(sigma, 100); // 100 x sigma
+    var limit = n_mul(sigma, 1000); // 1000 x sigma
     return monotone_inverse_newton(
         function(x) {return normcdf(x, mu, sigma);},
         function(x) {return normpdf(x, mu, sigma);},
@@ -11651,7 +12121,7 @@ function chi2pdf(x, nu)
 {
     // pdf of Chi-squared distribution with nu degrees of freedom
     // https://en.wikipedia.org/wiki/Chi-squared_distribution
-    if (n_lt(nu, O)) return nan;
+    if (is_nan(nu) || n_lt(nu, O)) return nan;
     else if (n_eq(nu, O)) return n_eq(x, O) ? O : nan;
     else if (n_lt(x, O)) return O;
     if (n_eq(constant['2'], nu))
@@ -11660,8 +12130,14 @@ function chi2pdf(x, nu)
     }
     else
     {
-        nu = n_div(nu, constant['2']);
-        return n_div(n_mul(n_pow(x, n_sub(nu, I)), realMath.exp(n_neg(n_div(x, constant['2'])))), n_mul(n_pow(constant['2'], nu), gamma(nu)));
+        var nu2 = n_div(nu, constant['2']);
+        if ((null == chi2pdf.nu) || !n_eq(nu, chi2pdf.nu))
+        {
+            // memoize
+            chi2pdf.nu = nu;
+            chi2pdf.g = n_mul(n_pow(constant['2'], nu2), gamma(nu2));
+        }
+        return n_div(n_mul(n_pow(x, n_sub(nu2, I)), realMath.exp(n_neg(n_div(x, constant['2'])))), chi2pdf.g);
         /*
         // "A normal approximation for the chi-square distribution", Luisa Canal, 2005
         // accuracy at least within 2-3 decimal places
@@ -11683,16 +12159,17 @@ function chi2cdf(x, nu, tail)
 {
     // cdf of Chi-squared distribution with nu degrees of freedom
     // https://en.wikipedia.org/wiki/Chi-squared_distribution
-    if (n_lt(nu, O) || n_lt(x, O)) return nan;
+    if (is_nan(nu) || n_lt(nu, O) || n_lt(x, O)) return nan;
     else if (n_eq(nu, O)) return n_eq(x, O) ? O : nan;
-    var p = O;
+    var p = O, nu2;
     if (n_eq(constant['2'], nu))
     {
         p = n_sub(I, realMath.exp(n_neg(n_div(x, constant['2']))));
     }
     else
     {
-        p = gammainc(n_div(x, constant['2']), n_div(nu, constant['2']));
+        nu2 = n_div(nu, constant['2']);
+        p = /*n_div(*/gammainc(n_div(x, constant['2']), nu2)/*, n_pow(constant['2'], nu))*/;
         /*
         // "A normal approximation for the chi-square distribution", Luisa Canal, 2005
         // accuracy at least within 2-3 decimal places
@@ -11723,32 +12200,33 @@ function chi2inv(p, nu)
 {
     // icdf of Chi-squared distribution with nu degrees of freedom
     // https://en.wikipedia.org/wiki/Chi-squared_distribution
-    if (n_lt(nu, O) || n_lt(p, O)) return nan;
-    /*
+    if (is_nan(nu) || n_lt(nu, O) || n_lt(p, O)) return nan;
     // may fail because chi2cdf may return nan or inf if precision is exceeded
     return monotone_inverse_newton(
         function(x) {return chi2cdf(x, nu);},
         function(x) {return chi2pdf(x, nu);},
-        p, O, __(1e6), O, I, O, inf
+        p, O, __(10), O, I, O, inf
     );
-    */
+    /*
     // Wilson-Hilferty Transformation to approximately a Normal
     // accuracy at least within 1-2 decimal places
     if ((null == chi2inv.nu) || !n_eq(chi2inv.nu, nu))
     {
+        // memoize
         chi2inv.nu = nu;
         var sigma2 = n_div(constant['2'], n_mul(nu, 9));
         chi2inv.mu = n_sub(I, sigma2);
         chi2inv.sigma = realMath.sqrt(sigma2);
     }
     return max([O, n_mul(n_pow(norminv(p, chi2inv.mu, chi2inv.sigma), 3), nu)]);
+    */
 }
 
 function tpdf(x, nu)
 {
     // pdf of t distribution with nu degrees of freedom
     // https://en.wikipedia.org/wiki/Student%27s_t-distribution
-    if (n_le(nu, O)) return nan;
+    if (is_nan(nu) || n_le(nu, O)) return nan;
     var tpdfx = O;
     if (n_eq(nu, I))
     {
@@ -11796,13 +12274,23 @@ function tpdf(x, nu)
             )
         );
     }
+    /*else if (n_gt(nu, 30))
+    {
+        tpdfx = normpdf(x, O, I); // has become almost precisely normal
+    }*/
     else
     {
-        tpdfx = n_mul(
-            n_div(
+        if ((null == tpdf.nu) || !n_eq(nu, tpdf.nu))
+        {
+            // memoize
+            tpdf.nu = nu;
+            tpdf.g = n_div(
                 gamma(n_div(n_add(nu, I), constant['2'])),
                 n_mul(realMath.sqrt(n_mul(constant.pi, nu)), gamma(n_div(nu, constant['2'])))
-            ),
+            );
+        }
+        tpdfx = n_mul(
+            tpdf.g,
             n_pow(
                 n_add(I, n_div(n_mul(x, x), nu)),
                 n_neg(n_div(n_add(nu, I), constant['2']))
@@ -11817,7 +12305,7 @@ function tcdf(x, nu, tail)
 {
     // cdf of t distribution with nu degrees of freedom
     // https://en.wikipedia.org/wiki/Student%27s_t-distribution
-    if (n_le(nu, O)) return nan;
+    if (is_nan(nu) || n_le(nu, O)) return nan;
     var p = O, z, z2, z3, z5;
     if (n_eq(nu, I))
     {
@@ -11832,7 +12320,7 @@ function tcdf(x, nu, tail)
             constant['1/2'],
             n_div(
                 x,
-                realMath.sqrt(n_mul(constant['2'], n_mul(sqrt2, n_add(I, n_div(n_mul(x, x), constant['2'])))))
+                n_mul(constant['2'], n_mul(sqrt2, realMath.sqrt(n_add(I, n_div(n_mul(x, x), constant['2'])))))
             )
         );
     }
@@ -11863,10 +12351,10 @@ function tcdf(x, nu, tail)
             )
         );
     }
-    else if (n_gt(nu, 30))
+    /*else if (n_gt(nu, 30))
     {
         p = normcdf(x, O, I); // has become almost precisely normal
-    }
+    }*/
     else
     {
         // approximation
@@ -11888,12 +12376,12 @@ function tinv(p, nu)
     // icdf of t distribution with nu degrees of freedom
     // https://en.wikipedia.org/wiki/Student%27s_t-distribution
     // accuracy at least within 2-3 decimal places
-    if (n_le(nu, O) || n_lt(p, O)) return nan;
-    var limit = n_gt(nu, constant['2']) ? n_mul(n_div(nu, n_sub(nu, constant['2'])), 100) : __(1e7);
+    if (is_nan(nu) || n_le(nu, O) || n_lt(p, O)) return nan;
+    var limit = 1000/*n_gt(nu, constant['2']) ? n_mul(n_div(nu, n_sub(nu, constant['2'])), 100) : __(1e7)*/;
     return monotone_inverse_newton(
         function(x) {return tcdf(x, nu);},
         function(x) {return tpdf(x, nu);},
-        p, n_neg(limit), limit
+        p, __(-limit), __(limit)
     );
 }
 // various distributions
@@ -12807,7 +13295,7 @@ fn.kmeans = varargout(namevalueargs(function(nargout, X, k) {
 
     var n = ROWS(D), M, prevE, E,
         T, Tstart, Tfinal, i, j, v,
-        tmp, iter, delta, eps = 1e-6,
+        tmp, iter, delta, tol = 1e-6,
         m, e, f, summa, sum, DM;
 
     // at the worst case the components cannot be grouped
@@ -12895,7 +13383,7 @@ fn.kmeans = varargout(namevalueargs(function(nargout, X, k) {
                 }
             }
 
-            if (delta <= eps) break; // converged
+            if (delta <= tol) break; // converged
         }
         T = alpha*T;   // decrease temperature exponentially
     }

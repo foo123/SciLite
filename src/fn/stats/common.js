@@ -197,7 +197,7 @@ function chi2pdf(x, nu)
 {
     // pdf of Chi-squared distribution with nu degrees of freedom
     // https://en.wikipedia.org/wiki/Chi-squared_distribution
-    if (n_lt(nu, O)) return nan;
+    if (is_nan(nu) || n_lt(nu, O)) return nan;
     else if (n_eq(nu, O)) return n_eq(x, O) ? O : nan;
     else if (n_lt(x, O)) return O;
     if (n_eq(constant['2'], nu))
@@ -235,7 +235,7 @@ function chi2cdf(x, nu, tail)
 {
     // cdf of Chi-squared distribution with nu degrees of freedom
     // https://en.wikipedia.org/wiki/Chi-squared_distribution
-    if (n_lt(nu, O) || n_lt(x, O)) return nan;
+    if (is_nan(nu) || n_lt(nu, O) || n_lt(x, O)) return nan;
     else if (n_eq(nu, O)) return n_eq(x, O) ? O : nan;
     var p = O, nu2;
     if (n_eq(constant['2'], nu))
@@ -276,7 +276,7 @@ function chi2inv(p, nu)
 {
     // icdf of Chi-squared distribution with nu degrees of freedom
     // https://en.wikipedia.org/wiki/Chi-squared_distribution
-    if (n_lt(nu, O) || n_lt(p, O)) return nan;
+    if (is_nan(nu) || n_lt(nu, O) || n_lt(p, O)) return nan;
     // may fail because chi2cdf may return nan or inf if precision is exceeded
     return monotone_inverse_newton(
         function(x) {return chi2cdf(x, nu);},
@@ -302,7 +302,7 @@ function tpdf(x, nu)
 {
     // pdf of t distribution with nu degrees of freedom
     // https://en.wikipedia.org/wiki/Student%27s_t-distribution
-    if (n_le(nu, O)) return nan;
+    if (is_nan(nu) || n_le(nu, O)) return nan;
     var tpdfx = O;
     if (n_eq(nu, I))
     {
@@ -381,7 +381,7 @@ function tcdf(x, nu, tail)
 {
     // cdf of t distribution with nu degrees of freedom
     // https://en.wikipedia.org/wiki/Student%27s_t-distribution
-    if (n_le(nu, O)) return nan;
+    if (is_nan(nu) || n_le(nu, O)) return nan;
     var p = O, z, z2, z3, z5;
     if (n_eq(nu, I))
     {
@@ -452,7 +452,7 @@ function tinv(p, nu)
     // icdf of t distribution with nu degrees of freedom
     // https://en.wikipedia.org/wiki/Student%27s_t-distribution
     // accuracy at least within 2-3 decimal places
-    if (n_le(nu, O) || n_lt(p, O)) return nan;
+    if (is_nan(nu) || n_le(nu, O) || n_lt(p, O)) return nan;
     var limit = 1000/*n_gt(nu, constant['2']) ? n_mul(n_div(nu, n_sub(nu, constant['2'])), 100) : __(1e7)*/;
     return monotone_inverse_newton(
         function(x) {return tcdf(x, nu);},

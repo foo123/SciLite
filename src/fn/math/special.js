@@ -1065,16 +1065,16 @@ function _ei_asymptotic_series(z, tol)
     }
     return false;
 }
-function _ei_continued_fraction_backward(z, tol)
+/*function _ei_continued_fraction_backward(z, tol)
 {
     var ei = O, expz = fn.exp(z), ipi = complex(O, n_mul(realMath.sign(imag(z)), constant.pi)), k;
-    for (k=/*MAX_ITERATIONS*/24; k>=1; --k)
+    for (k=/*MAX_ITERATIONS* /24; k>=1; --k)
     {
         ei = scalar_div(-k*k, scalar_add(scalar_sub(2*k+1, z), ei));
         ei = scalar_sub(ipi, scalar_div(expz, scalar_add(scalar_sub(I, z), ei)));
     }
     return ei;
-}
+}*/
 function _ei_continued_fraction_forward(z, tol)
 {
     var ei = complex(O, n_mul(realMath.sign(imag(z)), constant.pi)),

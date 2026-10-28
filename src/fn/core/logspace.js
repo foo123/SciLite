@@ -4,10 +4,14 @@ function logspace(a, b, n)
     a = sca(a, true);
     b = sca(b, true);
     n = sca(n, true);
-    n = _(n);
-    n = _(n);
-    var step = n_pow(n_div(b, a), 1/(n-1)), i, ans = new Array(n);
-    for (i=0; i<n; ++i) ans[i] = n_mul(a, n_pow(step, i));
-    return ans;
+    n = stdMath.floor(_(n));
+    if (0 < n)
+    {
+        var step = n_pow(n_div(b, a), 1/(n-1)), i, ans = new Array(n);
+        ans[0] = a;
+        for (i=1; i<n; ++i) ans[i] = n_mul(a, n_pow(step, i));
+        return ans;
+    }
+    return [];
 }
 fn.logspace = logspace;

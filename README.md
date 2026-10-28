@@ -4,7 +4,7 @@ A **scientific computing environment** similar to Octave/Matlab/SciPy, in pure J
 
 ![SciLite](./scilite.png)
 
-**v.0.12.0** (199 kB minified)
+**v.0.12.1** (203 kB minified)
 
 [![SciLite](./demo.gif)](https://foo123.github.io/examples/scilite/)
 
@@ -61,6 +61,7 @@ let [Ref, Pivots] = fn.rref.nargout(2)(A); // variable output
 * complete implementation of extra matrix functions, eg `cosm`, `acosm`, .. **[DONE]**
 * implement generalized `schur`/`qz` decomposition (TODO)
 * implement generalized/polynomial `eig` decomposition (TODO)
+* implement more special functions **[DONE PARTIALLY]**
 * implement more statistical functions and distributions **[DONE PARTIALLY]**
 * implement more machine learning functions **[DONE PARTIALLY]**
 * implement some independent component/subspace analysis functions **[DONE PARTIALLY]**
