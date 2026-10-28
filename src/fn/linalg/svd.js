@@ -541,16 +541,16 @@ function svd(A, eta, wantu, wantv)
     }
     return wantu && wantv ? [realify(u), s, realify(v)] : (wantu || wantv ? [realify(u || v), s] : s);
 }
-fn.svd = varargout(function(nargout, x, eps) {
+fn.svd = varargout(function(nargout, x, tol) {
     if (is_scalar(x)) x = [[x]];
     if (!is_matrix(x)) not_supported("svd");
     if (1 < nargout)
     {
-        var ans = svd(x, eps, 1 < nargout, 2 < nargout);
+        var ans = svd(x, tol, 1 < nargout, 2 < nargout);
         return [ans[0], diag(ans[1]), ans[2]];
     }
     else
     {
-        return svd(x, eps, false, false);
+        return svd(x, tol, false, false);
     }
 });

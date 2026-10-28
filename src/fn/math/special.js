@@ -52,7 +52,7 @@ var __a1 =  0.254829592,
     __log_sqrt_2pi = n_mul(constant['1/2'], realMath.log(n_mul(constant['2'], constant.pi))),
     __log_pi = realMath.log(constant.pi),
     __12 = 12,
-    __eps = 1e-15
+    euler_gamma = parseFloat("0.57721566490153286060651209008240243104215933593992359")
 ;
 update.push(function() {
 __a1 = __( 0.254829592);
@@ -106,7 +106,8 @@ __log_sqrt_2pi = n_mul(constant['1/2'], realMath.log(n_mul(constant['2'], consta
 __log_pi = realMath.log(constant.pi);
 
 __12 = __(12);
-__eps = __(1e-15);
+
+euler_gamma = decimal ? decimal("0.57721566490153286060651209008240243104215933593992359") : parseFloat("0.57721566490153286060651209008240243104215933593992359");
 });
 
 // utils
@@ -121,7 +122,7 @@ function monotone_inverse_bisearch(f, y, min_x, max_x, min_f, max_f, lim_0, lim_
     else if (n_le(y, min_f)) return 0 > dir ? (null == lim_1 ? inf : lim_1) : (null == lim_0 ? -inf : lim_0);
     else if (n_ge(y, max_f)) return 0 > dir ? (null == lim_0 ? -inf : lim_0) : (null == lim_1 ? inf : lim_1);
 
-    var two = constant['2'], x, fx;
+    var two = constant['2'], x, fx, tol = eps;
     for (;;)
     {
         x = n_div(n_add(min_x, max_x), two);
@@ -130,6 +131,32 @@ function monotone_inverse_bisearch(f, y, min_x, max_x, min_f, max_f, lim_0, lim_
         {
             x = nan;
             break; // fails
+        }
+        if (n_gt(min_f, fx))
+        {
+            // possible overflow
+            if (0 > dir)
+            {
+                min_x = x;
+            }
+            else
+            {
+                max_x = x;
+            }
+            continue;
+        }
+        if (n_lt(max_f, fx))
+        {
+            // possible overflow
+            if (0 > dir)
+            {
+                max_x = x;
+            }
+            else
+            {
+                min_x = x;
+            }
+            continue;
         }
         if (n_gt(fx, y))
         {
@@ -144,7 +171,7 @@ function monotone_inverse_bisearch(f, y, min_x, max_x, min_f, max_f, lim_0, lim_
         }
         else if (n_lt(fx, y))
         {
-            if (n_lt(n_sub(y, fx), __eps) || n_lt(n_sub(max_x, min_x), __eps)) break;
+            if (n_lt(n_sub(y, fx), tol) || n_lt(n_sub(max_x, min_x), tol)) break;
             if (0 > dir)
             {
                 max_x = x;
@@ -172,7 +199,7 @@ function monotone_inverse_newton(f, df, y, min_x, max_x, min_f, max_f, lim_0, li
     else if (n_le(y, min_f)) return 0 > dir ? (null == lim_1 ? inf : lim_1) : (null == lim_0 ? -inf : lim_0);
     else if (n_ge(y, max_f)) return 0 > dir ? (null == lim_0 ? -inf : lim_0) : (null == lim_1 ? inf : lim_1);
 
-    var x = n_div(n_add(min_x, max_x), constant['2']), fx, dfx, max_iter = 100, tries;
+    var x = n_div(n_add(min_x, max_x), constant['2']), fx, dfx, max_iter = 100, tries, tol = eps;
     for (;max_iter;max_iter--)
     {
         fx = n_sub(f(x), y);
@@ -187,8 +214,42 @@ function monotone_inverse_newton(f, df, y, min_x, max_x, min_f, max_f, lim_0, li
             if (is_nan(fx)) x = nan;
             break; // fails
         }
-        if (n_lt(scalar_abs(fx), __eps)) break;
-        x = n_sub(x, n_div(fx, n_add(df(x), __eps)));
+        if (n_gt(n_sub(min_f, y), fx))
+        {
+            // possible overflow
+            if (0 > dir)
+            {
+                min_x = x;
+            }
+            else
+            {
+                max_x = x;
+            }
+            x = n_div(n_add(min_x, max_x), constant['2']);
+            max_iter += 2;
+            continue;
+        }
+        if (n_lt(n_sub(max_f, y), fx))
+        {
+            // possible overflow
+            if (0 > dir)
+            {
+                max_x = x;
+            }
+            else
+            {
+                min_x = x;
+            }
+            x = n_div(n_add(min_x, max_x), constant['2']);
+            max_iter += 2;
+            continue;
+        }
+        if (n_lt(scalar_abs(fx), tol))
+        {
+            break;
+        }
+        dfx = df(x); if (n_eq(O, dfx)) dfx = eps;
+        x = n_sub(x, n_div(fx, dfx));
     }
     return x;
 }
@@ -212,7 +273,7 @@ function monotone_inverse_newton(f, df, y, min_x, max_x, min_f, max_f, lim_0, li
     {
         a1 = n_div(n_add(a0, g0), constant['2']);
         g1 = realMath.sqrt(n_mul(a0, g0));
-        if (n_le(n_sub(a1, g1), __eps)) return g1;
+        if (n_le(n_sub(a1, g1), eps)) return g1;
         a0 = a1;
         g0 = g1;
     }
@@ -223,6 +284,7 @@ function erf(x)
 {
     // https://en.wikipedia.org/wiki/Error_function#Bounds_and_numerical_approximations
     x = real(x);
+    if (is_nan(x)) return nan;
     var sgn = n_lt(x, O) ? -1 : 1, t, erfx;
     if (sgn < 0) x = n_neg(x);
     t = n_inv(n_add(n_mul(__p, x), I));
@@ -236,6 +298,7 @@ function erfc(x)
 {
     // https://en.wikipedia.org/wiki/Error_function#Bounds_and_numerical_approximations
     x = real(x);
+    if (is_nan(x)) return nan;
     //return n_div(n_mul(n_sub(I, realMath.exp(n_neg(n_mul(__A, x)))), realMath.exp(n_neg(n_mul(x, x)))), n_mul(__B, n_mul(__sqrt_pi, x)));
     // better approximation
     var is_neg = n_lt(x, O), x2, erfcx;
@@ -286,10 +349,10 @@ function erfc(x)
 function erfinv(x)
 {
     x = real(x);
-    if (n_lt(x, J) || n_gt(x, I)) return nan;
+    if (is_nan(x) || n_lt(x, J) || n_gt(x, I)) return nan;
     return monotone_inverse_bisearch(
         erf,
-        x, __(-100), __(100), J, I
+        x, __(-1000), __(1000), J, I
     );
 }
 
@@ -297,17 +360,17 @@ function erfinv(x)
 function erfcinv(x)
 {
     x = real(x);
-    if (n_lt(x, O) || n_gt(x, constant['2'])) return nan;
+    if (is_nan(x) || n_lt(x, O) || n_gt(x, constant['2'])) return nan;
     return monotone_inverse_bisearch(
         erfc,
-        x, __(-100), __(100), O, constant['2'], -inf, inf, -1
+        x, __(-1000), __(1000), O, constant['2'], -inf, inf, -1
     );
 }
 
 function factorial(n)
 {
-    // https://en.wikipedia.org/wiki/Factorial
     // simple factorial
+    // https://en.wikipedia.org/wiki/Factorial
     if (is_int(n) && n_ge(n, O))
     {
         n = realMath.floor(n);
@@ -327,8 +390,8 @@ function factorial(n)
 }
 function logfactorial(n)
 {
-    // https://en.wikipedia.org/wiki/Factorial
     // simple log factorial
+    // https://en.wikipedia.org/wiki/Factorial
     if (is_int(n) && n_ge(n, O))
     {
         n = realMath.floor(n);
@@ -348,8 +411,8 @@ function logfactorial(n)
 }
 function binom(n, k, inverse)
 {
-    // https://en.wikipedia.org/wiki/Binomial_coefficient
     // binomial = B(n,m) = B(n-1,m-1)+B(n-1,m) = n!/m!(n-m)! = Gamma(n+1)/Gamma(k+1)Gamma(n-k+1)
+    // https://en.wikipedia.org/wiki/Binomial_coefficient
     var Bnk, i;
     if (is_int(n) && is_int(k) && n_le(O, k) && n_le(k, n))
     {
@@ -396,8 +459,8 @@ function binom(n, k, inverse)
 }
 function logbinom(n, k, inverse)
 {
-    // https://en.wikipedia.org/wiki/Binomial_coefficient
     // log binomial = log(B(n,m)) = log(n!)-log(m!)-log((n-m)!) = LogGamma(n+1)-LogGamma(k+1)-LogGamma(n-k+1)
+    // https://en.wikipedia.org/wiki/Binomial_coefficient
     var Bnk, i;
     if (is_int(n) && is_int(k) && n_le(O, k) && n_le(k, n))
     {
@@ -484,7 +547,7 @@ function gammaln(z)
     // accuracy at least within 13 decimal places
     if (!is_real(z)) return nan;
     z = real(z);
-    if (n_lt(z, O)) return nan;
+    if (is_nan(z) || n_lt(z, O)) return nan;
     if (n_lt(z, constant['1/2']))
     {
         // Lanczos is not valid for this real(z). Use reflection formula.
@@ -536,17 +599,26 @@ function gammainc(x, a, type)
     // https://en.wikipedia.org/wiki/Incomplete_gamma_function
     if (!is_real(x) || !is_real(a)) return nan;
     x = real(x); a = real(a);
-    if (n_lt(a, O)) return nan;
-    var Ga = 'scaledlower' === type || 'scaledupper' === type ? a : n_mul(n_div(n_pow(x, a), gamma(a)), realMath.exp(n_neg(x))),
+    if (is_nan(x) || is_nan(a) || n_lt(a, O)) return nan;
+    type = 'scaledlower' === type || 'scaledupper' === type || 'upper' === type ? type : 'lower';
+    if ((null == gammainc.a) || !n_eq(a, gammainc.a) || (type !== gammainc.type))
+    {
+        // memoize
+        gammainc.type = type;
+        gammainc.a = a;
+        gammainc.g = 'scaledlower' === type || 'scaledupper' === type ? I : gamma(a);
+        gammainc.g1 = 'scaledupper' === type ? gamma(n_add(a, I)) : I;
+    }
+    var Ga = 'scaledlower' === type || 'scaledupper' === type ? a : n_mul(n_div(n_pow(x, a), gammainc.g), realMath.exp(n_neg(x))),
         t = n_eq(Ga, a) ? I : n_div(Ga, a),
         g = t;
-    for (var k=1,N=25; k<=N; ++k) // power series up to N terms
+    for (var k=1,N=25,tol=eps; k<=N; ++k) // power series up to N terms
     {
         t = n_mul(t, n_div(x, n_add(a, k)));
         g = n_add(g, t);
-        if ((5 < k) && n_lt(scalar_abs(t), __eps)) break;
+        if ((5 < k) && n_lt(scalar_abs(t), tol)) break;
     }
-    return 'scaledupper' === type ? n_sub(n_mul(gamma(n_add(a, I)), n_div(realMath.exp(x), n_pow(x, a))), g) : ('upper' === type ? n_sub(I, g) : g);
+    return 'scaledupper' === type ? n_sub(n_mul(gammainc.g1, n_div(realMath.exp(x), n_pow(x, a))), g) : ('upper' === type ? n_sub(I, g) : g);
 }
 function gammaincinv(y, a, type)
 {
@@ -554,13 +626,24 @@ function gammaincinv(y, a, type)
     // https://en.wikipedia.org/wiki/Incomplete_gamma_function
     if (!is_real(y) || !is_real(a)) return nan;
     y = real(y); a = real(a);
-    if (n_lt(a, O) || n_lt(y, O) || n_gt(y, I)) return nan;
-    var s = 'scaledupper' === type || 'upper' === type ? -1 : 1,
-        g = n_mul(gamma(a), s);
+    if (is_nan(y) || is_nan(a) || n_lt(a, O) || n_lt(y, O) || n_gt(y, I)) return nan;
+    type = 'upper' === type ? type : 'lower';
+    var s = 'upper' === type ? -1 : 1;
+    /*if ((null == gammaincinv.a) || !n_eq(a, gammaincinv.a) || (type !== gammaincinv.type))
+    {
+        // memoize
+        gammaincinv.type = type;
+        gammaincinv.a = a;
+        gammaincinv.g = n_mul(gamma(a), -s);
+    }
     return monotone_inverse_newton(
         function(x) {return gammainc(x, a, type);},
-        function(x) {return n_neg(n_div(n_mul(n_pow(x, n_sub(a, I)), realMath.exp(n_neg(x))), g));},
-        y, O, __(1e6), O, I, O, inf, s
+        function(x) {return n_div(n_mul(n_pow(x, n_sub(a, I)), realMath.exp(n_neg(x))), gammaincinv.g);},
+        y, O, I, O, I, O, inf, s
+    );*/
+    return monotone_inverse_bisearch(
+        function(x) {return gammainc(x, a, type);},
+        y, O, __(10), O, I, O, inf, s
     );
 }
 
@@ -570,7 +653,7 @@ function beta(z, w)
     // https://en.wikipedia.org/wiki/Beta_function
     if (!is_real(z) || !is_real(w)) return nan;
     z = real(z); w = real(w);
-    if (n_lt(z, O) || n_lt(w, O)) return nan;
+    if (is_nan(z) || is_nan(w) || n_lt(z, O) || n_lt(w, O)) return nan;
     if (n_eq(z, O) || n_eq(w, O)) return n_eq(z, w) ? nan : inf;
     if (is_int(z) && is_int(w))
     {
@@ -585,7 +668,7 @@ function betaln(z, w)
     // https://en.wikipedia.org/wiki/Beta_function
     if (!is_real(z) || !is_real(w)) return nan;
     z = real(z); w = real(w);
-    if (n_lt(z, O) || n_lt(w, O)) return nan;
+    if (is_nan(z) || is_nan(w) || n_lt(z, O) || n_lt(w, O)) return nan;
     if (is_int(z) && is_int(w))
     {
         // reduces to inverse log-binomial coeff
@@ -593,21 +676,19 @@ function betaln(z, w)
     }
     return scalar_add(scalar_sub(gammaln(z), gammaln(scalar_add(z, w))), gammaln(w));
 }
-function _betainc_cont_frac(x, z, w, regularized)
+function _betainc_cont_frac(x, z, w, factor)
 {
     var p, q, p1, p0,
         q1, q0, r0, r,
-        m, k, ak, bk
+        m, k, ak, bk,
+        tol = eps
     ;
     p1 = I;
     p0 = O;
     q1 = O;
     q0 = I;
     bk = I;
-    ak = n_div(
-        n_mul(n_div(n_pow(x, z), z), n_pow(n_sub(I, x), w)),
-        'regularized' === regularized ? beta(z, w) : I
-    );
+    ak = n_div(n_mul(n_div(n_pow(x, z), z), n_pow(n_sub(I, x), w)), null == factor ? I : factor);
     p = ak;
     q = I;
     r = ak;
@@ -630,7 +711,7 @@ function _betainc_cont_frac(x, z, w, regularized)
         q = n_add(n_mul(bk, q0), n_mul(ak, q1));
         r = n_div(p, q);
 
-        if ((5 < k) && n_lt(scalar_abs(n_sub(r, r0)), __eps)) break;
+        if ((5 < k) && n_lt(scalar_abs(n_sub(r, r0)), tol)) break;
 
         p1 = p0; p0 = p;
         q1 = q0; q0 = q;
@@ -651,11 +732,10 @@ function betainc(x, z, w, tail)
 {
     // regularized incomplete beta(x, z, w) function
     // https://en.wikipedia.org/wiki/Beta_function
-
     if (!is_real(x) || !is_real(z) || !is_real(w)) return nan;
     x = real(x); z = real(z); w = real(w);
 
-    if (n_lt(x, O) || n_gt(x, I) || n_lt(z, O) || n_lt(w, O)) return nan;
+    if (is_nan(x) || is_nan(z) || is_nan(w) || n_lt(x, O) || n_gt(x, I) || n_lt(z, O) || n_lt(w, O)) return nan;
 
     if (n_eq(x, O)) return 'upper' === tail ? I : O;
     else if (n_eq(x, I)) return 'upper' === tail ? O : I;
@@ -696,15 +776,25 @@ function betainc(x, z, w, tail)
         }
     }
     */
+    if ((null == betainc.z) || !n_eq(z, betainc.z) || !n_eq(w, betainc.w))
+    {
+        // memoize
+        betainc.z = z;
+        betainc.w = w;
+        betainc.b = null;
+        betainc.d = null;
+    }
     if (n_ge(x, xt))
     {
+        if (null == betainc.d) betainc.d = beta(w, z);
         // use reflection, more efficient
-        b = n_sub(I, _betainc_cont_frac(n_sub(I, x), w, z, 'regularized'));
+        b = n_sub(I, _betainc_cont_frac(n_sub(I, x), w, z, betainc.d));
     }
     else
     {
+        if (null == betainc.b) betainc.b = beta(z, w);
         // converges rapidly for x < xt
-        b = _betainc_cont_frac(x, z, w, 'regularized');
+        b = _betainc_cont_frac(x, z, w, betainc.b);
     }
     return 'upper' === tail ? n_sub(I, b) : b;
 }
@@ -715,8 +805,15 @@ function betaincinv(y, z, w, tail)
     if (!is_real(y) || !is_real(z) || !is_real(w)) return nan;
     y = real(y); z = real(z); w = real(w);
 
-    if (n_lt(y, O) || n_gt(y, I) || n_lt(z, O) || n_lt(w, O)) return nan;
-    var s = 'upper' === tail ? -1 : 1, b = n_mul(beta(z, w), s);
+    if (s_nan(y) || is_nan(z) || is_nan(w) || n_lt(y, O) || n_gt(y, I) || n_lt(z, O) || n_lt(w, O)) return nan;
+    if ((null == betaincinv.z) || !n_eq(z, betaincinv.z) || !n_eq(w, betaincinv.w))
+    {
+        // memoize
+        betaincinv.z = z;
+        betaincinv.w = w;
+        betaincinv.b = beta(z, w);
+    }
+    var s = 'upper' === tail ? -1 : 1, b = n_mul(betaincinv.b, s);
     return monotone_inverse_newton(
         function(x) {return betainc(x, z, w, tail);},
         function(x) {return n_div(n_mul(n_pow(x, n_sub(z, I)), n_pow(n_sub(I, x), n_sub(w, I))), b);},
@@ -726,8 +823,8 @@ function betaincinv(y, z, w, tail)
 
 function ellipj(u, m, tol, nargout)
 {
-    // https://en.wikipedia.org/wiki/Jacobi_elliptic_functions
     // Jacobi elliptic functions sn, cn, dn
+    // https://en.wikipedia.org/wiki/Jacobi_elliptic_functions
     var a0, g0, aN, gN,
         l, d, y0, y1, x0,
         x1, x2, q, K, K2,
@@ -750,7 +847,7 @@ function ellipj(u, m, tol, nargout)
     {
         return 2 < nargout ? [realMath.tanh(u), cn=n_div(I, realMath.cosh(u)), cn] : (1 < nargout ? [realMath.tanh(u), n_div(I, realMath.cosh(u))] : realMath.tanh(u));
     }
-    if ((null == ellipj.m) || !n_eq(m, ellipj.m) || n_lt(tol, ellipj.tol))
+    if ((null == ellipj.m) || !n_eq(m, ellipj.m) || !n_eq(tol, ellipj.tol))
     {
         x1 = I;
         x2 = realMath.sqrt(n_sub(I, m));
@@ -882,8 +979,8 @@ function ellipj(u, m, tol, nargout)
 }
 function ellipke(m, tol, nargout)
 {
-    // https://en.wikipedia.org/wiki/Elliptic_integral
     // complete elliptic integral of 1st and 2nd kind
+    // https://en.wikipedia.org/wiki/Elliptic_integral
     var a0, g0, a1, g1, c0, c1, x1, x2,
         p2 = constant['1/2'], s = I, ellip1;
     if (is_nan(m) || n_lt(m, O) || n_gt(m, I))
@@ -935,6 +1032,121 @@ function ellipke(m, tol, nargout)
     return 1 < nargout ? [ellip1, n_mul(ellip1, s)] : ellip1;
 }
 
+function err_negligible(curr, prev, tol)
+{
+    var err = scalar_sub(curr, prev);
+    return n_le(scalar_abs(real(err)), n_mul(tol, scalar_abs(real(curr)))) && n_le(scalar_abs(imag(err)), n_mul(tol, scalar_abs(imag(curr))));
+}
+function _ei_power_series(z, tol)
+{
+    var modz = scalar_abs(z),
+        ei, old, tmp = 1, k;
+    ei = scalar_add(scalar_add(euler_gamma, realMath.log(modz)), complex(O, n_mul(realMath.sign(imag(z)), scalar_abs(scalar_angle(z)))));
+    for (k=1; k<=/*MAX_ITERATIONS*/24; ++k)
+    {
+        tmp = scalar_mul(tmp, scalar_div(z, k));
+        old = ei;
+        ei = scalar_add(ei, scalar_div(tmp, k));
+        if (err_negligible(ei, old, tol)) break;
+    }
+    return ei;
+}
+function _ei_asymptotic_series(z, tol)
+{
+    var ei = complex(O, n_mul(realMath.sign(imag(z)), constant.pi)),
+        tmp = scalar_div(fn.exp(z), z),
+        k, n = _(realMath.floor(scalar_abs(z)))+1;
+    for (k=1; k<=n; ++k)
+    {
+        old = ei;
+        ei = scalar_add(ei, tmp);
+        if (err_negligible(ei, old, tol)) return ei;
+        tmp = scalar_mul(tmp, scalar_div(k, z));
+    }
+    return false;
+}
+function _ei_continued_fraction_backward(z, tol)
+{
+    var ei = O, expz = fn.exp(z), ipi = complex(O, n_mul(realMath.sign(imag(z)), constant.pi)), k;
+    for (k=/*MAX_ITERATIONS*/24; k>=1; --k)
+    {
+        ei = scalar_div(-k*k, scalar_add(scalar_sub(2*k+1, z), ei));
+        ei = scalar_sub(ipi, scalar_div(expz, scalar_add(scalar_sub(I, z), ei)));
+    }
+    return ei;
+}
+function _ei_continued_fraction_forward(z, tol)
+{
+    var ei = complex(O, n_mul(realMath.sign(imag(z)), constant.pi)),
+        old, expz = fn.exp(z), c, d, k, k2, kk;
+    if (!n_eq(ei.im, O))
+    {
+        c = scalar_div(I, ei);
+        d = O;
+        c = scalar_div(I, scalar_sub(scalar_sub(I, z), scalar_mul(expz, c)));
+        d = scalar_div(I, scalar_sub(scalar_sub(I, z), scalar_mul(expz, d)));
+        ei = scalar_mul(ei, scalar_div(d, c));
+    }
+    else
+    {
+        c = inf;
+        d = O;
+        c = O;
+        d = scalar_div(I, scalar_sub(scalar_sub(I, z), scalar_mul(expz, d)));
+        ei = scalar_mul(d, scalar_neg(expz));
+    }
+    for (k=1; k<=/*MAX_ITERATIONS*/24; ++k)
+    {
+        k2 = 2*k+1;
+        kk = k*k;
+        c = scalar_div(I, scalar_sub(scalar_sub(k2, z), scalar_mul(kk, c)));
+        d = scalar_div(I, scalar_sub(scalar_sub(k2, z), scalar_mul(kk, d)));
+        old = ei;
+        ei = scalar_mul(ei, scalar_div(d, c));
+        if (err_negligible(ei, old, tol)) break;
+    }
+    return ei;
+}
+function Ei(z)
+{
+    // exponential integral Ei(z)
+    // "On the Evaluation of the Complex-Valued Exponential Integral", Vincent Pegoraro and Philipp Slusallek, 2011
+    if ((is_complex(z) && (is_nan(z.re) || is_nan(z.im))) || (is_real(z) && is_nan(z)))
+    {
+        return z;
+    }
+    var modz = scalar_abs(z), ei, tol = eps, DIST = 1;
+    if (n_lt(n_div(I, modz), eps)/*is_inf(modz)*/)
+    {
+        return scalar_add(complex(O, n_mul(realMath.sign(imag(z)), constant.pi)), scalar_div(fn.exp(z), z));
+    }
+    if (n_gt(modz, n_sub(2, n_mul(1.035, realMath.log(tol)))))
+    {
+        ei = _ei_asymptotic_series(z, tol);
+        if (false !== ei) return ei;
+    }
+    if (n_gt(modz, DIST) && (n_lt(real(z), O) || n_gt(scalar_abs(imag(z)), DIST)))
+    {
+        return _ei_continued_fraction_forward(z, tol);
+    }
+    if (n_gt(modz, O))
+    {
+        return _ei_power_series(z, tol);
+    }
+    if (n_eq(modz, O))
+    {
+        return -inf;
+    }
+    return nan;
+}
+function E1(z)
+{
+    // exponential integral E1(z)
+    // Ei(z) = -(E1(−z) + sgn(arg(-z))*i*pi)
+    // E1(z) = -(Ei(-z) + sgn(arg( z))*i*pi)
+    return scalar_neg(scalar_add(Ei(scalar_neg(z)), complex(O, n_mul(realMath.sign(scalar_angle(z)), constant.pi))));
+}
+
 // add them
 fn.erf = function(x) {
     return apply(erf, x, true);
@@ -979,12 +1191,18 @@ fn.betaincinv = function(y, z, w, tail) {
     return apply_(function(y, z, w) {return betaincinv(y, z, w, tail);}, [y, z, w]);
 };
 fn.ellipj = varargout(function(nargout, u, m, tol) {
-    tol = __(tol || 1e-15);
-    if (n_lt(tol, __eps)) tol = __eps; // otherwise too slow
+    tol = __(tol || eps);
+    if (n_lt(tol, eps)) tol = eps; // otherwise too slow
     return apply_(function(u, m) {return ellipj(u, m, tol, nargout);}, [u, m], real, stdMath.min(3, nargout));
 });
 fn.ellipke = varargout(function(nargout, m, tol) {
-    tol = __(tol || 1e-15);
-    if (n_lt(tol, __eps)) tol = __eps; // otherwise too slow
+    tol = __(tol || eps);
+    if (n_lt(tol, eps)) tol = eps; // otherwise too slow
     return apply_(function(m) {return ellipke(m, tol, nargout);}, [m], real, stdMath.min(2, nargout));
 });
+fn.expint = function(z) {
+    return apply(E1, z, true);
+};
+fn.expinti = function(z) {
+    return apply(Ei, z, true);
+};

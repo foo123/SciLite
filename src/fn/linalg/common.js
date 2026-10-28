@@ -143,45 +143,45 @@ function concat(A, B, axis)
         });
     }
 }
-function is_tri(A, type, strict, eps, setzero, setcopy)
+function is_tri(A, type, strict, tol, setzero, setcopy)
 {
-    var nr = ROWS(A), nc = COLS(A), n, r, c, tol;
+    var nr = ROWS(A), nc = COLS(A), n, r, c, tol2;
     if ((false !== strict) && (nr !== nc)) return false;
 
-    eps = __(eps || 0);
+    tol = __(tol || 0);
     n = stdMath.min(nr, nc);
-    tol = n_gt(eps, O) ? n_mul(n_div(sum(array(n, function(i) {return scalar_abs(A[i][i]);})), n), eps) : O;
+    tol2 = n_gt(tol, O) ? n_mul(n_div(sum(array(n, function(i) {return scalar_abs(A[i][i]);})), n), tol) : O;
     for (r=0; r<n; ++r)
     {
-        //tol = n_mul(scalar_abs(A[r][r]), eps);
+        //tol2 = n_mul(scalar_abs(A[r][r]), tol);
         if (('lower' === type) || ('diagonal' === type))
         {
-            for (c=r+1; c<n; ++c) if (!le(scalar_abs(A[r][c]), tol)) return false;
+            for (c=r+1; c<n; ++c) if (!n_le(scalar_abs(A[r][c]), tol2)) return false;
         }
         if (('upper' === type) || ('diagonal' === type))
         {
-            for (c=0; c<r; ++c) if (!le(scalar_abs(A[r][c]), tol)) return false;
+            for (c=0; c<r; ++c) if (!n_le(scalar_abs(A[r][c]), tol2)) return false;
         }
     }
     if (nr > nc)
     {
         // should be all zero
-        //tol = n_mul(scalar_abs(A[n-1][n-1]), eps);
+        //tol2 = n_mul(scalar_abs(A[n-1][n-1]), tol);
         for (r=n; r<nr; ++r)
         {
-            for (c=0; c<nc; ++c) if (!le(scalar_abs(A[r][c]), tol)) return false;
+            for (c=0; c<nc; ++c) if (!n_le(scalar_abs(A[r][c]), tol2)) return false;
         }
     }
     else if (nr < nc)
     {
         // should be all zero
-        //tol = n_mul(scalar_abs(A[n-1][n-1]), eps);
+        //tol2 = n_mul(scalar_abs(A[n-1][n-1]), tol);
         for (c=n; c<nc; ++c)
         {
-            for (r=0; r<nr; ++r) if (!le(scalar_abs(A[r][c]), tol)) return false;
+            for (r=0; r<nr; ++r) if (!n_le(scalar_abs(A[r][c]), tol2)) return false;
         }
     }
-    if ((true === setzero) && n_gt(eps, O))
+    if ((true === setzero) && n_gt(tol2, O))
     {
         if (setcopy && setcopy._) A = setcopy._ = copy(A);
         if (('upper' === type) || ('diagonal' === type))
@@ -229,18 +229,18 @@ function is_tri(A, type, strict, eps, setzero, setcopy)
     }
     return true;
 }
-function solve_tri(type, T, y, eps, free_vars)
+function solve_tri(type, T, y, tol, free_vars)
 {
-    eps = __(eps || 0);
+    tol = __(tol || 0);
     if (y) y = vec(y);
     var n = ROWS(T), fk = 0, fn = free_vars ? free_vars.length : 0;
     if ("lower" === type)
     {
         // lower triangular, forward substitution
         return array(n, function(m, x) {
-            if (free_vars && n_le(scalar_abs(T[m][m]), eps))
+            if (free_vars && n_le(scalar_abs(T[m][m]), tol))
             {
-                //if (n_le(scalar_abs(Tx), eps))
+                //if (n_le(scalar_abs(Tx), tol))
                     return fk < fn ? free_vars[fk++] : (free_vars[fn-1] || O); // free variable
             }
             else
@@ -255,9 +255,9 @@ function solve_tri(type, T, y, eps, free_vars)
     {
         // upper triangular, backward substitution
         return array(n, function(m, x) {
-            if (free_vars && n_le(scalar_abs(T[n-1-m][n-1-m]), eps))
+            if (free_vars && n_le(scalar_abs(T[n-1-m][n-1-m]), tol))
             {
-                //if (n_le(scalar_abs(Tx), eps))
+                //if (n_le(scalar_abs(Tx), tol))
                     return fk < fn ? free_vars[fk++] : (free_vars[fn-1] || O); // free variable
             }
             else
@@ -446,7 +446,7 @@ function jacobi_sweep(A, nsweeps)
     }
     return A;
 }
-function compute_householder(A, hh, i1, i2, j1, j2, eps)
+function compute_householder(A, hh, i1, i2, j1, j2, tol)
 {
     /*
     "Unitary Triangularization of a Nonsymmetric Matrix",
@@ -454,7 +454,7 @@ function compute_householder(A, hh, i1, i2, j1, j2, eps)
     Journal of the ACM. 5 (4): 339–342.  1958
     */
     // v(0) is always 1, rest is the essential part
-    if (null == eps) eps = constant.eps;
+    if (null == tol) tol = eps;
     var c0, c, normc, b, bc;
     if (is_vector(A))
     {
@@ -495,7 +495,7 @@ function compute_householder(A, hh, i1, i2, j1, j2, eps)
             normc = real(dot(c, c));
         }
     }
-    if (n_le(normc, eps) && n_le(n_pow(scalar_abs(imag(c0)), two), eps))
+    if (n_le(normc, tol) && n_le(n_pow(scalar_abs(imag(c0)), two), tol))
     {
         hh.beta = real(c0);
         hh.tau = O;
@@ -629,7 +629,7 @@ function hh_mul(type, hh, A, i1, i2, j1, j2)
     }
     return [b, c];
 }*/
-function gauss_jordan(A, with_pivots, odim, eps)
+function gauss_jordan(A, with_pivots, odim, tol)
 {
     // adapted from https://github.com/foo123/Abacus
     var rows = ROWS(A), columns = COLS(A),
@@ -637,10 +637,10 @@ function gauss_jordan(A, with_pivots, odim, eps)
         det, pl = 0, r, i, i0, p0,
         lead, leadc, imin, im, min,
         a, z, m, aug, find_dupl;
-    eps = __(eps || 0);
-    if (is_tri(A, "upper", false, eps))
+    tol = __(tol || 0);
+    if (is_tri(A, "upper", false, tol))
     {
-        return with_pivots ? [A, array(dim, function(col) {return [col, col];}).filter(function(pivot) {return (pivot[0] < rows) && (pivot[1] < columns) && !le(scalar_abs(A[pivot[0]][pivot[1]]), eps);}), prod(diag(A)), eye(rows)] : A;
+        return with_pivots ? [A, array(dim, function(col) {return [col, col];}).filter(function(pivot) {return (pivot[0] < rows) && (pivot[1] < columns) && !n_le(scalar_abs(A[pivot[0]][pivot[1]]), tol);}), prod(diag(A)), eye(rows)] : A;
     }
     // original dimensions, eg when having augmented matrix
     if (is_array(odim)) dim = stdMath.min(dim, odim[1]);
@@ -659,7 +659,7 @@ function gauss_jordan(A, with_pivots, odim, eps)
         if (dim <= lead) break;
 
         i = r;
-        while (le(scalar_abs(m[i][lead]), eps))
+        while (n_le(scalar_abs(m[i][lead]), tol))
         {
             ++i;
             if (rows <= i)
@@ -680,8 +680,8 @@ function gauss_jordan(A, with_pivots, odim, eps)
         for (i=i0; i<rows; ++i)
         {
             a = scalar_abs(m[i][lead]);
-            if (le(a, eps)) ++z;
-            else if ((null == min) || lt(a, min)) {min = a; imin = i;}
+            if (n_le(a, tol)) ++z;
+            else if ((null == min) || n_lt(a, min)) {min = a; imin = i;}
         }
         for (;;)
         {
@@ -720,8 +720,8 @@ function gauss_jordan(A, with_pivots, odim, eps)
 
                     // find again row with min abs value for this column as well for next round
                     a = scalar_abs(m[i][lead]);
-                    if (le(a, eps)) ++z;
-                    else if (lt(a, min)) {min = a; imin = i;}
+                    if (n_le(a, tol)) ++z;
+                    else if (n_lt(a, min)) {min = a; imin = i;}
                 }
             }
         }
@@ -738,7 +738,7 @@ function gauss_jordan(A, with_pivots, odim, eps)
     return with_pivots ? [m, pivots, det, aug] : m;
 }
 var ref = gauss_jordan;
-/*function largest_eig(A, N, eps, valueonly)
+/*function largest_eig(A, N, tol, valueonly)
 {
     // power method
     var iter,
@@ -763,7 +763,7 @@ var ref = gauss_jordan;
                 v = dotdiv(v, scalar_sign(v[0]));
             }
             v = dotdiv(v, norm(v));
-            if (n_le(realMath.abs(n_sub(real(k), real(prev_k))), eps) && n_le(realMath.abs(n_sub(imag(k), imag(prev_k))), eps)) break;
+            if (n_le(realMath.abs(n_sub(real(k), real(prev_k))), tol) && n_le(realMath.abs(n_sub(imag(k), imag(prev_k))), tol)) break;
         }
         return k;
     }
@@ -792,7 +792,7 @@ var ref = gauss_jordan;
             }
             v = dotdiv(v, norm(v));
             w = dotdiv(w, norm(w));
-            if (n_le(realMath.abs(n_sub(real(k), real(prev_k))), eps) && n_le(realMath.abs(n_sub(imag(k), imag(prev_k))), eps)) break;
+            if (n_le(realMath.abs(n_sub(real(k), real(prev_k))), tol) && n_le(realMath.abs(n_sub(imag(k), imag(prev_k))), tol)) break;
         }
         return [k, v, w];
     }

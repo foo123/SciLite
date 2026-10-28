@@ -1,7 +1,7 @@
-function hess(A, B, wantq, eps)
+function hess(A, B, wantq, tol)
 {
     var n = ROWS(A);
-    eps = __(eps || 0);
+    tol = __(tol || 0);
     if (null == B)
     {
         var Q = wantq ? eye(n) : null,
@@ -12,7 +12,7 @@ function hess(A, B, wantq, eps)
             // produces some reflected signs from Octave's hess
             for (i=n; i>=k+2; --i)
             {
-                if (n_le(scalar_abs(H[i-1][k-1]), n_mul(scalar_abs(H[i-1-1][k-1]), eps)))
+                if (n_le(scalar_abs(H[i-1][k-1]), n_mul(scalar_abs(H[i-1-1][k-1]), tol)))
                 {
                     // pass
                 }
@@ -32,7 +32,7 @@ function hess(A, B, wantq, eps)
     }
     else
     {
-        var QR = qr(B, true, false, eps),
+        var QR = qr(B, true, false, tol),
             Q = QR[0],
             Q_t = ctranspose(Q),
             Z = eye(n),
@@ -43,7 +43,7 @@ function hess(A, B, wantq, eps)
         {
             for (i=n; i>=k+2; --i)
             {
-                if (n_le(scalar_abs(AA[i-1][k-1]), n_mul(scalar_abs(AA[i-1-1][k-1]), eps)))
+                if (n_le(scalar_abs(AA[i-1][k-1]), n_mul(scalar_abs(AA[i-1-1][k-1]), tol)))
                 {
                     // pass
                 }
@@ -59,7 +59,7 @@ function hess(A, B, wantq, eps)
                 }
                 AA[i-1][k-1] = O; // zero-out any round-off
 
-                if (n_le(scalar_abs(BB[i-1][i-1-1]), n_mul(scalar_abs(BB[i-1][i-1]), eps)))
+                if (n_le(scalar_abs(BB[i-1][i-1-1]), n_mul(scalar_abs(BB[i-1][i-1]), tol)))
                 {
                     // pass
                 }

@@ -12,7 +12,7 @@ function balance(A, pnorm, wantt)
         col = new Array(n1),
         row = new Array(n1),
         i, j, ji, f, c, r,
-        eps = __(1e-10),
+        tol = __(1e-10),
         converged, iter;
     for (iter=1; iter<=100; ++iter)
     {
@@ -33,7 +33,7 @@ function balance(A, pnorm, wantt)
                 continue;
             }
             f = realMath.sqrt(n_div(r, c));
-            if (n_le(realMath.abs(n_sub(f, I)), eps)) ++converged;
+            if (n_le(realMath.abs(n_sub(f, I)), tol)) ++converged;
             if (wantt) T[i] = n_mul(f, T[i]);
             for (j=0; j<n; ++j)
             {

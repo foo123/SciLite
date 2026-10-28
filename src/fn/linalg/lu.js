@@ -1,10 +1,10 @@
-function lu(A, eps)
+function lu(A, tol)
 {
     // adapted from https://github.com/foo123/Abacus
     var n, m, dim, P, L, U, DD,
         oldpivot, k, i, j, kpivot,
         NotFound, Ukk, Uik, defficient;
-    eps = __(eps || 0);
+    tol = __(tol || 0);
     n = ROWS(A);
     m = COLS(A);
     /*
@@ -25,13 +25,13 @@ function lu(A, eps)
     oldpivot = I;
     for (k=0; k<n-1; ++k)
     {
-        if (le(scalar_abs(U[k][k]), eps))
+        if (le(scalar_abs(U[k][k]), tol))
         {
             kpivot = k+1;
             NotFound = true;
             while ((kpivot < n) && NotFound)
             {
-                if (!le(scalar_abs(U[kpivot][k]), eps))
+                if (!n_le(scalar_abs(U[kpivot][k]), tol))
                     NotFound = false;
                 else
                     ++kpivot;

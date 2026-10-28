@@ -56,10 +56,10 @@ function sqrtm(A, stat)
         In, I34,
         one_fourth = __(0.25),
         three_fourths = __(0.75),
-        m, a, iter, eps = __(1e-10);
+        m, a, iter, tol = __(1e-10);
     // estimate of 2-norm of A for convergence test
     m = realMath.sqrt(n_mul(norm(A, I), norm(A, inf)));
-    eps = n_mul(eps, m);
+    tol = n_mul(tol, m);
     In = eye(n);
     I34 = eye(n, three_fourths);
     a = half;
@@ -69,7 +69,7 @@ function sqrtm(A, stat)
     for (iter=1; iter<=max_iter; ++iter)
     {
         Xnext = mul(X, add(In, dotmul(half, Y)));
-        if (n_le(max(max(abs(sub(Xnext, X)))), eps)) break;
+        if (n_le(max(max(abs(sub(Xnext, X)))), tol)) break;
         Ynext = mul(mul(Y, Y), add(I34, dotmul(one_fourth, Y)));
         X = Xnext; Y = Ynext;
     }

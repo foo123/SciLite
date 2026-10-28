@@ -3,7 +3,7 @@ function int_gauss_jordan(A, hermite, wantu)
     // adapted from https://github.com/foo123/Abacus
     var rows = ROWS(A), columns = COLS(A),
         dim = columns, pl = 0, r, i, i0, p0,
-        lead, imin, im, min, a, z, m, eps = O;
+        lead, imin, im, min, a, z, m, tol = O;
     m = wantu ? concat(A, eye(rows)) : A;
     lead = 0;
     for (r=0; r<rows; ++r)
@@ -11,7 +11,7 @@ function int_gauss_jordan(A, hermite, wantu)
         if (dim <= lead) break;
 
         i = r;
-        while (le(scalar_abs(m[i][lead]), eps))
+        while (n_le(scalar_abs(m[i][lead]), tol))
         {
             ++i;
             if (rows <= i)
@@ -32,8 +32,8 @@ function int_gauss_jordan(A, hermite, wantu)
         for (i=i0; i<rows; ++i)
         {
             a = scalar_abs(m[i][lead]);
-            if (le(a, eps)) ++z;
-            else if ((null == min) || lt(a, min)) {min = a; imin = i;}
+            if (n_le(a, tol)) ++z;
+            else if ((null == min) || n_lt(a, min)) {min = a; imin = i;}
         }
         for (;;)
         {
@@ -55,7 +55,7 @@ function int_gauss_jordan(A, hermite, wantu)
                     a = m[r][lead];
                     for (i=0; i<r; ++i)
                     {
-                        if (ge(scalar_abs(m[i][lead]), a))
+                        if (n_ge(scalar_abs(m[i][lead]), a))
                         {
                             // make strictly smaller
                             ADDR(m, i, r, scalar_neg(fn.floor(scalar_div(m[i][lead], a))), I, lead);
@@ -81,8 +81,8 @@ function int_gauss_jordan(A, hermite, wantu)
 
                     // find again row with min abs value for this column as well for next round
                     a = scalar_abs(m[i][lead]);
-                    if (le(a, eps)) ++z;
-                    else if (lt(a, min)) {min = a; imin = i;}
+                    if (n_le(a, tol)) ++z;
+                    else if (n_lt(a, min)) {min = a; imin = i;}
                 }
             }
         }

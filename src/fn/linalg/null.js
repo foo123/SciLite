@@ -1,11 +1,11 @@
-function nullspace(A, eps)
+function nullspace(A, tol)
 {
     // adapted from https://github.com/foo123/Abacus
     var columns, ref, pivots,
         free_vars, pl, tmp, LCM;
 
     columns = COLS(A);
-    tmp = rref(A, true, null, eps);
+    tmp = rref(A, true, null, tol);
     ref = tmp[0];
     pivots = tmp[1];
     pl = pivots.length;

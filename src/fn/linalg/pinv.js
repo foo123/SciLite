@@ -21,7 +21,7 @@ fn.rankf = function(A) {
     if (!is_matrix(A)) not_supported("rankf");
     return rankf(A);
 };
-function pinv(A, eps)
+function pinv(A, tol)
 {
     // adapted from https://github.com/foo123/Abacus
     // pseudo-matrix inverse
@@ -48,7 +48,7 @@ function pinv(A, eps)
     }
     else
     {
-        ref = rref(A, true, null, eps || 0);
+        ref = rref(A, true, null, __(tol || 0));
         rank = ref[1].length;
         if (rank === columns)
         {

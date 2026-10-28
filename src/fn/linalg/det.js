@@ -74,11 +74,11 @@ function detr(m, n)
     }
     return det;
 }
-function det(A, explicit, eps)
+function det(A, explicit, tol)
 {
     // adapted from https://github.com/foo123/Abacus
     // determinant
-    eps = __(eps || 0);
+    tol = __(tol || 0);
     var n = ROWS(A);
     if (n !== COLS(A))
     {
@@ -90,7 +90,7 @@ function det(A, explicit, eps)
         // scalar, trivial
         return A[0][0];
     }
-    else if (is_tri(A, "lower", true, eps) || is_tri(A, "upper", true, eps))
+    else if (is_tri(A, "lower", true, tol) || is_tri(A, "upper", true, tol))
     {
         // triangular, product of diagonal entries
         return A.reduce(function(det, ai, i) {
@@ -100,11 +100,11 @@ function det(A, explicit, eps)
     else
     {
         // compute either recursively or via ref
-        return true === explicit ? detr(A, n) : (ref(A, true, null, eps)[2]);
+        return true === explicit ? detr(A, n) : (ref(A, true, null, tol)[2]);
     }
 }
 fn.det = function(A) {
     if (is_scalar(A)) A = [[A]];
     if (!is_matrix(A)) not_supported("det");
-    return det(A, false, 1e-15);
+    return det(A, false, eps);
 };

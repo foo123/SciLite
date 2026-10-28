@@ -1,7 +1,7 @@
-/*function eig_pow(A, wantv, wantw, eps)
+/*function eig_pow(A, wantv, wantw, tol)
 {
     // eig power iteration method
-    eps = __(eps || 1e-10);
+    tol = __(tol || 1e-10);
     var e, d, v, w,
         n, N = ROWS(A),
         V = new Array(N),
@@ -11,7 +11,7 @@
     A = copy(A);
     for (n=0; n<N; ++n)
     {
-        e = largest_eig(A, N, eps);
+        e = largest_eig(A, N, tol);
         d = e[0];
         v = e[1];
         w = e[2];
@@ -26,12 +26,12 @@
     realify(transpose(W))
     ];
 }*/
-function eig_schur(A, wantv, wantw, eps)
+function eig_schur(A, wantv, wantw, tol)
 {
     // triangularize via schur
     // eigenvalues are on diagonal
-    // eigenvectors can be found from the nullspace of A-λI via fast backsubstitution
-    var Q = schur(A, true, fn.isreal(A) ? "realcomplex" : "complex", eps),
+    // eigenvectors can be found from the nullspace of A-lambdaI via fast backsubstitution
+    var Q = schur(A, true, fn.isreal(A) ? "realcomplex" : "complex", tol),
         i, j, n,
         D, V, W,
         v, w,
@@ -72,7 +72,7 @@ function eig_schur(A, wantv, wantw, eps)
             multiplicity = 1;
             lambda = D[sortperm[i]];
             j = i-1;
-            while ((j >= 0) && n_le(scalar_abs(scalar_sub(lambda, D[sortperm[j]])), eps))
+            while ((j >= 0) && n_le(scalar_abs(scalar_sub(lambda, D[sortperm[j]])), tol))
             {
                 ++multiplicity;
                 --j;
@@ -83,13 +83,13 @@ function eig_schur(A, wantv, wantw, eps)
             if (wantv)
             {
                 for (j=0; j<n; ++j) Alambda[j][j] = scalar_sub(A[j][j], lambda);
-                v = solve_tri("upper", Alambda, null, eps, free);
+                v = solve_tri("upper", Alambda, null, tol, free);
                 V[sortperm[i]] = dotdiv(v, norm(v));
             }
             if (wantw)
             {
                 for (j=0; j<n; ++j) AlambdaT[j][j] = scalar_sub(conj(A[j][j]), lambda);
-                w = solve_tri("lower", AlambdaT, null, eps, free);
+                w = solve_tri("lower", AlambdaT, null, tol, free);
                 W[sortperm[i]] = dotdiv(w, norm(w));
             }
             free[multiplicity-1] = O;
@@ -161,12 +161,12 @@ fn.eig = varargout(function(nargout, A, nobalance) {
     if (1 < nargout)
     {
         //ans = eig_pow(A, 1 < nargout, 2 < nargout, 1e-16);
-        ans = eig_schur(A, 1 < nargout, 2 < nargout, 1e-16);
+        ans = eig_schur(A, 1 < nargout, 2 < nargout, eps);
         return [T && ans[1] ? mul(diag(T), ans[1]) : ans[1], diag(ans[0]), T && ans[2] ? mul(diag(T.map(function(ti) {return n_inv(ti);})), ans[2]) : ans[2]];
     }
     else
     {
-        if (is_tri(A, "lower", true, 1e-16))
+        if (is_tri(A, "lower", true, eps))
         {
             // lower triangular
             // pass
@@ -174,7 +174,7 @@ fn.eig = varargout(function(nargout, A, nobalance) {
         else
         {
             // triangularize via schur, schur checks if already upper triangular
-            A = schur(A, false, fn.isreal(A) ? "realcomplex" : "complex", 1e-16);
+            A = schur(A, false, fn.isreal(A) ? "realcomplex" : "complex", eps);
         }
         // get eigenvalues from diagonal
         return realify(array(ROWS(A), function(i) {return A[i][i];}));

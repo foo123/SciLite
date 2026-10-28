@@ -1,6 +1,6 @@
 function colon(a, b, c)
 {
-    var ans, sz, i, n;
+    var ans, sz, i, n, an;
     if ((1 === arguments.length) && is_array(a))
     {
         // a(:)
@@ -47,18 +47,19 @@ function colon(a, b, c)
         a = sca(a, true);
         b = sca(b, true);
         c = sca(c, true);
-        n = stdMath.max(0, stdMath.floor(stdMath.abs(_(n_div(n_sub(c, a), b))))+1);
-        if (n_gt(b, O) && n_le(a, c))
+        if ((n_gt(b, O) && n_le(a, c)) || (n_lt(b, O) && n_ge(a, c)))
         {
-            ans = new Array(n);
-            for (i=0; n_le(a, c); a=n_add(a, b),++i) ans[i] = a;
-            if (null == ans[n-1]) ans[n-1] = min([a, c]);
-        }
-        else if (n_lt(b, O) && n_ge(a, c))
-        {
-            ans = new Array(n);
-            for (i=0; n_ge(a, c); a=n_add(a, b),++i) ans[i] = a;
-            if (null == ans[n-1]) ans[n-1] = max([a, c]);
+            n = stdMath.floor(stdMath.abs(_(n_div(n_sub(c, a), b))));
+            ans = new Array(n+1);
+            ans[0] = a;
+            if (0 < n)
+            {
+                // try to avoid roundoff errors resulting in imprecise values (including last value)
+                // using b*i instead of b+b+..+b seems to avoid that
+                for (i=1; i<n; ++i) ans[i] = n_add(a, n_mul(b, i));
+                an = n_add(a, n_mul(b, n));
+                ans[n] = n_lt(b, O) ? max([an, c]) : min([an, c]);
+            }
         }
         else
         {

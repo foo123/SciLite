@@ -4,16 +4,16 @@ fn.ref = varargout(function(nargout, x, tol) {
     var ans = ref(x, true, null, tol);
     return 1 < nargout ? [ans[0], ans[1].map(function(pi) {return pi[1]+1;})] : ans[0];
 });
-function rref(A, with_pivots, odim, eps)
+function rref(A, with_pivots, odim, tol)
 {
     // adapted from https://github.com/foo123/Abacus
     var rows = ROWS(A), columns = COLS(A), dim = columns,
         pivots, det, pl, lead, r, i, j, l, a, g, rf, aug;
-    eps = __(eps || 0);
+    tol = __(tol || 0);
     // original dimensions, eg when having augmented matrix
     if (is_array(odim)) dim = stdMath.min(dim, odim[1]);
     // build rref incrementaly from ref
-    rf = ref(A, true, odim, eps);
+    rf = ref(A, true, odim, tol);
     a = concat(rf[0], rf[3]);
     pivots = rf[1]; det = rf[2];
     pl = pivots.length;
@@ -22,7 +22,7 @@ function rref(A, with_pivots, odim, eps)
         lead = pivots[r][1];
         for (i=0; i<r; ++i)
         {
-            if (le(scalar_abs(a[i][lead]), eps)) continue;
+            if (n_le(scalar_abs(a[i][lead]), tol)) continue;
 
             ADDR(a, i, r, scalar_neg(a[i][lead]), a[r][lead]);
             if (!eq(a[i][pivots[i][1]], I))

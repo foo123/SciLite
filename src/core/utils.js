@@ -36,7 +36,7 @@ $_.decimal = function(Decimal) {
         log_2 = decimal(stdMath.log(2));
         sqrt2 = decimal(stdMath.SQRT2);
         sqrt1_2 = decimal(stdMath.SQRT1_2);
-        constant.eps = decimal(eps);
+        constant.eps = eps = decimal(__eps);
         constant.pi = decimal(pi);
         constant.e = decimal(e);
         constant.realmax = decimal(realmax);
@@ -58,7 +58,7 @@ $_.decimal = function(Decimal) {
         log_10 = stdMath.log(10);
         sqrt2 = stdMath.SQRT2;
         sqrt1_2 = stdMath.SQRT1_2;
-        constant.eps = eps;
+        constant.eps = eps = __eps;
         constant.pi = pi;
         constant.e = e;
         constant.realmax = realmax;
@@ -795,19 +795,19 @@ function group_apply(type, f, f0, ferr, x, dim, dir)
 }
 $_.group_apply = group_apply;
 
-function roundoff(x, eps)
+function roundoff(x, tol)
 {
-    eps = __(eps);
-    if (is_num(eps) && n_gt(eps, O))
+    tol = __(tol || eps);
+    if (is_num(tol) && n_gt(tol, O))
     {
         if (is_scalar(x))
         {
-            return le(scalar_abs(x), eps) ? O : x;
+            return n_le(scalar_abs(x), tol) ? O : x;
         }
         else if (is_array(x))
         {
             return x.map(function(xi) {
-                return roundoff(xi, eps);
+                return roundoff(xi, tol);
             });
         }
         else

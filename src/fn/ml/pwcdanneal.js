@@ -14,7 +14,7 @@ function pwcdanneal(D, k, alpha, max_iter)
 
     var n = ROWS(D), M, prevE, E,
         T, Tstart, Tfinal, i, j, v,
-        tmp, iter, delta, eps = 1e-6,
+        tmp, iter, delta, tol = 1e-6,
         m, e, f, summa, sum, DM;
 
     // at the worst case the components cannot be grouped
@@ -102,7 +102,7 @@ function pwcdanneal(D, k, alpha, max_iter)
                 }
             }
 
-            if (delta <= eps) break; // converged
+            if (delta <= tol) break; // converged
         }
         T = alpha*T;   // decrease temperature exponentially
     }

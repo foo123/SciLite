@@ -33,7 +33,8 @@ var tensorview = null,
     log_2 = stdMath.log(2),
     inf = Infinity,
     nan = NaN,
-    eps = 1e-15,
+    __eps = 1e-15, // default precision
+    eps = __eps,
     realmax = Number.MAX_VALUE,
     realmin = Number.MIN_VALUE,
     intmax = Number.MAX_SAFE_INTEGER,
@@ -79,9 +80,9 @@ var tensorview = null,
             inf: inf, Inf: inf,
             nan: nan, NaN: nan,
             "true": I, "false": O,
-            on: "on", off: "off",
             "0": O, "1": I, "-1": J,
-            "1/2": half, "2": two, "10": ten
+            "1/2": half, "2": two, "10": ten,
+            on: "on", off: "off"
         }
     },
     $_ = $._,

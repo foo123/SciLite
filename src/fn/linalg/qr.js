@@ -1,4 +1,4 @@
-function qr(A, wantq, wantp, eps)
+function qr(A, wantq, wantp, tol)
 {
     var m = ROWS(A), n = COLS(A),
         Q = wantq ? eye(m) : null,
@@ -6,8 +6,8 @@ function qr(A, wantq, wantp, eps)
         T = {_:1},
         colnorms, max,
         i, j, k, G, G_t, hh;
-    eps = __(eps || 0);
-    if (is_tri(R, "upper", false, eps, true, T))
+    tol = __(tol || 0);
+    if (is_tri(R, "upper", false, tol, true, T))
     {
         R = T._;
     }
@@ -54,7 +54,7 @@ function qr(A, wantq, wantp, eps)
                 // qr via givens rotations
                 for (i=m-1; i>=(j+1); --i)
                 {
-                    if (n_le(scalar_abs(R[i][j]), n_mul(scalar_abs(R[i-1][j]), eps)))
+                    if (n_le(scalar_abs(R[i][j]), n_mul(scalar_abs(R[i-1][j]), tol)))
                     {
                         R[i][j] = O;
                     }
@@ -72,7 +72,7 @@ function qr(A, wantq, wantp, eps)
 
                 // qr via householder reflections
                 hh.v = array(m-j, O);
-                compute_householder(R, hh, j, m-1, j, j, eps);
+                compute_householder(R, hh, j, m-1, j, j, tol);
                 // -- R := HR
                 R = hh_mul('left', hh, R, j);//R(j:end,:) = R(j:end,:)-(tau*w)*(w'*R(j:end,:));
                 // zero-out round-off remainders
@@ -95,7 +95,7 @@ function qr(A, wantq, wantp, eps)
             {
                 for (i=m-1; i>=(j+1); --i)
                 {
-                    if (n_le(scalar_abs(R[i][j]), n_mul(scalar_abs(R[i-1][j]), eps)))
+                    if (n_le(scalar_abs(R[i][j]), n_mul(scalar_abs(R[i-1][j]), tol)))
                     {
                         R[i][j] = O;
                     }
@@ -117,7 +117,7 @@ function qr(A, wantq, wantp, eps)
             {
                 // -- Find H = I-tau*w*w' to put zeros below R(j,j)
                 hh.v = array(m-j, O);
-                compute_householder(R, hh, j, m-1, j, j, eps);
+                compute_householder(R, hh, j, m-1, j, j, tol);
                 // -- R := HR
                 R = hh_mul('left', hh, R, j);//R(j:end,:) = R(j:end,:)-(tau*w)*(w'*R(j:end,:));
                 // zero-out round-off remainders

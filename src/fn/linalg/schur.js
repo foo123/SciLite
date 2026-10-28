@@ -98,25 +98,25 @@ function complex_qr_shift(A, i, exceptional)
         return n_lt(scalar_abs(scalar_sub(e1, T11)), scalar_abs(scalar_sub(e2, T11))) ? scalar_mul(e1, normT) : scalar_mul(e2, normT);
     }
 }
-function subdiagonal_negligible(A, i, eps)
+function subdiagonal_negligible(A, i, tol)
 {
-    if (n_le(scalar_abs(A[i+1][i]), n_mul(n_add(scalar_abs(A[i][i]), scalar_abs(A[i+1][i+1])), eps)))
+    if (n_le(scalar_abs(A[i+1][i]), n_mul(n_add(scalar_abs(A[i][i]), scalar_abs(A[i+1][i+1])), tol)))
     {
         A[i+1][i] = O;
         return true;
     }
     return false;
 }
-function subdiagonal_negligible_entry(A, i, eps)
+function subdiagonal_negligible_entry(A, i, tol)
 {
     while (i > 0)
     {
-        if (n_le(scalar_abs(A[i][i-1]), n_mul(n_add(scalar_abs(A[i-1][i-1]), scalar_abs(A[i][i])), eps))) break;
+        if (n_le(scalar_abs(A[i][i-1]), n_mul(n_add(scalar_abs(A[i-1][i-1]), scalar_abs(A[i][i])), tol))) break;
         --i;
     }
     return i;
 }
-function schur(A, wantu, mode, eps)
+function schur(A, wantu, mode, tol)
 {
     /*
     "Understanding the QR Algorithm", David S. Watkins, 1982
@@ -138,11 +138,11 @@ function schur(A, wantu, mode, eps)
         lhs, rhs,
         iter = 0,
         total_iter = 0,
-        max_iter = 0, tol;
+        max_iter = 0, tol2;
 
-    eps = __(eps || 1e-10);
+    tol = __(tol || 1e-10);
 
-    if (is_tri(A, "upper", true, eps, true, T))
+    if (is_tri(A, "upper", true, tol, true, T))
     {
         // already upper triangular
         return wantu ? [eye(n), T._] : T._;
@@ -150,7 +150,7 @@ function schur(A, wantu, mode, eps)
 
     // reduce to hessenberg form
     // that is invariant under qr algorithm and reduces computations
-    H = hess(A, null, wantu, eps);
+    H = hess(A, null, wantu, tol);
     if (wantu)
     {
         U = H[0];
@@ -169,7 +169,7 @@ function schur(A, wantu, mode, eps)
             // find the bottom row of the active submatrix
             while (iu > 0)
             {
-                if (!subdiagonal_negligible(H, iu-1, eps)) break;
+                if (!subdiagonal_negligible(H, iu-1, tol)) break;
                 iter = 0;
                 --iu;
             }
@@ -183,7 +183,7 @@ function schur(A, wantu, mode, eps)
 
             // find the top row of the active submatrix
             il = iu-1;
-            while ((il > 0) && !subdiagonal_negligible(H, il-1, eps)) --il;
+            while ((il > 0) && !subdiagonal_negligible(H, il-1, tol)) --il;
 
             // qr step with shift via givens rotation
             s = complex_qr_shift(H, iu, (iter === 10 || iter === 20) && (iu > 1));
@@ -214,14 +214,14 @@ function schur(A, wantu, mode, eps)
         // rows 0,...,il-1 are decoupled from the rest because H(il,il-1) is zero
         // rows il,...,iu is the part we are working on
         // rows iu+1,...,end are already brought in triangular form
-        normH = norm(H, inf/*I*/);
-        tol = n_mul(normH, n_mul(eps, eps));
-        //tol = n_gt(normH, constant.realmin) ? normH : constant.realmin;
+        //normH = norm(H, inf/*I*/);
+        //tol2 = n_mul(normH, n_mul(tol, tol));
+        //tol2 = n_gt(normH, constant.realmin) ? normH : constant.realmin;
         s = [O];
         sI = [O, O, O];
         while (iu >= 0)
         {
-            il = subdiagonal_negligible_entry(H, iu, eps);
+            il = subdiagonal_negligible_entry(H, iu, tol);
 
             if (il === iu)
             {
@@ -260,7 +260,7 @@ function schur(A, wantu, mode, eps)
                     if (im === il) break;
                     lhs = scalar_mul(H[im][im-1], scalar_add(scalar_abs(v[1]), scalar_abs(v[2])));
                     rhs = scalar_mul(v[0], scalar_add(scalar_add(scalar_abs(H[im-1][im-1]), scalar_abs(Hmm)), scalar_abs(H[im+1][im+1])));
-                    if (lt(scalar_abs(lhs), scalar_mul(rhs, eps))) break;
+                    if (n_lt(scalar_abs(lhs), scalar_mul(rhs, tol))) break;
                 }
 
                 // francis qr step
