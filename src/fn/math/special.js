@@ -794,22 +794,21 @@ function gammainc(x, a, type)
         gammainc.a = a;
         gammainc.ga = gammaln(a);
         gammainc.sc = null;
-        gammainc.O = O;
-        gammainc.I = I;
     }
     if (('scaledlower' === type || 'scaledupper' === type) && (null == gammainc.sc))
     {
         // memoize
         gammainc.sc = realMath.exp(n_sub(gammaln(n_add(a, I)), gammainc.ga));
-        gammainc.I = inf;
     }
-    var g = n_eq(x, O) ? ('scaledupper' === type || 'upper' === type ? gammainc.I : gammainc.O) : _gammainc_continued_fraction(
-        x, a,
-        'scaledlower' === type || 'scaledupper' === type ? gammainc.sc : realMath.exp(n_sub(n_sub(n_mul(realMath.log(x), a), gammainc.ga), x)),
-        'scaledupper' === type || 'upper' === type ? 'upper' : 'lower'
-    );
-    if (n_lt(g, gammainc.O)) g = gammainc.O;
-    else if (n_gt(g, gammainc.I)) g = gammainc.I;
+    var g_min = O,
+        g_max = 'scaledlower' === type || 'scaledupper' === type ? inf : I,
+        g = n_eq(x, O) ? ('scaledupper' === type || 'upper' === type ? g_max : g_min) : _gammainc_continued_fraction(
+            x, a,
+            'scaledlower' === type || 'scaledupper' === type ? gammainc.sc : realMath.exp(n_sub(n_sub(n_mul(realMath.log(x), a), gammainc.ga), x)),
+            'scaledupper' === type || 'upper' === type ? 'upper' : 'lower'
+        );
+    if (n_lt(g, g_min)) g = g_min;
+    else if (n_gt(g, g_max)) g = g_max;
     return g;
 }
 function gammaincinv(y, a, type)
@@ -893,7 +892,7 @@ function _betainc_continued_fraction(x, z, w, f)
     p = n_add(n_mul(bk, p0), n_mul(ak, p1));
     q = n_add(n_mul(bk, q0), n_mul(ak, q1));
     r = n_eq(p, q) ? I : n_div(p, q);
-    if (n_eq(r, O)) return O;
+    //if (n_eq(r, O)) return O;
     p1 = p0; p0 = p;
     q1 = q0; q0 = q;
     r0 = r;
