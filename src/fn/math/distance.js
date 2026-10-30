@@ -1,3 +1,5 @@
+// various distance functions
+
 function hypot(a, b)
 {
     a = stdMath.abs(a);
@@ -49,32 +51,11 @@ function hypotn(args)
     }, 0)));
 }
 
-/*function zsin(side, hypotenuse)
+function norm2(x)
 {
-    return scalar_div(imag(scalar_mul(side, scalar_conj(hypotenuse))), scalar_mul(abs(side), abs(hypotenuse)));
-}
-function zcos(side, hypotenuse)
-{
-    return scalar_div(real(scalar_mul(side, scalar_conj(hypotenuse))), scalar_mul(abs(side), abs(hypotenuse)));
-}*/
-
-function normal()
-{
-    // Box-Muller
-    var u1 = 0, u2 = 0, r, z0, z1;
-    if (is_number(normal.z1))
-    {
-        z1 = normal.z1;
-        normal.z1 = null;
-        return z1;
-    }
-    while (0 === u1 || 1 === u1) u1 = stdMath.random();
-    while (0 === u2 || 1 === u2) u2 = stdMath.random();
-    r = stdMath.sqrt(-2.0*stdMath.log(u1));
-    z0 = r*stdMath.cos(2.0*pi*u2);
-    z1 = r*stdMath.sin(2.0*pi*u2);
-    normal.z1 = z1;
-    return z0;
+    return x.reduce(function(n, xi) {
+        return scalar_add(n, scalar_mul(xi, scalar_conj(xi)));
+    }, O);
 }
 
 function d_euclidean(a, b)
@@ -178,11 +159,4 @@ function d_kullbackleibler(a, b, symmetric)
         }
     }
     return d;
-}
-
-function norm2(x)
-{
-    return x.reduce(function(n, xi) {
-        return scalar_add(n, scalar_mul(xi, scalar_conj(xi)));
-    }, O);
 }

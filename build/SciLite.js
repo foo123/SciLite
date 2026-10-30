@@ -2,16 +2,16 @@
 *
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab/SciPy in pure JavaScript
-* @version: 0.12.1
-* 2026-10-29 00:48:43
+* @version: 0.12.2
+* 2026-10-30 13:09:56
 * https://github.com/foo123/SciLite
 *
 **//**
 *
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab/SciPy in pure JavaScript
-* @version: 0.12.1
-* 2026-10-29 00:48:43
+* @version: 0.12.2
+* 2026-10-30 13:09:56
 * https://github.com/foo123/SciLite
 *
 **/
@@ -63,7 +63,7 @@ var tensorview = null,
 
     // lib
     $ = {
-        VERSION: "0.12.1",
+        VERSION: "0.12.2",
         // common functions
         _: {},
         // builtin functions
@@ -78,7 +78,7 @@ var tensorview = null,
         op: {},
         // constants
         constant: {
-            __version__: "0.12.1",
+            __version__: "0.12.2",
             pi: pi, e: e,
             eps: eps,
             realmax: realmax,
@@ -3161,194 +3161,6 @@ function set(mat /*, ..slices, val*/)
     return mat;
 }
 $_.set = set;
-function hypot(a, b)
-{
-    a = stdMath.abs(a);
-    b = stdMath.abs(b);
-    var r = 0;
-    if (0 === a)
-    {
-        return b;
-    }
-    else if (0 === b)
-    {
-        return a;
-    }
-    else if (a > b)
-    {
-        r = b/a;
-        return a*stdMath.sqrt(1 + r*r);
-    }
-    else if (a < b)
-    {
-        r = a/b;
-        return b*stdMath.sqrt(1 + r*r);
-    }
-    return a*stdMath.SQRT2;
-}
-function n_hypot(a, b)
-{
-    if (is_number(a) && is_number(b)) return hypot(a, b);
-    return realMath.sqrt(n_add(n_mul(a, a), n_mul(b, b)));
-}
-function hypotn(args)
-{
-    var max = 0;
-    args = args.map(function(ai) {
-        ai = scalar_abs(ai);
-        if (max < ai) max = ai;
-        return ai;
-    });
-    return 0 === max ? 0 : (max*stdMath.sqrt(args.reduce(function(sum, ai) {
-        if (ai === max)
-        {
-            return sum + 1;
-        }
-        else
-        {
-            var r = ai/max;
-            return sum + r*r;
-        }
-    }, 0)));
-}
-
-/*function zsin(side, hypotenuse)
-{
-    return scalar_div(imag(scalar_mul(side, scalar_conj(hypotenuse))), scalar_mul(abs(side), abs(hypotenuse)));
-}
-function zcos(side, hypotenuse)
-{
-    return scalar_div(real(scalar_mul(side, scalar_conj(hypotenuse))), scalar_mul(abs(side), abs(hypotenuse)));
-}*/
-
-function normal()
-{
-    // Box-Muller
-    var u1 = 0, u2 = 0, r, z0, z1;
-    if (is_number(normal.z1))
-    {
-        z1 = normal.z1;
-        normal.z1 = null;
-        return z1;
-    }
-    while (0 === u1 || 1 === u1) u1 = stdMath.random();
-    while (0 === u2 || 1 === u2) u2 = stdMath.random();
-    r = stdMath.sqrt(-2.0*stdMath.log(u1));
-    z0 = r*stdMath.cos(2.0*pi*u2);
-    z1 = r*stdMath.sin(2.0*pi*u2);
-    normal.z1 = z1;
-    return z0;
-}
-
-function d_euclidean(a, b)
-{
-    var d = 1 === arguments.length ? a : sub(a, b);
-    return d.reduce(function(n, di) {
-        return n && (is_number(di) || (is_complex(di) && is_number(di.re) && is_number(di.im)));
-    }, true) ? hypotn(d) : realMath.sqrt(real(dot(d, d)));
-}
-function d_sqeuclidean(a, b)
-{
-    var d = 1 === arguments.length ? a : sub(a, b);
-    return real(dot(d, d));
-}
-function d_seuclidean(a, b, std)
-{
-    var d = dotdiv(sub(a, b), std);
-    return real(dot(d, d));
-}
-function d_mahalanobis(a, mean, invCov)
-{
-    var d = sub(a, mean);
-    return real(dot(vec(mul(d, invCov)), d));
-}
-function d_minkowski(a, b, p)
-{
-    // p-norm
-    if (2 === arguments.length) p = b;
-    if (n_eq(p, I))
-    {
-        return 2 === arguments.length ? d_cityblock(a) : d_cityblock(a, b);
-    }
-    else if (n_eq(p, two))
-    {
-        return 2 === arguments.length ? d_euclidean(a) : d_euclidean(a, b);
-    }
-    else if (is_inf(p))
-    {
-        return 2 === arguments.length ? d_chebychev(a) : d_chebychev(a, b);
-    }
-    return scalar_pow(sum(dotpow(abs(2 === arguments.length ? a : sub(a, b)), p)), n_inv(p));
-}
-function d_chebychev(a, b)
-{
-    return max(abs(1 === arguments.length ? a : sub(a, b)));
-}
-function d_cityblock(a, b)
-{
-    // manhattan
-    return sum(abs(1 === arguments.length ? a : sub(a, b)));
-}
-function d_cosine(a, b)
-{
-    return scalar_sub(I, scalar_div(scalar_div(dot(a, b), realMath.sqrt(real(dot(a, a)))), realMath.sqrt(real(dot(b, b)))));
-}
-function d_correlation(a, b)
-{
-    return d_cosine(sub(a, mean(a)), sub(b, mean(b)));
-}
-function d_hamming(a, b)
-{
-    return __(a.reduce(function(d, ai, i) {
-        return d + 1 - eq(ai, b[i]);
-    }, 0) / a.length);
-}
-function d_jaccard(a, b)
-{
-    return __(1 - a.reduce(function(d, ai, i) {
-        return d + eq(ai, b[i]);
-    }, 0) / a.length);
-}
-function d_kullbackleibler(a, b, symmetric)
-{
-    // compute the Kullback-Leibler divergence
-    // normalize A and B to sum to unity (make them represent probability density functions)
-    var d, p;
-    if (is_matrix(a) && is_matrix(b))
-    {
-        a = add(sub(a, min(min(a))), eps);
-        b = add(sub(b, min(min(b))), eps);
-        a = dotdiv(a, sum(sum(a)));
-        b = dotdiv(b, sum(sum(b)));
-        d = sum(sum(add(sub(dotmul(a, fn.log(dotdiv(a, b))), a), b)));
-        if (symmetric)
-        {
-            p = sum(sum(add(sub(dotmul(b, fn.log(dotdiv(b, a))), b), a)));
-            d = scalar_mul(scalar_add(d, p), half);
-        }
-    }
-    else
-    {
-        a = add(sub(a, min(a)), eps);
-        b = add(sub(b, min(b)), eps);
-        a = dotdiv(a, sum(a));
-        b = dotdiv(b, sum(b));
-        d = sum(add(sub(dotmul(a, fn.log(dotdiv(a, b))), a), b));
-        if (symmetric)
-        {
-            p = sum(add(sub(dotmul(b, fn.log(dotdiv(b, a))), b), a));
-            d = scalar_mul(scalar_add(d, p), half);
-        }
-    }
-    return d;
-}
-
-function norm2(x)
-{
-    return x.reduce(function(n, xi) {
-        return scalar_add(n, scalar_mul(xi, scalar_conj(xi)));
-    }, O);
-}
 // plotting functions
 $_.PALETTE = [
   "#ff0000",
@@ -3869,6 +3681,15 @@ ze = new complex(constant.e, O);
 constant["i"] = i;
 constant["j"] = i;
 
+/*function zsin(side, hypotenuse)
+{
+    return scalar_div(imag(scalar_mul(side, scalar_conj(hypotenuse))), scalar_mul(abs(side), abs(hypotenuse)));
+}
+function zcos(side, hypotenuse)
+{
+    return scalar_div(real(scalar_mul(side, scalar_conj(hypotenuse))), scalar_mul(abs(side), abs(hypotenuse)));
+}*/
+
 complexMath = {
     floor: function(z) {
         return new complex(realMath.floor(z.re), realMath.floor(z.im));
@@ -4088,19 +3909,21 @@ euler_gamma = decimal ? decimal("0.577215664901532860606512090082402431042159335
 });
 
 // utils
-function monotone_inverse_bisearch(f, y, min_x, max_x, min_f, max_f, lim_0, lim_1, dir)
+function monotone_inverse_bisearch(f, y, min_x, max_x, min_f, max_f, lim_0, lim_1, dir, expand)
 {
     // find inverse x s.t f(x) <= y, f(.) is monotone
     // using binary search between min_x and max_x
     dir = -1 === dir ? -1 : 1; // increasing or decreasing
-    if (null == min_f) min_f = O;
+    if (null == lim_1) lim_1 = inf;
+    if (null == lim_0) lim_0 = -inf;
     if (null == max_f) max_f = I;
+    if (null == min_f) min_f = O;
     if (is_nan(y)) return nan;
-    else if (n_le(y, min_f)) return 0 > dir ? (null == lim_1 ? inf : lim_1) : (null == lim_0 ? -inf : lim_0);
-    else if (n_ge(y, max_f)) return 0 > dir ? (null == lim_0 ? -inf : lim_0) : (null == lim_1 ? inf : lim_1);
+    else if (n_le(y, min_f)) return 0 > dir ? lim_1 : lim_0;
+    else if (n_ge(y, max_f)) return 0 > dir ? lim_0 : lim_1;
 
-    var two = constant['2'], x, fx, tol = eps;
-    for (;;)
+    var two = constant['2'], x, fx, tol = eps, min_x0 = min_x, max_x0 = max_x, scale = I, expanded = 0;
+    for (;expanded<=5;)
     {
         x = n_div(n_add(min_x, max_x), two);
         fx = f(x);
@@ -4109,7 +3932,7 @@ function monotone_inverse_bisearch(f, y, min_x, max_x, min_f, max_f, lim_0, lim_
             x = nan;
             break; // fails
         }
-        if (n_gt(min_f, fx))
+        /*if (n_gt(min_f, fx))
         {
             // possible overflow
             if (0 > dir)
@@ -4134,9 +3957,32 @@ function monotone_inverse_bisearch(f, y, min_x, max_x, min_f, max_f, lim_0, lim_
                 min_x = x;
             }
             continue;
-        }
+        }*/
         if (n_gt(fx, y))
         {
+            if (n_lt(n_sub(max_x, min_x), tol))
+            {
+                if ('expand' === expand)
+                {
+                    ++expanded;
+                    scale = n_mul(scale, 10);
+                    if (0 > dir)
+                    {
+                        max_x = n_mul(max_x0, scale);
+                        min_x = x;
+                    }
+                    else
+                    {
+                        min_x = n_mul(min_x0, scale);
+                        max_x = x;
+                    }
+                    continue;
+                }
+                else
+                {
+                    break;
+                }
+            }
             if (0 > dir)
             {
                 min_x = x;
@@ -4148,7 +3994,33 @@ function monotone_inverse_bisearch(f, y, min_x, max_x, min_f, max_f, lim_0, lim_
         }
         else if (n_lt(fx, y))
         {
-            if (n_lt(n_sub(y, fx), tol) || n_lt(n_sub(max_x, min_x), tol)) break;
+            if (n_lt(n_sub(y, fx), tol))
+            {
+                break;
+            }
+            if (n_lt(n_sub(max_x, min_x), tol))
+            {
+                if ('expand' === expand)
+                {
+                    ++expanded;
+                    scale = n_mul(scale, 10);
+                    if (0 > dir)
+                    {
+                        min_x = n_mul(min_x0, scale);
+                        max_x = x;
+                    }
+                    else
+                    {
+                        max_x = n_mul(max_x0, scale);
+                        min_x = x;
+                    }
+                    continue;
+                }
+                else
+                {
+                    break;
+                }
+            }
             if (0 > dir)
             {
                 max_x = x;
@@ -4165,16 +4037,18 @@ function monotone_inverse_bisearch(f, y, min_x, max_x, min_f, max_f, lim_0, lim_
     }
     return x;
 }
-function monotone_inverse_newton(f, df, y, min_x, max_x, min_f, max_f, lim_0, lim_1, dir)
+function monotone_inverse_newton(f, df, y, min_x, max_x, min_f, max_f, lim_0, lim_1, dir, limit)
 {
     // find inverse x s.t f(x) ~ y, f(.) is monotone
     // using Newton's method between min_x and max_x
     dir = -1 === dir ? -1 : 1; // increasing or decreasing
-    if (null == min_f) min_f = O;
+    if (null == lim_1) lim_1 = inf;
+    if (null == lim_0) lim_0 = -inf;
     if (null == max_f) max_f = I;
+    if (null == min_f) min_f = O;
     if (is_nan(y)) return nan;
-    else if (n_le(y, min_f)) return 0 > dir ? (null == lim_1 ? inf : lim_1) : (null == lim_0 ? -inf : lim_0);
-    else if (n_ge(y, max_f)) return 0 > dir ? (null == lim_0 ? -inf : lim_0) : (null == lim_1 ? inf : lim_1);
+    else if (n_le(y, min_f)) return 0 > dir ? lim_1 : lim_0;
+    else if (n_ge(y, max_f)) return 0 > dir ? lim_0 : lim_1;
 
     var x = n_div(n_add(min_x, max_x), constant['2']), fx, dfx, max_iter = 100, tries, tol = eps;
     for (;max_iter;max_iter--)
@@ -4191,7 +4065,7 @@ function monotone_inverse_newton(f, df, y, min_x, max_x, min_f, max_f, lim_0, li
             if (is_nan(fx)) x = nan;
             break; // fails
         }
-        if (n_gt(n_sub(min_f, y), fx))
+        /*if (n_gt(n_sub(min_f, y), fx))
         {
             // possible overflow
             if (0 > dir)
@@ -4220,13 +4094,18 @@ function monotone_inverse_newton(f, df, y, min_x, max_x, min_f, max_f, lim_0, li
             x = n_div(n_add(min_x, max_x), constant['2']);
             max_iter += 2;
             continue;
-        }
+        }*/
         if (n_lt(scalar_abs(fx), tol))
         {
             break;
         }
         dfx = df(x); if (n_eq(O, dfx)) dfx = eps;
         x = n_sub(x, n_div(fx, dfx));
+    }
+    if (('limit' === limit) && !is_nan(x))
+    {
+        if (n_lt(x, lim_0)) x = lim_0;
+        else if (n_gt(x, lim_1)) x = lim_1;
     }
     return x;
 }
@@ -4528,7 +4407,7 @@ function gammaln(z)
     if (n_lt(z, constant['1/2']))
     {
         // Lanczos is not valid for this real(z). Use reflection formula.
-        return scalar_sub(scalar_sub(__log_pi, fn.log(fn.sin(scalar_mul(constant.pi, z)))), gammaln(scalar_sub(I, z)));
+        return scalar_sub(__log_pi, scalar_add(fn.log(fn.sin(scalar_mul(constant.pi, z))), gammaln(scalar_sub(I, z))));
     }
     else
     {
@@ -4566,9 +4445,138 @@ function gammaln(z)
                 ),
                 scalar_div(__gP[8], scalar_add(z, 8))
                 );
-            return scalar_add(scalar_add(__log_sqrt_2pi, scalar_sub(scalar_mul(z_1_2, fn.log(t)), scalar_neg(t))), fn.log(x));
+            return scalar_add(scalar_add(__log_sqrt_2pi, scalar_mul(z_1_2, fn.log(t))), scalar_sub(fn.log(x), t));
         }
     }
+}
+/*function _gammainc_asymptotic_series(x, a, f, type)
+{
+    var t, g, k, N = 25, tol = eps;
+    if ('upper' === type)
+    {
+        // large x
+        t = n_mul(f, a);
+        g = t;
+        for (k=0; k<=N; ++k)
+        {
+            t = n_mul(t, n_div(n_sub(a, k), x));
+            g = n_add(g, t);
+            if ((3 < k) && n_lt(scalar_abs(t), tol)) break;
+        }
+    }
+    else
+    {
+        // large a
+        t = f;
+        g = t;
+        for (k=1; k<=N; ++k)
+        {
+            t = n_mul(t, n_div(x, n_add(a, k)));
+            g = n_add(g, t);
+            if ((3 < k) && n_lt(scalar_abs(t), tol)) break;
+        }
+    }
+    return g;
+}
+function _gammainc_power_series(x, a, f, type)
+{
+    var t, g, k, N = 25, tol = eps;
+    if ('upper' === type)
+    {
+        // missing
+    }
+    else
+    {
+        t = n_eq(f, a) ? I : n_div(f, a);
+        g = t;
+        for (k=1; k<=N; ++k)
+        {
+            t = n_mul(t, n_div(x, n_add(a, k)));
+            g = n_add(g, t);
+            if ((3 < k) && n_lt(scalar_abs(t), tol)) break;
+        }
+    }
+    return g;
+}*/
+function _gammainc_continued_fraction(x, a, f, type)
+{
+    var p, q, p1, p0,
+        q1, q0, r0, r,
+        k, ak, bk, N = 28,
+        tol = eps
+    ;
+    p1 = I;
+    p0 = O;
+    q1 = O;
+    q0 = I;
+    if ('upper' === type)
+    {
+        ak = f;
+        bk = x;
+        p = n_add(n_mul(bk, p0), n_mul(ak, p1));
+        q = n_add(n_mul(bk, q0), n_mul(ak, q1));
+        r = n_eq(p, q) ? I : n_div(p, q);
+        if (n_eq(r, O)) return O;
+        p1 = p0; p0 = p;
+        q1 = q0; q0 = q;
+        r0 = r;
+        for (k=2; k<=N; ++k)
+        {
+            if (k & 1)
+            {
+                bk = x;
+                ak = (k >> 1);
+            }
+            else
+            {
+                bk = I;
+                ak = n_sub(k >> 1, a);
+            }
+            p = n_add(n_mul(bk, p0), n_mul(ak, p1));
+            q = n_add(n_mul(bk, q0), n_mul(ak, q1));
+            r = n_eq(p, q) ? I : n_div(p, q);
+
+            if ((3 < k) && n_lt(scalar_abs(n_sub(r, r0)), tol)) break;
+
+            p1 = p0; p0 = p;
+            q1 = q0; q0 = q;
+            r0 = r;
+        }
+    }
+    else
+    {
+        ak = f;
+        bk = a;
+        p = n_add(n_mul(bk, p0), n_mul(ak, p1));
+        q = n_add(n_mul(bk, q0), n_mul(ak, q1));
+        r = n_eq(p, q) ? I : n_div(p, q);
+        if (n_eq(r, O)) return O;
+        p1 = p0; p0 = p;
+        q1 = q0; q0 = q;
+        r0 = r;
+        for (k=2; k<=N; ++k)
+        {
+            bk = n_add(a, k-1);
+            if (k & 1)
+            {
+                ak = n_mul(x, k >> 1);
+            }
+            else
+            {
+                ak = n_neg(n_mul(x, n_add(a, (k >> 1)-1)));
+            }
+            p = n_add(n_mul(bk, p0), n_mul(ak, p1));
+            q = n_add(n_mul(bk, q0), n_mul(ak, q1));
+            r = n_eq(p, q) ? I : n_div(p, q);
+
+            if ((3 < k) && n_lt(scalar_abs(n_sub(r, r0)), tol)) break;
+
+            p1 = p0; p0 = p;
+            q1 = q0; q0 = q;
+            r0 = r;
+        }
+    }
+    return r;
 }
 function gammainc(x, a, type)
 {
@@ -4578,24 +4586,23 @@ function gammainc(x, a, type)
     x = real(x); a = real(a);
     if (is_nan(x) || is_nan(a) || n_lt(a, O)) return nan;
     type = 'scaledlower' === type || 'scaledupper' === type || 'upper' === type ? type : 'lower';
-    if ((null == gammainc.a) || !n_eq(a, gammainc.a) || (type !== gammainc.type))
+    if ((null == gammainc.a) || !n_eq(a, gammainc.a))
     {
         // memoize
-        gammainc.type = type;
         gammainc.a = a;
-        gammainc.g = 'scaledlower' === type || 'scaledupper' === type ? I : gamma(a);
-        gammainc.g1 = 'scaledupper' === type ? gamma(n_add(a, I)) : I;
+        gammainc.ga = gammaln(a);
+        gammainc.sc = null;
     }
-    var Ga = 'scaledlower' === type || 'scaledupper' === type ? a : n_mul(n_div(n_pow(x, a), gammainc.g), realMath.exp(n_neg(x))),
-        t = n_eq(Ga, a) ? I : n_div(Ga, a),
-        g = t;
-    for (var k=1,N=25,tol=eps; k<=N; ++k) // power series up to N terms
+    if (('scaledlower' === type || 'scaledupper' === type) && (null == gammainc.sc))
     {
-        t = n_mul(t, n_div(x, n_add(a, k)));
-        g = n_add(g, t);
-        if ((5 < k) && n_lt(scalar_abs(t), tol)) break;
+        // memoize
+        gammainc.sc = realMath.exp(n_sub(gammaln(n_add(a, I)), gammainc.ga));
     }
-    return 'scaledupper' === type ? n_sub(n_mul(gammainc.g1, n_div(realMath.exp(x), n_pow(x, a))), g) : ('upper' === type ? n_sub(I, g) : g);
+    return _gammainc_continued_fraction(
+        x, a,
+        'scaledlower' === type || 'scaledupper' === type ? gammainc.sc : (n_eq(x, O) ? O : realMath.exp(n_sub(n_sub(n_mul(realMath.log(x), a), gammainc.ga), x))),
+        'scaledupper' === type || 'upper' === type ? 'upper' : 'lower'
+    );
 }
 function gammaincinv(y, a, type)
 {
@@ -4606,22 +4613,22 @@ function gammaincinv(y, a, type)
     if (is_nan(y) || is_nan(a) || n_lt(a, O) || n_lt(y, O) || n_gt(y, I)) return nan;
     type = 'upper' === type ? type : 'lower';
     var s = 'upper' === type ? -1 : 1;
-    /*if ((null == gammaincinv.a) || !n_eq(a, gammaincinv.a) || (type !== gammaincinv.type))
+    /*if ((null == gammaincinv.a) || !n_eq(a, gammaincinv.a))
     {
         // memoize
-        gammaincinv.type = type;
         gammaincinv.a = a;
-        gammaincinv.g = n_mul(gamma(a), -s);
-    }
+        gammaincinv.ga = gammaln(a);
+    }*/
     return monotone_inverse_newton(
         function(x) {return gammainc(x, a, type);},
-        function(x) {return n_div(n_mul(n_pow(x, n_sub(a, I)), realMath.exp(n_neg(x))), gammaincinv.g);},
-        y, O, I, O, I, O, inf, s
-    );*/
-    return monotone_inverse_bisearch(
-        function(x) {return gammainc(x, a, type);},
-        y, O, __(10), O, I, O, inf, s
+                                        //n_div(n_mul(n_pow(x, n_sub(a, I)), realMath.exp(n_neg(x))), gammaincinv.g)
+        function(x) {return n_mul(n_eq(x, O) ? eps : realMath.exp(n_sub(n_sub(n_mul(realMath.log(x), n_sub(a, I)), x), gammainc.ga)), s);},
+        y, O, I, O, I, O, inf, s, 'limit'
     );
+    /*return monotone_inverse_bisearch(
+        function(x) {return gammainc(x, a, type);},
+        y, O, I, O, I, O, inf, s, 'expand'
+    );*/
 }
 
 function beta(z, w)
@@ -4649,15 +4656,24 @@ function betaln(z, w)
     if (is_int(z) && is_int(w))
     {
         // reduces to inverse log-binomial coeff
-        return n_add(realMath.log(n_add(z, w)), n_sub(logbinom(n_add(z, w), w, 'inverse'), realMath.log(n_mul(z, w))));
+        return n_add(realMath.log(n_add(z, w)), n_sub(logbinom(n_add(z, w), w, 'inverse'), n_add(realMath.log(z), realMath.log(w))));
     }
     return scalar_add(scalar_sub(gammaln(z), gammaln(scalar_add(z, w))), gammaln(w));
 }
-function _betainc_cont_frac(x, z, w, factor)
+/*function _betainc_series_10(x, z, w)
+{
+}
+function _betainc_series_11(x, z, w)
+{
+}
+function _betainc_erfc(x, z, w)
+{
+}*/
+function _betainc_continued_fraction(x, z, w, f)
 {
     var p, q, p1, p0,
         q1, q0, r0, r,
-        m, k, ak, bk,
+        m, k, ak, bk, N = 28,
         tol = eps
     ;
     p1 = I;
@@ -4665,14 +4681,15 @@ function _betainc_cont_frac(x, z, w, factor)
     q1 = O;
     q0 = I;
     bk = I;
-    ak = n_div(n_mul(n_div(n_pow(x, z), z), n_pow(n_sub(I, x), w)), null == factor ? I : factor);
-    p = ak;
-    q = I;
-    r = ak;
+    ak = n_div(n_mul(n_div(n_pow(x, z), z), n_pow(n_sub(I, x), w)), null == f ? I : f);
+    p = n_add(n_mul(bk, p0), n_mul(ak, p1));
+    q = n_add(n_mul(bk, q0), n_mul(ak, q1));
+    r = n_eq(p, q) ? I : n_div(p, q);
+    if (n_eq(r, O)) return O;
     p1 = p0; p0 = p;
     q1 = q0; q0 = q;
     r0 = r;
-    for (k=1;;++k)
+    for (k=1; k<=N; ++k)
     {
         if (k & 1)
         {
@@ -4686,9 +4703,9 @@ function _betainc_cont_frac(x, z, w, factor)
         }
         p = n_add(n_mul(bk, p0), n_mul(ak, p1));
         q = n_add(n_mul(bk, q0), n_mul(ak, q1));
-        r = n_div(p, q);
+        r = n_eq(p, q) ? I : n_div(p, q);
 
-        if ((5 < k) && n_lt(scalar_abs(n_sub(r, r0)), tol)) break;
+        if ((3 < k) && n_lt(scalar_abs(n_sub(r, r0)), tol)) break;
 
         p1 = p0; p0 = p;
         q1 = q0; q0 = q;
@@ -4696,15 +4713,6 @@ function _betainc_cont_frac(x, z, w, factor)
     }
     return r;
 }
-/*function _betainc_series_10(x, z, w)
-{
-}
-function _betainc_series_11(x, z, w)
-{
-}
-function _betainc_erfc(x, z, w)
-{
-}*/
 function betainc(x, z, w, tail)
 {
     // regularized incomplete beta(x, z, w) function
@@ -4736,7 +4744,7 @@ function betainc(x, z, w, tail)
         else
         {
             //Use the continued fraction (5).
-            b = _betainc_cont_frac(x, z, w, 'regularized');
+            b = _betainc_continued_fraction(x, z, w, 'regularized');
         }
     }
     else
@@ -4744,7 +4752,7 @@ function betainc(x, z, w, tail)
         if (n_gt(w, n_div(n_mul(n_sub(I, x), z), x)))
         {
             //Use the continued fraction (5).
-            b = _betainc_cont_frac(x, z, w, 'regularized');
+            b = _betainc_continued_fraction(x, z, w, 'regularized');
         }
         else
         {
@@ -4763,15 +4771,17 @@ function betainc(x, z, w, tail)
     }
     if (n_ge(x, xt))
     {
+        // memoize
         if (null == betainc.d) betainc.d = beta(w, z);
         // use reflection, more efficient
-        b = n_sub(I, _betainc_cont_frac(n_sub(I, x), w, z, betainc.d));
+        b = n_sub(I, _betainc_continued_fraction(n_sub(I, x), w, z, betainc.d));
     }
     else
     {
+        // memoize
         if (null == betainc.b) betainc.b = beta(z, w);
         // converges rapidly for x < xt
-        b = _betainc_cont_frac(x, z, w, betainc.b);
+        b = _betainc_continued_fraction(x, z, w, betainc.b);
     }
     return 'upper' === tail ? n_sub(I, b) : b;
 }
@@ -4794,7 +4804,7 @@ function betaincinv(y, z, w, tail)
     return monotone_inverse_newton(
         function(x) {return betainc(x, z, w, tail);},
         function(x) {return n_div(n_mul(n_pow(x, n_sub(z, I)), n_pow(n_sub(I, x), n_sub(w, I))), b);},
-        y, O, I, O, I, O, I, s
+        y, O, I, O, I, O, I, s, 'limit'
     );
 }
 
@@ -4810,7 +4820,7 @@ function ellipj(u, m, tol, nargout)
         shifted = 0;
     if (is_nan(u) || is_nan(m) || n_lt(m, O) || n_gt(m, I))
     {
-        return 1 < nargout ? [nan, nan, nan] : nan;
+        return 2 < nargout ? [nan, nan, nan] : (1 < nargout ? [nan, nan] : nan);
     }
     else if (n_eq(u, O))
     {
@@ -5092,12 +5102,12 @@ function Ei(z)
     {
         return z;
     }
-    var modz = scalar_abs(z), ei, tol = eps, DIST = 1;
+    var modz = scalar_abs(z), ei, tol = eps, DIST = I;
     if (n_lt(n_div(I, modz), eps)/*is_inf(modz)*/)
     {
         return scalar_add(complex(O, n_mul(realMath.sign(imag(z)), constant.pi)), scalar_div(fn.exp(z), z));
     }
-    if (n_gt(modz, n_sub(2, n_mul(1.035, realMath.log(tol)))))
+    if (n_gt(modz, n_sub(constant['2'], n_mul(1.035, realMath.log(tol)))))
     {
         ei = _ei_asymptotic_series(z, tol);
         if (false !== ei) return ei;
@@ -5183,6 +5193,168 @@ fn.expint = function(z) {
 fn.expinti = function(z) {
     return apply(Ei, z, true);
 };
+// various distance functions
+
+function hypot(a, b)
+{
+    a = stdMath.abs(a);
+    b = stdMath.abs(b);
+    var r = 0;
+    if (0 === a)
+    {
+        return b;
+    }
+    else if (0 === b)
+    {
+        return a;
+    }
+    else if (a > b)
+    {
+        r = b/a;
+        return a*stdMath.sqrt(1 + r*r);
+    }
+    else if (a < b)
+    {
+        r = a/b;
+        return b*stdMath.sqrt(1 + r*r);
+    }
+    return a*stdMath.SQRT2;
+}
+function n_hypot(a, b)
+{
+    if (is_number(a) && is_number(b)) return hypot(a, b);
+    return realMath.sqrt(n_add(n_mul(a, a), n_mul(b, b)));
+}
+function hypotn(args)
+{
+    var max = 0;
+    args = args.map(function(ai) {
+        ai = scalar_abs(ai);
+        if (max < ai) max = ai;
+        return ai;
+    });
+    return 0 === max ? 0 : (max*stdMath.sqrt(args.reduce(function(sum, ai) {
+        if (ai === max)
+        {
+            return sum + 1;
+        }
+        else
+        {
+            var r = ai/max;
+            return sum + r*r;
+        }
+    }, 0)));
+}
+
+function norm2(x)
+{
+    return x.reduce(function(n, xi) {
+        return scalar_add(n, scalar_mul(xi, scalar_conj(xi)));
+    }, O);
+}
+
+function d_euclidean(a, b)
+{
+    var d = 1 === arguments.length ? a : sub(a, b);
+    return d.reduce(function(n, di) {
+        return n && (is_number(di) || (is_complex(di) && is_number(di.re) && is_number(di.im)));
+    }, true) ? hypotn(d) : realMath.sqrt(real(dot(d, d)));
+}
+function d_sqeuclidean(a, b)
+{
+    var d = 1 === arguments.length ? a : sub(a, b);
+    return real(dot(d, d));
+}
+function d_seuclidean(a, b, std)
+{
+    var d = dotdiv(sub(a, b), std);
+    return real(dot(d, d));
+}
+function d_mahalanobis(a, mean, invCov)
+{
+    var d = sub(a, mean);
+    return real(dot(vec(mul(d, invCov)), d));
+}
+function d_minkowski(a, b, p)
+{
+    // p-norm
+    if (2 === arguments.length) p = b;
+    if (n_eq(p, I))
+    {
+        return 2 === arguments.length ? d_cityblock(a) : d_cityblock(a, b);
+    }
+    else if (n_eq(p, two))
+    {
+        return 2 === arguments.length ? d_euclidean(a) : d_euclidean(a, b);
+    }
+    else if (is_inf(p))
+    {
+        return 2 === arguments.length ? d_chebychev(a) : d_chebychev(a, b);
+    }
+    return scalar_pow(sum(dotpow(abs(2 === arguments.length ? a : sub(a, b)), p)), n_inv(p));
+}
+function d_chebychev(a, b)
+{
+    return max(abs(1 === arguments.length ? a : sub(a, b)));
+}
+function d_cityblock(a, b)
+{
+    // manhattan
+    return sum(abs(1 === arguments.length ? a : sub(a, b)));
+}
+function d_cosine(a, b)
+{
+    return scalar_sub(I, scalar_div(scalar_div(dot(a, b), realMath.sqrt(real(dot(a, a)))), realMath.sqrt(real(dot(b, b)))));
+}
+function d_correlation(a, b)
+{
+    return d_cosine(sub(a, mean(a)), sub(b, mean(b)));
+}
+function d_hamming(a, b)
+{
+    return __(a.reduce(function(d, ai, i) {
+        return d + 1 - eq(ai, b[i]);
+    }, 0) / a.length);
+}
+function d_jaccard(a, b)
+{
+    return __(1 - a.reduce(function(d, ai, i) {
+        return d + eq(ai, b[i]);
+    }, 0) / a.length);
+}
+function d_kullbackleibler(a, b, symmetric)
+{
+    // compute the Kullback-Leibler divergence
+    // normalize A and B to sum to unity (make them represent probability density functions)
+    var d, p;
+    if (is_matrix(a) && is_matrix(b))
+    {
+        a = add(sub(a, min(min(a))), eps);
+        b = add(sub(b, min(min(b))), eps);
+        a = dotdiv(a, sum(sum(a)));
+        b = dotdiv(b, sum(sum(b)));
+        d = sum(sum(add(sub(dotmul(a, fn.log(dotdiv(a, b))), a), b)));
+        if (symmetric)
+        {
+            p = sum(sum(add(sub(dotmul(b, fn.log(dotdiv(b, a))), b), a)));
+            d = scalar_mul(scalar_add(d, p), half);
+        }
+    }
+    else
+    {
+        a = add(sub(a, min(a)), eps);
+        b = add(sub(b, min(b)), eps);
+        a = dotdiv(a, sum(a));
+        b = dotdiv(b, sum(b));
+        d = sum(add(sub(dotmul(a, fn.log(dotdiv(a, b))), a), b));
+        if (symmetric)
+        {
+            p = sum(add(sub(dotmul(b, fn.log(dotdiv(b, a))), b), a));
+            d = scalar_mul(scalar_add(d, p), half);
+        }
+    }
+    return d;
+}
 function real(x)
 {
     return apply(function(x) {return is_complex(x) ? x.re : x;}, x, true);
@@ -5453,6 +5625,24 @@ function randi(n/*, dims*/)
     });
 }
 fn.randi = randi;
+function normal()
+{
+    // Box-Muller
+    var u1 = 0, u2 = 0, r, z0, z1;
+    if (is_number(normal.z1))
+    {
+        z1 = normal.z1;
+        normal.z1 = null;
+        return z1;
+    }
+    while (0 === u1 || 1 === u1) u1 = stdMath.random();
+    while (0 === u2 || 1 === u2) u2 = stdMath.random();
+    r = stdMath.sqrt(-2.0*stdMath.log(u1));
+    z0 = r*stdMath.cos(2.0*pi*u2);
+    z1 = r*stdMath.sin(2.0*pi*u2);
+    normal.z1 = z1;
+    return z0;
+}
 function randn()
 {
     var dims = [].slice.call(arguments);
@@ -12165,11 +12355,12 @@ function chi2cdf(x, nu, tail)
     if (n_eq(constant['2'], nu))
     {
         p = n_sub(I, realMath.exp(n_neg(n_div(x, constant['2']))));
+        if ('upper' === tail) p = n_sub(I, p);
     }
     else
     {
         nu2 = n_div(nu, constant['2']);
-        p = /*n_div(*/gammainc(n_div(x, constant['2']), nu2)/*, n_pow(constant['2'], nu))*/;
+        p = gammainc(n_div(x, constant['2']), nu2, tail);
         /*
         // "A normal approximation for the chi-square distribution", Luisa Canal, 2005
         // accuracy at least within 2-3 decimal places
@@ -12192,20 +12383,21 @@ function chi2cdf(x, nu, tail)
             chi2cdf.sigma = realMath.sqrt(sigma2);
         }
         p = normcdf(n_pow(n_div(x, nu), 1/3), chi2cdf.mu, chi2cdf.sigma);
+        if ('upper' === tail) p = n_sub(I, p);
         */
     }
-    return 'upper' === tail ? n_sub(I, p) : p;
+    return p;
 }
 function chi2inv(p, nu)
 {
     // icdf of Chi-squared distribution with nu degrees of freedom
     // https://en.wikipedia.org/wiki/Chi-squared_distribution
     if (is_nan(nu) || n_lt(nu, O) || n_lt(p, O)) return nan;
-    // may fail because chi2cdf may return nan or inf if precision is exceeded
+    // FIXED may fail because chi2cdf may return nan or inf if precision is exceeded
     return monotone_inverse_newton(
         function(x) {return chi2cdf(x, nu);},
         function(x) {return chi2pdf(x, nu);},
-        p, O, __(10), O, I, O, inf
+        p, O, I, O, I, O, inf, 1, 'limit'
     );
     /*
     // Wilson-Hilferty Transformation to approximately a Normal

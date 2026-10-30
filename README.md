@@ -4,7 +4,7 @@ A **scientific computing environment** similar to Octave/Matlab/SciPy, in pure J
 
 ![SciLite](./scilite.png)
 
-**v.0.12.1** (203 kB minified)
+**v.0.12.2** (204 kB minified)
 
 [![SciLite](./demo.gif)](https://foo123.github.io/examples/scilite/)
 

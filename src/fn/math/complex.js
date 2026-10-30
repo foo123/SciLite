@@ -168,6 +168,15 @@ ze = new complex(constant.e, O);
 constant["i"] = i;
 constant["j"] = i;
 
+/*function zsin(side, hypotenuse)
+{
+    return scalar_div(imag(scalar_mul(side, scalar_conj(hypotenuse))), scalar_mul(abs(side), abs(hypotenuse)));
+}
+function zcos(side, hypotenuse)
+{
+    return scalar_div(real(scalar_mul(side, scalar_conj(hypotenuse))), scalar_mul(abs(side), abs(hypotenuse)));
+}*/
+
 complexMath = {
     floor: function(z) {
         return new complex(realMath.floor(z.re), realMath.floor(z.im));

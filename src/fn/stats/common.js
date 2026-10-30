@@ -241,11 +241,12 @@ function chi2cdf(x, nu, tail)
     if (n_eq(constant['2'], nu))
     {
         p = n_sub(I, realMath.exp(n_neg(n_div(x, constant['2']))));
+        if ('upper' === tail) p = n_sub(I, p);
     }
     else
     {
         nu2 = n_div(nu, constant['2']);
-        p = /*n_div(*/gammainc(n_div(x, constant['2']), nu2)/*, n_pow(constant['2'], nu))*/;
+        p = gammainc(n_div(x, constant['2']), nu2, tail);
         /*
         // "A normal approximation for the chi-square distribution", Luisa Canal, 2005
         // accuracy at least within 2-3 decimal places
@@ -268,20 +269,21 @@ function chi2cdf(x, nu, tail)
             chi2cdf.sigma = realMath.sqrt(sigma2);
         }
         p = normcdf(n_pow(n_div(x, nu), 1/3), chi2cdf.mu, chi2cdf.sigma);
+        if ('upper' === tail) p = n_sub(I, p);
         */
     }
-    return 'upper' === tail ? n_sub(I, p) : p;
+    return p;
 }
 function chi2inv(p, nu)
 {
     // icdf of Chi-squared distribution with nu degrees of freedom
     // https://en.wikipedia.org/wiki/Chi-squared_distribution
     if (is_nan(nu) || n_lt(nu, O) || n_lt(p, O)) return nan;
-    // may fail because chi2cdf may return nan or inf if precision is exceeded
+    // FIXED may fail because chi2cdf may return nan or inf if precision is exceeded
     return monotone_inverse_newton(
         function(x) {return chi2cdf(x, nu);},
         function(x) {return chi2pdf(x, nu);},
-        p, O, __(10), O, I, O, inf
+        p, O, I, O, I, O, inf, 1, 'limit'
     );
     /*
     // Wilson-Hilferty Transformation to approximately a Normal
