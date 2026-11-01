@@ -3,7 +3,7 @@
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab/SciPy in pure JavaScript
 * @version: 0.12.3
-* 2026-11-01 10:01:02
+* 2026-11-01 14:11:54
 * https://github.com/foo123/SciLite
 *
 **//**
@@ -11,7 +11,7 @@
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab/SciPy in pure JavaScript
 * @version: 0.12.3
-* 2026-11-01 10:01:02
+* 2026-11-01 14:11:54
 * https://github.com/foo123/SciLite
 *
 **/
@@ -4078,7 +4078,7 @@ function monotone_inverse_newton(f, df, y, min_x, max_x, min_f, max_f, lim_0, li
     else if (n_le(y, min_f)) return 0 > dir ? lim_1 : lim_0;
     else if (n_ge(y, max_f)) return 0 > dir ? lim_0 : lim_1;
 
-    var x0 = n_div(n_add(min_x, max_x), constant['2']), x1, fx, dfx, r, s, fs, max_iter = 1000;
+    var x0 = n_div(n_add(min_x, max_x), constant['2']), x1, fx, dfx, r, s, fs, max_iter = 1000, epsilon = 1e-3;
     for (;max_iter;max_iter--)
     {
         fx = n_sub(f(x0), y);
@@ -4091,14 +4091,15 @@ function monotone_inverse_newton(f, df, y, min_x, max_x, min_f, max_f, lim_0, li
         {
             break;
         }
-        dfx = df(x0); if (n_eq(O, dfx)) dfx = eps;
+        dfx = df(x0);
+        if (n_lt(scalar_abs(dfx), epsilon)) dfx = n_lt(dfx, O) ? n_neg(epsilon) : epsilon; // avoid instabillities
         r = n_div(fx, dfx);
-        s = realMath.sign(r);
+        s = n_lt(r, O) ? -1 : 1;
         x1 = n_sub(x0, r);
         fs = 1;
-        while ((n_lt(x1, lim_0) || n_gt(x1, lim_1)) && (fs >= 1e-3))
+        while ((n_lt(x1, lim_0) || n_gt(x1, lim_1)) && n_ge(fs, epsilon))
         {
-            x1 = n_sub(x0, n_mul(s, fs));
+            x1 = n_sub(x0, s*fs); // use the scaled sign instead
             fs /= 10;
         }
         x0 = x1;
@@ -4715,8 +4716,8 @@ function gammaincinv(y, a, type)
     }*/
     return monotone_inverse_newton(
         function(x) {return gammainc(x, a, type);},
-                                        //n_div(n_mul(n_pow(x, n_sub(a, I)), realMath.exp(n_neg(x))), gammaincinv.g)
-        function(x) {return n_mul(clamp(realMath.exp(n_sub(n_sub(n_mul(realMath.log(x), n_sub(a, I)), x), gammainc.ga)), 1e-2/*avoid instabilities*/, inf), s);},
+                            //n_div(n_mul(n_pow(x, n_sub(a, I)), realMath.exp(n_neg(x))), gammaincinv.g)
+        function(x) {return n_mul(realMath.exp(n_sub(n_sub(n_mul(realMath.log(x), n_sub(a, I)), x), gammainc.ga)), s);},
         y, O, I, O, I, O, inf, s
     );
 }
@@ -4885,7 +4886,7 @@ function betaincinv(y, z, w, tail)
     var s = 'upper' === tail ? -1 : 1;
     return monotone_inverse_newton(
         function(x) {return betainc(x, z, w, tail);},
-        function(x) {return n_mul(clamp(n_div(n_mul(n_pow(x, n_sub(z, I)), n_pow(n_sub(I, x), n_sub(w, I))), betaincinv.b), 1e-2/*avoid instabilities*/, inf), s);},
+        function(x) {return n_mul(n_div(n_mul(n_pow(x, n_sub(z, I)), n_pow(n_sub(I, x), n_sub(w, I))), betaincinv.b), s);},
         y, O, I, O, I, O, I, s
     );
 }
@@ -12387,7 +12388,7 @@ function norminv(p, mu, sigma)
     var limit = n_mul(sigma, 1000); // 1000 x sigma
     return monotone_inverse_newton(
         function(x) {return normcdf(x, mu, sigma);},
-        function(x) {return clamp(normpdf(x, mu, sigma), 1e-2/*avoid instabilities*/, inf);},
+        function(x) {return normpdf(x, mu, sigma);},
         p, n_sub(mu, limit), n_add(mu, limit)
     );
 }
@@ -12658,7 +12659,7 @@ function tinv(p, nu)
     var limit = 1e3/*n_gt(nu, constant['2']) ? n_mul(n_div(nu, n_sub(nu, constant['2'])), 100) : __(1e7)*/;
     return monotone_inverse_newton(
         function(x) {return tcdf(x, nu);},
-        function(x) {return clamp(tpdf(x, nu), 1e-2/*avoid instabilities*/, inf);},
+        function(x) {return tpdf(x, nu);},
         p, __(-limit), __(limit)
     );
 }

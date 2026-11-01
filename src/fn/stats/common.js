@@ -188,7 +188,7 @@ function norminv(p, mu, sigma)
     var limit = n_mul(sigma, 1000); // 1000 x sigma
     return monotone_inverse_newton(
         function(x) {return normcdf(x, mu, sigma);},
-        function(x) {return clamp(normpdf(x, mu, sigma), 1e-2/*avoid instabilities*/, inf);},
+        function(x) {return normpdf(x, mu, sigma);},
         p, n_sub(mu, limit), n_add(mu, limit)
     );
 }
@@ -459,7 +459,7 @@ function tinv(p, nu)
     var limit = 1e3/*n_gt(nu, constant['2']) ? n_mul(n_div(nu, n_sub(nu, constant['2'])), 100) : __(1e7)*/;
     return monotone_inverse_newton(
         function(x) {return tcdf(x, nu);},
-        function(x) {return clamp(tpdf(x, nu), 1e-2/*avoid instabilities*/, inf);},
+        function(x) {return tpdf(x, nu);},
         p, __(-limit), __(limit)
     );
 }
