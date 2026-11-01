@@ -10,11 +10,11 @@ function expm(A, with_neg)
     with_neg = 'with_neg' === with_neg;
 
     var n = ROWS(A),
-        i, N = 25, sgn = -1,
+        i, N = 50, sgn = -1,
         In = eye(n), An,
         expA, expA_neg,
         tol = eps,
-        k = max([O, n_add(I, realMath.floor(realMath.log2(norm(A, inf))))]);
+        k = clamp(n_add(I, realMath.floor(realMath.log2(norm(A, inf)))), O, inf);
 
     // down-scaling by a power of 2
     A = dotdiv(A, n_pow(two, k));

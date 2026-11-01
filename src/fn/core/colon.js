@@ -58,7 +58,7 @@ function colon(a, b, c)
                 // using b*i instead of b+b+..+b seems to avoid that
                 for (i=1; i<n; ++i) ans[i] = n_add(a, n_mul(b, i));
                 an = n_add(a, n_mul(b, n));
-                ans[n] = n_lt(b, O) ? max([an, c]) : min([an, c]);
+                ans[n] = n_lt(b, O) ? /*max([an, c])*/(n_gt(c, an) ? c : an) : /*min([an, c])*/(n_lt(c, an) ? c : an);
             }
         }
         else

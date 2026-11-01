@@ -259,15 +259,15 @@ fn.complex = complex;
         }, x, false);
     };
 });
-fn.atan2 = function(y, x) {
-    return apply2(function(y, x) {
-        return realMath.atan2(y, x);
-    }, y, x, false);
-};
 fn.sqrt = function(x) {
     return apply(function(x) {
         return is_complex(x) ? complexMath.sqrt(x) : (n_gt(O, x) ? new complex(O, realMath.sqrt(n_neg(x))) : realMath.sqrt(x));
     }, x, true);
+};
+fn.atan2 = function(y, x) {
+    return apply2(function(y, x) {
+        return realMath.atan2(y, x);
+    }, y, x, false);
 };
 (['sqrt','pow','log']).forEach(function(f) {
     fn['real'+f] = function(x) {
@@ -279,7 +279,3 @@ fn.sqrt = function(x) {
         }, x, true);
     };
 });
-
-fn.tofixed = function(x, d) {
-    return is_num(x) ? x.toFixed(_(d || 10)) : x;
-};

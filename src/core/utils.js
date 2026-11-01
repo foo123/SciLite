@@ -463,6 +463,13 @@ function vec(x)
 }
 $_.vec = vec;
 
+function clamp(x, xmin, xmax)
+{
+    if (n_lt(x, xmin)) x = xmin;
+    else if (n_gt(x, xmax)) x = xmax;
+    return x;
+}
+
 function ROWS(mat)
 {
     if ((null != mat) && mat.$scilitecell$) return mat.$scilitecell$[0] || 0;
