@@ -305,6 +305,70 @@ ndarray.indices = function(dims, f) {
         }
     }
 };
+ndarray.index = function(n, dims, min) {
+    // https://en.wikipedia.org/wiki/Multi-index_notation
+    // dims-dimensional multi-indices that sum to n
+    // i.e all compositions of n into dims parts with min=min and max=n-(dims-1)*min
+    min = min || 0;
+    var max = n-(dims-1)*min,
+        index = null,
+        do_next = false,
+
+        init = function() {
+            index = dims < 1 ? null : array(dims, function(i) {return 0 === i ? max : min;}); // initial
+            do_next = false;
+        },
+
+        next = function() {
+            if (index && do_next)
+            {
+                // compute next
+                if ((1 <= dims) && (index[dims-1] < max))
+                {
+                    var i = dims-1, m = index[i];
+                    index[i--] = min;
+                    while ((0 < i) && (min === index[i])) --i;
+                    --index[i]; index[i+1] = 1+m;
+                }
+                else
+                {
+                    index = null; // done
+                }
+            }
+            do_next = true;
+            return index;
+        }
+    ;
+    next.list = function() {
+        init();
+        for (var list=[];next();) list.push(index.slice());
+        return list;
+    };
+    init(); return next;
+};
+ndarray.index.deg = function(a) {
+    return (is_array(a) ? a.reduce(function(d, ai) {return d+ai;}, 0) : (+a)) || 0;
+};
+ndarray.index.cmp = function(cmp, a, b) {
+    for (var a_arr=is_array(a),b_arr=is_array(b),i=0,n=stdMath.max(a_arr ? a.length : 1, b_arr ? b.length : 1),ai,bi; i<n; ++i)
+    {
+        ai = (a_arr ? a[i] : a) || 0;
+        bi = (b_arr ? b[i] : b) || 0;
+        switch (cmp)
+        {
+            case '<='   : if (ai > bi) return false; break;
+            case '<'    : if (ai >= bi) return false; break;
+            case '>='   : if (ai < bi) return false; break;
+            case '>'    : if (ai <= bi) return false; break;
+            case '!='   : if (ai === bi) return false; break;
+            default     : if (ai !== bi) return false;
+        }
+    }
+    return true;
+};
+ndarray.index.op = function(op, a, b) {
+    return array(stdMath.max(a.length, b.length), function(i) {return op(a[i] || 0, b[i] || 0);});
+};
 ndarray.project = function project(x, d, i, j, matchsize, loose) {
     j = j || 0;
     if (is_array(x) && (j < i.length))
