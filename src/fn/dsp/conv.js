@@ -2,12 +2,11 @@ function conv(a, b, shape)
 {
     var n = a.length, m = b.length, nm, i0;
 
-    if (!n || !m) return [];
     if ("valid" === shape)
     {
         // non zero-padded part
         nm = 0 === m ? n : stdMath.max(0, n-m+1);
-        i0 = m;
+        i0 = m >> 1;
     }
     else if ("same" === shape)
     {

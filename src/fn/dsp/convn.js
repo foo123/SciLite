@@ -11,7 +11,7 @@ function convn(a, b, shape)
             if (!sb[i]) return sa[i];
             return stdMath.max(0, sa[i]-sb[i]+1);
         });
-        j0 = array(db, function(i) {return sb[i];});
+        j0 = array(db, function(i) {return sb[i] >> 1;});
     }
     else if ("same" === shape)
     {

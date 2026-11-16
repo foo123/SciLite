@@ -9,8 +9,8 @@ function conv2(a, b, shape)
         // non zero-padded part
         rC = 0 === rB ? rA : stdMath.max(0, rA-rB+1);
         cC = 0 === cB ? cA : stdMath.max(0, cA-cB+1);
-        j0 = rB;
-        k0 = cB;
+        j0 = rB >> 1;
+        k0 = cB >> 1;
     }
     else if ("same" === shape)
     {
