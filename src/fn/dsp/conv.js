@@ -1,38 +1,43 @@
-function conv(a, b)
+function conv(a, b, shape)
 {
-    // adapted from https://github.com/foo123/FILTER.js
-    var i, j, ij, t,
-        n = a.length,
-        m = b.length,
-        nm = n + m - 1, c;
+    var n = a.length, m = b.length, nm, i0;
+
     if (!n || !m) return [];
-    c = new Array(nm);
-    if (n < m)
+    if ("valid" === shape)
     {
-        t = a;
-        a = b;
-        b = t;
-        n = a.length;
-        m = b.length;
+        // non zero-padded part
+        nm = 0 === m ? n : stdMath.max(0, n-m+1);
+        i0 = m;
     }
-    for (i=0; i<nm; ++i)
+    else if ("same" === shape)
     {
-        c[i] = O;
-        for (j=0; j<m; ++j)
+        // central part
+        nm = n;
+        i0 = m >> 1;
+    }
+    else
+    {
+        // full
+        nm = n + m - 1;
+        i0 = 0;
+    }
+    return array(nm, function(i) {
+        var j, jn, ij, ci = O;
+        i += i0;
+        for (j=0,jn=stdMath.min(i+1, n); j<jn; ++j)
         {
             ij = i-j;
-            if ((0 <= ij) && (ij < n))
+            if ((0 <= ij) && (ij < m))
             {
-                c[i] = scalar_add(c[i], scalar_mul(a[ij], b[j]));
+                ci = scalar_add(ci, scalar_mul(a[j], b[ij]));
             }
         }
-    }
-    return c;
+        return ci;
+    });
 }
-fn.conv = function(a, b) {
+fn.conv = function(a, b, shape) {
     if (is_scalar(a) || is_scalar(b)) return dotmul(a, b);
-    a = vec(a);
-    b = vec(b);
+    a = vec(a); b = vec(b);
     if (!is_vector(a) || !is_vector(b)) not_supported("conv");
-    return conv(a, b);
+    return conv(a, b, shape);
 };

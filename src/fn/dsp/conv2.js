@@ -1,48 +1,51 @@
-function conv2(a, b)
+function conv2(a, b, shape)
 {
-    // adapted from https://github.com/foo123/FILTER.js
-    var rA, cA,
-        rB, cB,
-        c, rC, cC,
-        cjk, j, k,
-        p, q, t;
+    var rA = ROWS(a), cA = COLS(a),
+        rB = ROWS(b), cB = COLS(b),
+        rC, cC, j0, k0;
 
-    if (ROWS(a) < ROWS(b))
+    if ("valid" === shape)
     {
-        t = a;
-        a = b;
-        b = t;
+        // non zero-padded part
+        rC = 0 === rB ? rA : stdMath.max(0, rA-rB+1);
+        cC = 0 === cB ? cA : stdMath.max(0, cA-cB+1);
+        j0 = rB;
+        k0 = cB;
     }
-    rA = ROWS(a);
-    cA = COLS(a);
-    rB = ROWS(b);
-    cB = COLS(b);
-    rC = rA + rB - 1;
-    cC = cA + cB - 1;
-    c = zeros(rC, cC);
-
-    for (j=0; j<rC; ++j)
+    else if ("same" === shape)
     {
-        for (k=0; k<cC; ++k)
+        // central part
+        rC = rA;
+        cC = cA;
+        j0 = rB >> 1;
+        k0 = cB >> 1;
+    }
+    else
+    {
+        // full
+        rC = rA + rB - 1;
+        cC = cA + cB - 1;
+        j0 = 0;
+        k0 = 0;
+    }
+    return matrix(rC, cC, function(j, k) {
+        var jp, kq, p, pn, q, qn, cjk = O;
+        j += j0; k += k0;
+        for (p=0,pn=stdMath.min(j+1, rA); p<pn; ++p)
         {
-            cjk = O;
-            for (p=0; p<=j; ++p)
+            jp = j-p;
+            if (0 > jp || jp >= rB) continue;
+            for (q=0,qn=stdMath.min(k+1, cA); q<qn; ++q)
             {
-                if (p >= rA) break;
-                if (j-p >= rB) continue;
-                for (q=0; q<=k; ++q)
-                {
-                    if (q >= cA) break;
-                    if (k-q >= cB) continue;
-                    cjk = scalar_add(cjk, scalar_mul(a[p][q], b[j-p][k-q]));
-                }
+                kq = k-q;
+                if (0 > kq || kq >= cB) continue;
+                cjk = scalar_add(cjk, scalar_mul(a[p][q], b[jp][kq]));
             }
-            c[j][k] = cjk;
         }
-    }
-    return c;
+        return cjk;
+    });
 }
-fn.conv2 = function(a, b) {
+fn.conv2 = function(a, b, shape) {
     if (is_scalar(a) || is_scalar(b))
     {
         return dotmul(a, b);
@@ -51,12 +54,12 @@ fn.conv2 = function(a, b) {
     {
         if (is_vector(b))
         {
-            return conv(a, b);
+            return conv(a, b, shape);
         }
         else if (is_matrix(b))
         {
             return array(COLS(b), function(column) {
-                return conv(a, COL(b, column));
+                return conv(a, COL(b, column), shape);
             });
         }
         else
@@ -68,12 +71,12 @@ fn.conv2 = function(a, b) {
     {
         if (is_vector(a))
         {
-            return conv(a, b);
+            return conv(a, b, shape);
         }
         else if (is_matrix(a))
         {
             return array(a[0].length, function(column) {
-                return conv(COL(a, column), b);
+                return conv(COL(a, column), b, shape);
             });
         }
         else
@@ -83,5 +86,5 @@ fn.conv2 = function(a, b) {
     }
     if (!is_matrix(a)) throw "conv2: input 1 not supported";
     if (!is_matrix(b)) throw "conv2: input 2 not supported";
-    return conv2(a, b);
+    return conv2(a, b, shape);
 };

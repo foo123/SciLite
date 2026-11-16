@@ -73,7 +73,7 @@ function fft1_r(x, inv, output)
     // Use the lowest odd factor, so we are able to use _fft_i in the
     // recursive transforms optimally.
     var p = first_odd_fac(n), m = n / p,
-        normalisation = inv ? __(1 / /*stdMath.sqrt(*/p/*)*/) : 1,
+        normalisation = inv ? __(1 / /*stdMath.sqrt(*/p/*)*/) : __(1),
         recursive_result = new Array(m),
         recursive_result2 = new Array(m),
         del_f_r, del_f_i, f_r, f_i, _real, _imag;
@@ -173,31 +173,68 @@ function fft1(x, inv, output)
     else fft1_i(x, inv, output);
     if (ret) return output;
 }
-fn.fft = function(x) {
+function fft_len(x, n)
+{
+    if (is_array(x) && is_num(n))
+    {
+        n = stdMath.floor(_(n));
+        if (0 < n && x.length > n) x = x.slice(0, n); // truncate
+        else if (0 < n && x.length < n) x.push.apply(x, array(n-x.length, O)); // pad trailing zeros
+    }
+    return x;
+}
+function fft_sz(x, sz)
+{
+    if (is_array(x) && is_vector(sz=vec(sz)) && sz.length)
+    {
+        var n = null == sz[0] ? -1 : stdMath.floor(_(sz[0]));
+        sz = sz.slice(1);
+        if (0 < n && x.length > n)
+        {
+            x = array(n, function(i) {
+                return sz.length ? fft_sz(x[i], sz) : x[i];
+            });
+        }
+        else if (0 < n && x.length < n)
+        {
+            x = array(n, function(i) {
+                return sz.length ? fft_sz(i < x.length ? x[i] : [], sz) : (i < x.length ? x[i] : O);
+            });
+        }
+        else if (sz.length)
+        {
+            x = x.map(function(xi) {
+                return fft_sz(xi, sz);
+            });
+        }
+    }
+    return x;
+}
+fn.fft = function(x, n, dim) {
     x = vec(x);
     if (is_matrix(x))
     {
         return array(COLS(x), function(column) {
-            return realify(fft1(complexify(COL(x, column)), false));
+            return realify(fft1(complexify(fft_len(COL(x, column), n)), false));
         });
     }
     else if (is_vector(x))
     {
-        return realify(fft1(complexify(x), false));
+        return realify(fft1(complexify(fft_len(x, n)), false));
     }
     not_supported("fft");
 };
-fn.ifft = function(x) {
+fn.ifft = function(x, n, dim) {
     x = vec(x);
     if (is_matrix(x))
     {
         return array(COLS(x), function(column) {
-            return realify(fft1(complexify(COL(x, column)), true));
+            return realify(fft1(complexify(fft_len(COL(x, column), n)), true));
         });
     }
     else if (is_vector(x))
     {
-        return realify(fft1(complexify(x), true));
+        return realify(fft1(complexify(fft_len(x, n)), true));
     }
     not_supported("ifft");
 };

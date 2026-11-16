@@ -3,8 +3,7 @@ function fft2(x, inv, output)
 {
     var nx = x.length, ny = x[0].length;
     if (0 >= nx || 0 >= ny) return;
-    var ret = false,
-        n = nx * ny, i, j, jn,
+    var ret = false, i, j,
         row = new Array(nx),
         col = new Array(ny),
         frow = new Array(nx),
@@ -16,7 +15,7 @@ function fft2(x, inv, output)
         for (i=0; i<nx; ++i) output[i] = new Array(ny);
         ret = true;
     }
-    for (j=0,jn=0; j<ny; ++j,jn+=nx)
+    for (j=0; j<ny; ++j)
     {
         for (i=0; i<nx; ++i)
         {
@@ -30,12 +29,12 @@ function fft2(x, inv, output)
     }
     for (i=0; i<nx; ++i)
     {
-        for (j=0,jn=0; j<ny; ++j,jn+=nx)
+        for (j=0; j<ny; ++j)
         {
             col[j] = output[i][j];
         }
         fft1(col, inv, fcol);
-        for (j=0,jn=0; j<ny; ++j,jn+=nx)
+        for (j=0; j<ny; ++j)
         {
             output[i][j] = fcol[j];
         }
@@ -43,11 +42,11 @@ function fft2(x, inv, output)
 
     if (ret) return output;
 }
-fn.fft2 = function(x) {
+fn.fft2 = function(x, m, n) {
     if (!is_matrix(x)) not_supported("fft2");
-    return realify(fft2(complexify(x), false));
+    return realify(fft2(complexify(fft_sz(x, [m, n])), false));
 };
-fn.ifft2 = function(x) {
+fn.ifft2 = function(x, m, n) {
     if (!is_matrix(x)) not_supported("ifft2");
-    return realify(fft2(complexify(x), true));
+    return realify(fft2(complexify(fft_sz(x, [m, n])), true));
 };

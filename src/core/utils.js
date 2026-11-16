@@ -290,45 +290,29 @@ function ndarray(dims, v)
         return callable ? v([i], ndarr) : v;
     }) : [];
 }
-ndarray.indices = function(dims, f) {
-    var n = dims.length;
-    if (0 < n)
-    {
-        var i = array(n, 0), d = n-1;
-        for (;;)
-        {
-            f(i);
-            while ((0 <= d) && (i[d]+1 >= dims[d])) --d;
-            if (0 > d) return;
-            ++i[d];
-            while (d+1 < n) i[++d] = 0;
-        }
-    }
-};
-ndarray.index = function(n, dims, min) {
+ndarray.indices = function(dims, f, n) {
     // https://en.wikipedia.org/wiki/Multi-index_notation
-    // dims-dimensional multi-indices that sum to n
-    // i.e all compositions of n into dims parts with min=min and max=n-(dims-1)*min
-    min = min || 0;
-    var max = n-(dims-1)*min,
-        index = null,
-        do_next = false,
-
-        init = function() {
-            index = dims < 1 ? null : array(dims, function(i) {return 0 === i ? max : min;}); // initial
-            do_next = false;
-        },
-
-        next = function() {
+    var d = dims.length, index = null, do_next = false, next = function() {};
+    if (0 >= d)
+    {
+        if (is_callable(f)) return;
+        else return next;
+    }
+    if (null == n)
+    {
+        // all d-dimensional multi-indices
+        // i.e all tuples of d parts each between 0 and dims[i]-1
+        index = array(d, 0); // initial
+        next = function next() {
             if (index && do_next)
             {
                 // compute next
-                if ((1 <= dims) && (index[dims-1] < max))
+                var i = d-1;
+                while ((0 <= i) && (index[i]+1 >= dims[i])) --i;
+                if (0 <= i)
                 {
-                    var i = dims-1, m = index[i];
-                    index[i--] = min;
-                    while ((0 < i) && (min === index[i])) --i;
-                    --index[i]; index[i+1] = 1+m;
+                    ++index[i];
+                    while (i+1 < d) index[++i] = 0;
                 }
                 else
                 {
@@ -337,19 +321,54 @@ ndarray.index = function(n, dims, min) {
             }
             do_next = true;
             return index;
-        }
-    ;
-    next.list = function() {
-        init();
-        for (var list=[];next();) list.push(index.slice());
-        return list;
-    };
-    init(); return next;
+        };
+    }
+    else
+    {
+        // all d-dimensional multi-indices that sum to n deg
+        // i.e all compositions of n into d parts between 0 and dims[i]-1
+        var rem = n;
+        index = array(d, function(i) {
+            var ni = 0 < rem ? stdMath.min(rem, dims[i]-1) : 0;
+            rem -= ni;
+            return ni;
+        }); // initial
+        if (0 < rem) index = null;
+        next = function next() {
+            if (index && do_next)
+            {
+                // compute next
+                var i = d-1, m = index[i], rem = 1+m;
+                index[i--] = 0;
+                while ((0 <= i) && (0 === index[i])) --i;
+                if (0 <= i)
+                {
+                    --index[i];
+                    while ((0 < rem) && (i+1 < d))
+                    {
+                        ++i;
+                        m = stdMath.min(rem, dims[i]-1);
+                        index[i] = m;
+                        rem -= m;
+                    }
+                    if (0 < rem) index = null; // done
+                }
+                else
+                {
+                    index = null; // done
+                }
+            }
+            do_next = true;
+            return index;
+        };
+    }
+    if (is_callable(f)) for (;next();) f(index);
+    else return next;
 };
-ndarray.index.deg = function(a) {
+ndarray.indices.deg = function(a) {
     return (is_array(a) ? a.reduce(function(d, ai) {return d+ai;}, 0) : (+a)) || 0;
 };
-ndarray.index.cmp = function(cmp, a, b) {
+ndarray.indices.cmp = function(cmp, a, b) {
     for (var a_arr=is_array(a),b_arr=is_array(b),i=0,n=stdMath.max(a_arr ? a.length : 1, b_arr ? b.length : 1),ai,bi; i<n; ++i)
     {
         ai = (a_arr ? a[i] : a) || 0;
@@ -365,9 +384,6 @@ ndarray.index.cmp = function(cmp, a, b) {
         }
     }
     return true;
-};
-ndarray.index.op = function(op, a, b) {
-    return array(stdMath.max(a.length, b.length), function(i) {return op(a[i] || 0, b[i] || 0);});
 };
 ndarray.project = function project(x, d, i, j, matchsize, loose) {
     j = j || 0;
