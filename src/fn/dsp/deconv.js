@@ -1,18 +1,107 @@
+function ls_inv_qr_toeplitz(T, B, alpha)
+{
+    var Tt = ctranspose(T),
+        TT = add(mul(Tt, T), mul(eye(ROWS(Tt)), alpha)),
+        QR;
+    // this highly instable for ill-conditioned T
+    //return vec(mul(inv(TT), mul(Tt, vec2col(B))));
+
+    // this is slightly slower than direct inverse QR factorization below
+    QR = qr(TT, true);
+    return solve_tri("upper", QR[1], mul(ctranspose(QR[0]), mul(Tt, vec2col(B))));
+
+    /*
+    // FAST INVERSE QR FACTORIZATION FOR TOEPLITZ MATRICES, JAMES G. NAGY, 1993
+    var m = ROWS(T), n = COLS(T), k,
+        t0 = T[0][0],
+        T0 = matrix(m-1, n-1, function(i, j) {return T[i+1][j+1];}),
+        u = array(n-1, function(i) {return T[0][i+1];}),
+        v = array(m-1, function(i) {return T[i+1][0];}),
+        //uu = array(m-1, function(i) {return T[i][n-1];}),
+        vv = array(n-1, function(i) {return T[m-1][i];}),
+        Ti0 = array(m, function(i) {return T[i][0];}),
+        y0 = div(Ti0, norm(Ti0)),
+        y1 = array(y0.length, function(i) {return 0 === i ? I : O;}),
+        y2 = array(y0.length, O),
+        y3 = y0.map(function(yi) {return scalar_neg(yi);}),
+        y0B = mul(y0, B[0]),
+        y1B = mul(y1, B[0]),
+        y2B = y2,//mul(y2, B[0]),
+        y3B = mul(y3, B[0]),
+        c = [y0B, y1B, y2B, y3B],
+        r00 = null == alpha || eq(alpha, O) ? hypotn(array(m, function(i) {return T[i][i];})) : scalar_add(scalar_add(dot(t0, t0), dot(v, v)), dot(alpha, alpha)),
+        lt, l1, l2, lb,
+        h1, h2, h3,
+        d = I, g1 = I, g2 = I,
+        b, cs, sn,
+        z = vec(div(add(mul(t0, u), mul(ctranspose(T0), vec2col(v))), r00)),
+        rk, sk, x = array(m, O)
+    ;
+    for (k=0; k<n; ++k)
+    {
+        // kth row of R^(-T) = rk
+        if (0 === k)
+        {
+            h1 = [O];
+            h2 = [O];
+            h3 = [O];
+            rk = [scalar_div(I, r00)];
+        }
+        else
+        {
+            h1.push(O);
+            h2.push(O);
+            h3.push(O);
+            lt = rk;
+
+            b = dot(lt, u.slice(0, k));
+            [cs, sn] = compute_givens(d, scalar_neg(b));
+            d = scalar_add(scalar_mul(cs, d), scalar_mul(sn, b));
+            l1 = add(mul(cs, lt), mul(sn, h1));
+            h1 = add(mul(scalar_neg(sn), lt), mul(cs, h1));
+
+            b = dot(l1, vv.slice(0, k));
+            [cs, sn] = compute_givens(g1, b, 'hyp');
+            g1 = scalar_sub(scalar_mul(cs, g1), scalar_mul(sn, b));
+            l2 = add(mul(cs, l1), mul(scalar_neg(sn), h2));
+            h2 = add(mul(scalar_neg(sn), l1), mul(cs, h2));
+
+            b = dot(l2, z.slice(0, k));
+            [cs, sn] = compute_givens(g2, b, 'hyp');
+            g2 = scalar_sub(scalar_mul(cs, g2), scalar_mul(sn, b));
+            lb = add(mul(cs, l2), mul(scalar_neg(sn), h3));
+            h3 = add(mul(scalar_neg(sn), l2), mul(cs, h3));
+
+            rk = [scalar_neg(scalar_div(dot(lb, z.slice(0, k)), r00))].concat(lb);
+        }
+
+        // kth entry of Q(^T)B = sk
+        if (0 === k)
+        {
+        }
+        else
+        {
+        }
+
+        // update x
+        rk.forEach(function(rki, i) {x[i] = scalar_add(x[i], scalar_mul(rki, sk));});
+    }
+    return x;
+    */
+}
 function deconv(y, h, method, a, shape)
 {
     if ("least-squares" === method)
     {
         // least squares with regularization
         var n = y.length, m = h.length,
-            i0 = "same" === shape ? m >> 1 : ("valid" === shape ? m : 0),
-            // ny = nx+m-1 => nx=ny-m+1
-            H = matrix(n, "same" === shape ? n : ("valid" === shape ? (n+m-1) : (n-m+1)), function(i, j) {
-                i += i0; return 0 <= i-j && i-j < m ? h[i-j] : O;
-            }),
-            HT = ctranspose(H)
+            offset = "same" === shape ? m >> 1 : ("valid" === shape ? m >> 1 : 0),
+            x = ls_inv_qr_toeplitz(matrix(n, "same" === shape ? n : ("valid" === shape ? (n+m-1) : (n-m+1)), function(i, j) {
+                i += offset; return 0 <= i-j && i-j < m ? h[i-j] : O;
+            }), y, a),
+            r = conv(x, h, shape).map(function(yi, i) {return scalar_sub(y[i], yi);})
         ;
-        // this is unstable for ill-conditioned H
-        return [x=vec(mul(mul(inv(add(mul(HT, H), mul(eye(ROWS(HT)), a))), HT), vec2col(y))), addp(y, conv(x, h, shape), 'sub')];
+        return [x, r];
     }
     else
     {
@@ -27,14 +116,14 @@ h = [2 4 -1 1];
 y = conv(xin,h,"same");
 [x,r] = deconv(y,h,"same",Method="least-squares");
 xin
-x
+x % correct
 %%
 xin = [-1 2];
 h = [2 5];
 y = conv(xin,h,"valid")
 [x,r] = deconv(y,h,"valid",Method="least-squares");
 xin
-x
+x % invalid array length
 %%
 N = 200;
 n = 0.1*(1:N);
@@ -43,7 +132,7 @@ h = 0.1*randn(1,length(x));
 y = conv(x,h);
 [x1,r1] = deconv(y,h);
 [x2,r2] = deconv(y,h,Method="least-squares");
-plot(n,x,n,x1,n,x2)
+plot(n,x,n,x1,n,x2) % correct
 */
 fn.deconv = varargout(namevalueargs(function(nargout, y, h, shape) {
     var ans, nv = arguments[arguments.length-1]._;

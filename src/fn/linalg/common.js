@@ -227,6 +227,10 @@ function is_tri(A, type, strict, tol, setzero, setcopy)
             }
         }
     }
+    else if ((true === setzero) && setcopy && setcopy._)
+    {
+        setcopy._ = copy(A);
+    }
     return true;
 }
 function solve_tri(type, T, y, tol, free_vars)
@@ -269,7 +273,7 @@ function solve_tri(type, T, y, tol, free_vars)
         }).reverse();
     }
 }
-function compute_givens(f, g)
+function compute_givens(f, g, hyp)
 {
     /*
     "On Computing Givens Rotations Reliably and Efficiently",
@@ -287,17 +291,17 @@ function compute_givens(f, g)
     else if (eq(f, O))
     {
         c = O;
-        s = scalar_sign(scalar_conj(g));
-        if (eq(s, O)) s = I;
+        s = 'hyp' === hyp ? scalar_neg(scalar_sign(scalar_conj(g))) : scalar_sign(scalar_conj(g));
+        if (eq(s, O)) s = 'hyp' === hyp ? J : I;
         //r = scalar_abs(g);
     }
     else
     {
         sf = scalar_sign(f);
         af = scalar_abs(f);
-        n = n_hypot(af, scalar_abs(g));
+        n = n_hypot(af, scalar_abs(g), hyp);
         c = scalar_div(af, n);
-        s = scalar_div(scalar_mul(sf, scalar_conj(g)), n);
+        s = scalar_div(scalar_mul('hyp' === hyp ? scalar_neg(sf) : sf, scalar_conj(g)), n);
         //r = scalar_mul(sf, n);
     }
     return [c, s/*, r*/]; // skip r

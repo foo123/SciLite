@@ -1,13 +1,13 @@
 // various distance functions
 
-function hypot(a, b)
+function hypot(a, b, hyp)
 {
     a = stdMath.abs(a);
     b = stdMath.abs(b);
     var r = 0;
     if (0 === a)
     {
-        return b;
+        return 'hyp' === hyp ? -b : b;
     }
     else if (0 === b)
     {
@@ -16,19 +16,19 @@ function hypot(a, b)
     else if (a > b)
     {
         r = b/a;
-        return a*stdMath.sqrt(1 + r*r);
+        return a*stdMath.sqrt('hyp' === hyp ? (1 - r*r) : (1 + r*r));
     }
     else if (a < b)
     {
         r = a/b;
-        return b*stdMath.sqrt(1 + r*r);
+        return b*stdMath.sqrt('hyp' === hyp ? (r*r - 1) : (r*r + 1));
     }
-    return a*stdMath.SQRT2;
+    return 'hyp' === hyp ? 0 : (a*stdMath.SQRT2);
 }
-function n_hypot(a, b)
+function n_hypot(a, b, hyp)
 {
-    if (is_number(a) && is_number(b)) return hypot(a, b);
-    return realMath.sqrt(n_add(n_mul(a, a), n_mul(b, b)));
+    if (is_number(a) && is_number(b)) return hypot(a, b, hyp);
+    return realMath.sqrt('hyp' === hyp ? n_sub(n_mul(a, a), n_mul(b, b)) : n_add(n_mul(a, a), n_mul(b, b)));
 }
 function hypotn(args)
 {
