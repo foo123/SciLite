@@ -50,6 +50,7 @@ function qr(A, wantq, wantp, tol)
                     }
                 }
 
+                if (j >= m) break;
                 /*
                 // qr via givens rotations
                 for (i=m-1; i>=(j+1); --i)
@@ -93,6 +94,7 @@ function qr(A, wantq, wantp, tol)
             // produces some reflected signs from Octave's qr
             for (j=0; j<n; ++j)
             {
+                if (j >= m) break;
                 for (i=m-1; i>=(j+1); --i)
                 {
                     if (n_le(scalar_abs(R[i][j]), n_mul(scalar_abs(R[i-1][j]), tol)))
@@ -115,6 +117,7 @@ function qr(A, wantq, wantp, tol)
             hh = {};
             for (j=0; j<n; ++j)
             {
+                if (j >= m) break;
                 // -- Find H = I-tau*w*w' to put zeros below R(j,j)
                 hh.v = array(m-j, O);
                 compute_householder(R, hh, j, m-1, j, j, tol);

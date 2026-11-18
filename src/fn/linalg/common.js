@@ -181,63 +181,63 @@ function is_tri(A, type, strict, tol, setzero, setcopy)
             for (r=0; r<nr; ++r) if (!n_le(scalar_abs(A[r][c]), tol2)) return false;
         }
     }
-    if ((true === setzero) && n_gt(tol2, O))
+    if (true === setzero)
     {
         if (setcopy && setcopy._) A = setcopy._ = copy(A);
-        if (('upper' === type) || ('diagonal' === type))
+        if (n_gt(tol2, O))
         {
-            for (r=0; r<n; ++r)
+            if (('upper' === type) || ('diagonal' === type))
             {
-                for (c=0; c<r; ++c)
+                for (r=0; r<n; ++r)
                 {
-                    A[r][c] = O;
+                    for (c=0; c<r; ++c)
+                    {
+                        A[r][c] = O;
+                    }
+                }
+            }
+            if (('lower' === type) || ('diagonal' === type))
+            {
+                for (r=0; r<n; ++r)
+                {
+                    for (c=r+1; c<n; ++c)
+                    {
+                        A[r][c] = O;
+                    }
+                }
+            }
+            if (nr > nc)
+            {
+                // should be all zero
+                for (r=n; r<nr; ++r)
+                {
+                    for (c=0; c<nc; ++c)
+                    {
+                        A[r][c] = O;
+                    }
+                }
+            }
+            else if (nr < nc)
+            {
+                // should be all zero
+                for (c=n; c<nc; ++c)
+                {
+                    for (r=0; r<nr; ++r)
+                    {
+                        A[r][c] = O;
+                    }
                 }
             }
         }
-        if (('lower' === type) || ('diagonal' === type))
-        {
-            for (r=0; r<n; ++r)
-            {
-                for (c=r+1; c<n; ++c)
-                {
-                    A[r][c] = O;
-                }
-            }
-        }
-        if (nr > nc)
-        {
-            // should be all zero
-            for (r=n; r<nr; ++r)
-            {
-                for (c=0; c<nc; ++c)
-                {
-                    A[r][c] = O;
-                }
-            }
-        }
-        else if (nr < nc)
-        {
-            // should be all zero
-            for (c=n; c<nc; ++c)
-            {
-                for (r=0; r<nr; ++r)
-                {
-                    A[r][c] = O;
-                }
-            }
-        }
-    }
-    else if ((true === setzero) && setcopy && setcopy._)
-    {
-        setcopy._ = copy(A);
     }
     return true;
 }
-function solve_tri(type, T, y, tol, free_vars)
+function solve_tri(type, T, y, tol, free_vars, nmax)
 {
     tol = __(tol || 0);
     if (y) y = vec(y);
     var n = ROWS(T), fk = 0, fn = free_vars ? free_vars.length : 0;
+    if (null != nmax) n = stdMath.min(n, nmax);
     if ("lower" === type)
     {
         // lower triangular, forward substitution
@@ -306,7 +306,7 @@ function compute_givens(f, g, hyp)
     }
     return [c, s/*, r*/]; // skip r
 }
-function compute_jacobi(alpha, beta, gamma)
+/*function compute_jacobi(alpha, beta, gamma)
 {
     // Compute the Jacobi/Givens rotation
     //
@@ -331,7 +331,7 @@ function compute_jacobi(alpha, beta, gamma)
             [scalar_neg(s), c]
         ];
     }
-}
+}*/
 /*function givens(n, p, q, f, g)
 {
     var givens_rot = compute_givens(f, g),
@@ -432,7 +432,7 @@ function rotmul(type, G, p, q, A, i1, i2)
     }
     return B;
 }
-function jacobi_sweep(A, nsweeps)
+/*function jacobi_sweep(A, nsweeps)
 {
     if (null == nsweeps) nsweeps = 1;
     var n = ROWS(A), sweep, k, l, J;
@@ -449,7 +449,7 @@ function jacobi_sweep(A, nsweeps)
         }
     }
     return A;
-}
+}*/
 function compute_householder(A, hh, i1, i2, j1, j2, tol)
 {
     /*

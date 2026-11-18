@@ -1,19 +1,28 @@
-function ls_inv_qr_toeplitz(T, B, alpha)
+function ls_toeplitz(T, B, alpha)
 {
-    var Tt = ctranspose(T),
-        TT = add(mul(Tt, T), mul(eye(ROWS(Tt)), alpha)),
-        QR;
-    // this highly instable for ill-conditioned T
-    //return vec(mul(inv(TT), mul(Tt, vec2col(B))));
+    // https://en.wikipedia.org/wiki/Numerical_methods_for_linear_least_squares
+    var m = ROWS(T), n = COLS(T), TH, THT, R, X;
+    B = B.length < m ? B.concat(array(m-B.length, O)) : B.slice(0, m);
 
-    // this is slightly slower than direct inverse QR factorization below
-    QR = qr(TT, true);
-    return solve_tri("upper", QR[1], mul(ctranspose(QR[0]), mul(Tt, vec2col(B))));
+    // this is stable but still slower than (*) below
+    // how incorporate regularization alpha ??
+    //R = qr(T, true);
+    //X = solve_tri("upper", R[1], mul(ctranspose(R[0]), vec2col(B)), 0, null, n);
+
+    THT = add(mul(TH=ctranspose(T), T), eye(n, alpha)),
+
+    // this is instable and slow for ill-conditioned T
+    //X = mul(inv(THT), mul(TH, vec2col(B)));
+
+    // this is more stable when THT is well-conditioned but maybe slower than (*) below
+    R = chol(THT, "upper");
+    X = R && R.length ? solve_tri("upper", R, solve_tri("lower", ctranspose(R), mul(TH, vec2col(B)))) : mul(TH, vec2col(B));
+
+    return X;
 
     /*
-    // FAST INVERSE QR FACTORIZATION FOR TOEPLITZ MATRICES, JAMES G. NAGY, 1993
-    var m = ROWS(T), n = COLS(T), k,
-        t0 = T[0][0],
+    // (*) FAST INVERSE QR FACTORIZATION FOR TOEPLITZ MATRICES, JAMES G. NAGY, 1993
+    var k, t0 = T[0][0],
         T0 = matrix(m-1, n-1, function(i, j) {return T[i+1][j+1];}),
         u = array(n-1, function(i) {return T[0][i+1];}),
         v = array(m-1, function(i) {return T[i+1][0];}),
@@ -89,41 +98,27 @@ function ls_inv_qr_toeplitz(T, B, alpha)
     return x;
     */
 }
-function deconv(y, h, method, a, shape)
+function deconv(y, h, method, a, shape, want_r)
 {
-    if ("least-squares" === method)
-    {
-        // least squares with regularization
-        var n = y.length, m = h.length,
-            offset = "same" === shape ? m >> 1 : ("valid" === shape ? m >> 1 : 0),
-            x = ls_inv_qr_toeplitz(matrix(n, "same" === shape ? n : ("valid" === shape ? (n+m-1) : (n-m+1)), function(i, j) {
-                i += offset; return 0 <= i-j && i-j < m ? h[i-j] : O;
-            }), y, a),
-            r = conv(x, h, shape).map(function(yi, i) {return scalar_sub(y[i], yi);})
-        ;
-        return [x, r];
-    }
-    else
-    {
-        // polynomial long-division
-        return divp(y, h, true);
-    }
-}
 /*
 % tests
-xin = [-1 2 3 -2 0 1 2];
-h = [2 4 -1 1];
-y = conv(xin,h,"same");
-[x,r] = deconv(y,h,"same",Method="least-squares");
-xin
-x % correct
+y = [2 7 4 9];
+h = [1 0 1];
+[x,r] = deconv(y,h) % correct
 %%
 xin = [-1 2];
 h = [2 5];
 y = conv(xin,h,"valid")
 [x,r] = deconv(y,h,"valid",Method="least-squares");
 xin
-x % invalid array length
+x % differs from example -0.1724   -0.0690
+%%
+xin = [-1 2 3 -2 0 1 2];
+h = [2 4 -1 1];
+y = conv(xin,h,"same");
+[x,r] = deconv(y,h,"same",Method="least-squares");
+xin
+x % correct
 %%
 N = 200;
 n = 0.1*(1:N);
@@ -132,8 +127,26 @@ h = 0.1*randn(1,length(x));
 y = conv(x,h);
 [x1,r1] = deconv(y,h);
 [x2,r2] = deconv(y,h,Method="least-squares");
-plot(n,x,n,x1,n,x2) % correct
+plot(n,x,Color="b",n,x1,Color="r")
+plot(n,x,Color="b",n,x2,Color="g") % correct
 */
+    if ("least-squares" === method)
+    {
+        // least squares with regularization
+        var n = y.length, m = h.length, max = stdMath.max(n, m),
+            offset = "same" === shape ? m >> 1 : ("valid" === shape ? m >> 1 : 0),
+            x = vec(ls_toeplitz(matrix(max, "same" === shape ? n : ("valid" === shape ? (n+m-1) : (n-m+1)), function(i, j) {
+                i += offset; return 0 <= i-j && i-j < m ? h[i-j] : O; // convolution has toeplitz matrix form
+            }), y, a))
+        ;
+        return [x, want_r ? conv(x, h, shape).map(function(xhi, i) {return scalar_sub(y[i], xhi);}) : []];
+    }
+    else
+    {
+        // polynomial long-division
+        return divp(y, h, true);
+    }
+}
 fn.deconv = varargout(namevalueargs(function(nargout, y, h, shape) {
     var ans, nv = arguments[arguments.length-1]._;
     if (!is_string(shape)) shape = "full";
@@ -146,7 +159,7 @@ fn.deconv = varargout(namevalueargs(function(nargout, y, h, shape) {
         y = vec(y); h = vec(h);
         if (!is_vector(y) || !is_vector(h)) not_supported("deconv");
         if (!h.length || ((1 === h.length) && eq(h[0], O))) throw "deconv: divisor is zero";
-        ans = deconv(y, h, "least-squares" === nv.Method ? "least-squares" : "long-division", _(nv.RegularizationFactor || 0), shape);
+        ans = deconv(y, h, "least-squares" === nv.Method ? "least-squares" : "long-division", _(nv.RegularizationFactor || 0), shape, 1 < nargout);
     }
     return 1 < nargout ? ans : ans[0];
 }, {
