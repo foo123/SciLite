@@ -362,18 +362,32 @@ ndarray.indices = function(dims, f) {
     else return next;
 };
 ndarray.indices.split = function(i, jdims, kdims, f) {
-    // all pairs j, k of multi-indices that sum to i multi-index compatible with jdims and kdims
-    var j_d = jdims.length, k_d = kdims.length, j_, j, k, next;
-    next = function next() {
-        if (null == j_) j_ = ndarray.indices(array(j_d, function(_) {return stdMath.min((i[_]||0)+1, jdims[_]);}));
+    // i multi-index, all pairs of multi-indices j, k s.t. j+k=i, compatible with jdims and kdims
+    var i_d, j_d, k_d, next_index, j, k, t, next, swapped = 0;
+    if (jdims.length > kdims.length)
+    {
+        // swap
+        t = jdims;
+        jdims = kdims;
+        kdims = t;
+        swapped = 1;
+    }
+    i_d = i.length;
+    j_d = jdims.length;
+    k_d = kdims.length;
+    next = function() {
+        if (null == next_index)
+        {
+            next_index = ndarray.indices(array(j_d, function(_) {return stdMath.min((_ < i_d ? i[_] : 0)+1, jdims[_]);}));
+        }
         var _, in_range = 0;
-        for (;j=j_();)
+        for (;j=next_index();)
         {
             if (null == k) k = array(k_d, 0);
             in_range = 1;
             for (_=0; _<k_d; ++_)
             {
-                k[_] = (i[_] || 0) - (j[_] || 0);
+                k[_] = (_ < i_d ? i[_] : 0) - (_ < j_d ? j[_] : 0);
                 if ((0 > k[_]) || (k[_] >= kdims[_]))
                 {
                     in_range = 0;
@@ -382,9 +396,9 @@ ndarray.indices.split = function(i, jdims, kdims, f) {
             }
             if (in_range) break;
         }
-        return j && in_range ? [j, k] : null; // j+k = i
+        return j && in_range ? (swapped ? [k, j] : [j, k]) : null; // j+k = i
     };
-    if (is_callable(f)) for (var index;index=next();) f(index);
+    if (is_callable(f)) for (var jk;jk=next();) f(jk);
     else return next;
 };
 ndarray.indices.deg = function(a) {
