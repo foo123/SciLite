@@ -2,16 +2,16 @@
 *
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab/SciPy in pure JavaScript
-* @version: 0.12.3
-* 2026-11-01 14:11:54
+* @version: 0.12.4
+* 2026-11-18 17:56:23
 * https://github.com/foo123/SciLite
 *
 **//**
 *
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab/SciPy in pure JavaScript
-* @version: 0.12.3
-* 2026-11-01 14:11:54
+* @version: 0.12.4
+* 2026-11-18 17:56:23
 * https://github.com/foo123/SciLite
 *
 **/
@@ -63,7 +63,7 @@ var tensorview = null,
 
     // lib
     $ = {
-        VERSION: "0.12.3",
+        VERSION: "0.12.4",
         // common functions
         _: {},
         // builtin functions
@@ -78,7 +78,7 @@ var tensorview = null,
         op: {},
         // constants
         constant: {
-            __version__: "0.12.3",
+            __version__: "0.12.4",
             pi: pi, e: e,
             eps: eps,
             realmax: realmax,
@@ -390,19 +390,121 @@ function ndarray(dims, v)
     }) : [];
 }
 ndarray.indices = function(dims, f) {
-    var n = dims.length;
-    if (0 < n)
+    // https://en.wikipedia.org/wiki/Multi-index_notation
+    var d = dims.length, index = null, do_next = false, next = function() {};
+    if (0 >= d)
     {
-        var i = array(n, 0), d = n-1;
-        for (;;)
+        if (is_callable(f)) return;
+        else return next;
+    }
+    // all d-dimensional multi-indices
+    // i.e all tuples of d parts each between 0 and dims[i]-1
+    index = array(d, 0); // initial
+    next = function next() {
+        if (index && do_next)
         {
-            f(i);
-            while ((0 <= d) && (i[d]+1 >= dims[d])) --d;
-            if (0 > d) return;
-            ++i[d];
-            while (d+1 < n) i[++d] = 0;
+            // compute next
+            var i = d-1;
+            while ((0 <= i) && (index[i]+1 >= dims[i])) --i;
+            if (0 <= i)
+            {
+                ++index[i];
+                while (i+1 < d) index[++i] = 0;
+            }
+            else
+            {
+                index = null; // done
+            }
+        }
+        do_next = true;
+        return index;
+    };
+    /*
+    // all d-dimensional multi-indices that sum to n deg
+    // i.e all compositions of n into d parts between 0 and dims[i]-1
+    var rem = n;
+    index = array(d, function(i) {
+        var ni = 0 < rem ? stdMath.min(rem, dims[i]-1) : 0;
+        rem -= ni;
+        return ni;
+    }); // initial
+    if (0 < rem) index = null;
+    next = function next() {
+        if (index && do_next)
+        {
+            // compute next
+            var i = d-1, m = index[i], rem = 1+m;
+            index[i--] = 0;
+            while ((0 <= i) && (0 === index[i])) --i;
+            if (0 <= i)
+            {
+                --index[i];
+                while ((0 < rem) && (i+1 < d))
+                {
+                    ++i;
+                    m = stdMath.min(rem, dims[i]-1);
+                    index[i] = m;
+                    rem -= m;
+                }
+                if (0 < rem) index = null; // done
+            }
+            else
+            {
+                index = null; // done
+            }
+        }
+        do_next = true;
+        return index;
+    };
+    */
+    if (is_callable(f)) for (;next();) f(index);
+    else return next;
+};
+ndarray.indices.split = function(i, jdims, kdims, f) {
+    // all pairs j, k of multi-indices that sum to i multi-index compatible with jdims and kdims
+    var j_d = jdims.length, k_d = kdims.length, j_, j, k, next;
+    next = function next() {
+        if (null == j_) j_ = ndarray.indices(array(j_d, function(_) {return stdMath.min((i[_]||0)+1, jdims[_]);}));
+        var _, in_range = 0;
+        for (;j=j_();)
+        {
+            if (null == k) k = array(k_d, 0);
+            in_range = 1;
+            for (_=0; _<k_d; ++_)
+            {
+                k[_] = (i[_] || 0) - (j[_] || 0);
+                if ((0 > k[_]) || (k[_] >= kdims[_]))
+                {
+                    in_range = 0;
+                    break;
+                }
+            }
+            if (in_range) break;
+        }
+        return j && in_range ? [j, k] : null; // j+k = i
+    };
+    if (is_callable(f)) for (var index;index=next();) f(index);
+    else return next;
+};
+ndarray.indices.deg = function(a) {
+    return (is_array(a) ? a.reduce(function(d, ai) {return d+ai;}, 0) : (+a)) || 0;
+};
+ndarray.indices.cmp = function(cmp, a, b) {
+    for (var a_arr=is_array(a),b_arr=is_array(b),i=0,n=stdMath.max(a_arr ? a.length : 1, b_arr ? b.length : 1),ai,bi; i<n; ++i)
+    {
+        ai = (a_arr ? a[i] : a) || 0;
+        bi = (b_arr ? b[i] : b) || 0;
+        switch (cmp)
+        {
+            case '<='   : if (ai > bi) return false; break;
+            case '<'    : if (ai >= bi) return false; break;
+            case '>='   : if (ai < bi) return false; break;
+            case '>'    : if (ai <= bi) return false; break;
+            case '!='   : if (ai === bi) return false; break;
+            default     : if (ai !== bi) return false;
         }
     }
+    return true;
 };
 ndarray.project = function project(x, d, i, j, matchsize, loose) {
     j = j || 0;
@@ -5281,14 +5383,14 @@ fn.expinti = function(z) {
 };
 // various distance functions
 
-function hypot(a, b)
+function hypot(a, b, hyp)
 {
     a = stdMath.abs(a);
     b = stdMath.abs(b);
     var r = 0;
     if (0 === a)
     {
-        return b;
+        return 'hyp' === hyp ? -b : b;
     }
     else if (0 === b)
     {
@@ -5297,19 +5399,19 @@ function hypot(a, b)
     else if (a > b)
     {
         r = b/a;
-        return a*stdMath.sqrt(1 + r*r);
+        return a*stdMath.sqrt('hyp' === hyp ? (1 - r*r) : (1 + r*r));
     }
     else if (a < b)
     {
         r = a/b;
-        return b*stdMath.sqrt(1 + r*r);
+        return b*stdMath.sqrt('hyp' === hyp ? (r*r - 1) : (r*r + 1));
     }
-    return a*stdMath.SQRT2;
+    return 'hyp' === hyp ? 0 : (a*stdMath.SQRT2);
 }
-function n_hypot(a, b)
+function n_hypot(a, b, hyp)
 {
-    if (is_number(a) && is_number(b)) return hypot(a, b);
-    return realMath.sqrt(n_add(n_mul(a, a), n_mul(b, b)));
+    if (is_number(a) && is_number(b)) return hypot(a, b, hyp);
+    return realMath.sqrt('hyp' === hyp ? n_sub(n_mul(a, a), n_mul(b, b)) : n_add(n_mul(a, a), n_mul(b, b)));
 }
 function hypotn(args)
 {
@@ -8404,59 +8506,63 @@ function is_tri(A, type, strict, tol, setzero, setcopy)
             for (r=0; r<nr; ++r) if (!n_le(scalar_abs(A[r][c]), tol2)) return false;
         }
     }
-    if ((true === setzero) && n_gt(tol2, O))
+    if (true === setzero)
     {
         if (setcopy && setcopy._) A = setcopy._ = copy(A);
-        if (('upper' === type) || ('diagonal' === type))
+        if (n_gt(tol2, O))
         {
-            for (r=0; r<n; ++r)
+            if (('upper' === type) || ('diagonal' === type))
             {
-                for (c=0; c<r; ++c)
+                for (r=0; r<n; ++r)
                 {
-                    A[r][c] = O;
+                    for (c=0; c<r; ++c)
+                    {
+                        A[r][c] = O;
+                    }
                 }
             }
-        }
-        if (('lower' === type) || ('diagonal' === type))
-        {
-            for (r=0; r<n; ++r)
+            if (('lower' === type) || ('diagonal' === type))
             {
-                for (c=r+1; c<n; ++c)
+                for (r=0; r<n; ++r)
                 {
-                    A[r][c] = O;
+                    for (c=r+1; c<n; ++c)
+                    {
+                        A[r][c] = O;
+                    }
                 }
             }
-        }
-        if (nr > nc)
-        {
-            // should be all zero
-            for (r=n; r<nr; ++r)
+            if (nr > nc)
             {
-                for (c=0; c<nc; ++c)
+                // should be all zero
+                for (r=n; r<nr; ++r)
                 {
-                    A[r][c] = O;
+                    for (c=0; c<nc; ++c)
+                    {
+                        A[r][c] = O;
+                    }
                 }
             }
-        }
-        else if (nr < nc)
-        {
-            // should be all zero
-            for (c=n; c<nc; ++c)
+            else if (nr < nc)
             {
-                for (r=0; r<nr; ++r)
+                // should be all zero
+                for (c=n; c<nc; ++c)
                 {
-                    A[r][c] = O;
+                    for (r=0; r<nr; ++r)
+                    {
+                        A[r][c] = O;
+                    }
                 }
             }
         }
     }
     return true;
 }
-function solve_tri(type, T, y, tol, free_vars)
+function solve_tri(type, T, y, tol, free_vars, nmax)
 {
     tol = __(tol || 0);
     if (y) y = vec(y);
     var n = ROWS(T), fk = 0, fn = free_vars ? free_vars.length : 0;
+    if (null != nmax) n = stdMath.min(n, nmax);
     if ("lower" === type)
     {
         // lower triangular, forward substitution
@@ -8492,7 +8598,7 @@ function solve_tri(type, T, y, tol, free_vars)
         }).reverse();
     }
 }
-function compute_givens(f, g)
+function compute_givens(f, g, hyp)
 {
     /*
     "On Computing Givens Rotations Reliably and Efficiently",
@@ -8510,22 +8616,22 @@ function compute_givens(f, g)
     else if (eq(f, O))
     {
         c = O;
-        s = scalar_sign(scalar_conj(g));
-        if (eq(s, O)) s = I;
+        s = 'hyp' === hyp ? scalar_neg(scalar_sign(scalar_conj(g))) : scalar_sign(scalar_conj(g));
+        if (eq(s, O)) s = 'hyp' === hyp ? J : I;
         //r = scalar_abs(g);
     }
     else
     {
         sf = scalar_sign(f);
         af = scalar_abs(f);
-        n = n_hypot(af, scalar_abs(g));
+        n = n_hypot(af, scalar_abs(g), hyp);
         c = scalar_div(af, n);
-        s = scalar_div(scalar_mul(sf, scalar_conj(g)), n);
+        s = scalar_div(scalar_mul('hyp' === hyp ? scalar_neg(sf) : sf, scalar_conj(g)), n);
         //r = scalar_mul(sf, n);
     }
     return [c, s/*, r*/]; // skip r
 }
-function compute_jacobi(alpha, beta, gamma)
+/*function compute_jacobi(alpha, beta, gamma)
 {
     // Compute the Jacobi/Givens rotation
     //
@@ -8550,7 +8656,7 @@ function compute_jacobi(alpha, beta, gamma)
             [scalar_neg(s), c]
         ];
     }
-}
+}*/
 /*function givens(n, p, q, f, g)
 {
     var givens_rot = compute_givens(f, g),
@@ -8651,7 +8757,7 @@ function rotmul(type, G, p, q, A, i1, i2)
     }
     return B;
 }
-function jacobi_sweep(A, nsweeps)
+/*function jacobi_sweep(A, nsweeps)
 {
     if (null == nsweeps) nsweeps = 1;
     var n = ROWS(A), sweep, k, l, J;
@@ -8668,7 +8774,7 @@ function jacobi_sweep(A, nsweeps)
         }
     }
     return A;
-}
+}*/
 function compute_householder(A, hh, i1, i2, j1, j2, tol)
 {
     /*
@@ -9754,13 +9860,19 @@ fn.ldl = varargout(function(nargout, A, triangle) {
     if (2 < nargout) ans.push(eye(ROWS(A)));
     return ans;
 }, 2);
+function chol(A, triangle)
+{
+    triangle = triangle || "upper";
+    var ans = ldl(A, triangle);
+    if (!ans.length) return ans;
+    return "lower" === triangle ? (mul(ans[0], fn.sqrt(ans[1]))) : ctranspose(mul(ans[0], fn.sqrt(ans[1])));
+}
 fn.chol = varargout(function(nargout, A, triangle) {
     if (is_scalar(A)) A = [[A]];
     if (!is_matrix(A) || (ROWS(A) !== COLS(A)) /*|| !EQU(A, ctranspose(A))*/) not_supported("chol");
-    triangle = triangle || "upper";
-    var ans = ldl(A, triangle);
+    var ans = chol(A, triangle);
     if (!ans.length) not_supported("chol");
-    return "lower" === triangle ? (mul(ans[0], fn.sqrt(ans[1]))) : ctranspose(mul(ans[0], fn.sqrt(ans[1])));
+    return ans;
 });
 function lu(A, tol)
 {
@@ -9891,6 +10003,7 @@ function qr(A, wantq, wantp, tol)
                     }
                 }
 
+                if (j >= m) break;
                 /*
                 // qr via givens rotations
                 for (i=m-1; i>=(j+1); --i)
@@ -9934,6 +10047,7 @@ function qr(A, wantq, wantp, tol)
             // produces some reflected signs from Octave's qr
             for (j=0; j<n; ++j)
             {
+                if (j >= m) break;
                 for (i=m-1; i>=(j+1); --i)
                 {
                     if (n_le(scalar_abs(R[i][j]), n_mul(scalar_abs(R[i-1][j]), tol)))
@@ -9956,6 +10070,7 @@ function qr(A, wantq, wantp, tol)
             hh = {};
             for (j=0; j<n; ++j)
             {
+                if (j >= m) break;
                 // -- Find H = I-tau*w*w' to put zeros below R(j,j)
                 hh.v = array(m-j, O);
                 compute_householder(R, hh, j, m-1, j, j, tol);
@@ -13943,129 +14058,96 @@ fn.blackmanharris = function(L, sflag) {
     return vec2col(array(L, function(n) {
         return __(a0 - a1*stdMath.cos(2*pi*n/N) + a2*stdMath.cos(4*pi*n/N) - a3*stdMath.cos(6*pi*n/N));
     }));
-};function conv(a, b)
+};function conv(a, b, shape)
 {
-    // adapted from https://github.com/foo123/FILTER.js
-    var i, j, ij, t,
-        n = a.length,
-        m = b.length,
-        nm = n + m - 1, c;
-    if (!n || !m) return [];
-    c = new Array(nm);
-    if (n < m)
+    var n = a.length, m = b.length, nm, i0;
+
+    if ("valid" === shape)
     {
-        t = a;
-        a = b;
-        b = t;
-        n = a.length;
-        m = b.length;
+        // non zero-padded part
+        nm = 0 === m ? n : stdMath.max(0, n-m+1);
+        i0 = m >> 1;
     }
-    for (i=0; i<nm; ++i)
+    else if ("same" === shape)
     {
-        c[i] = O;
-        for (j=0; j<m; ++j)
-        {
-            ij = i-j;
-            if ((0 <= ij) && (ij < n))
-            {
-                c[i] = scalar_add(c[i], scalar_mul(a[ij], b[j]));
-            }
-        }
-    }
-    return c;
-}
-fn.conv = function(a, b) {
-    if (is_scalar(a) || is_scalar(b)) return dotmul(a, b);
-    a = vec(a);
-    b = vec(b);
-    if (!is_vector(a) || !is_vector(b)) not_supported("conv");
-    return conv(a, b);
-};
-function deconv(n, d, pad)
-{
-    // adapted from https://github.com/foo123/Abacus
-    // polynomial division
-    var q = [], r = n.slice(),
-        diff = r.length - d.length,
-        diff0, d0 = d;
-    if (0 <= diff)
-    {
-        q = array(diff+1, O);
-        while (0 <= diff)
-        {
-            diff0 = diff;
-            d = d0.concat(array(diff, O));
-            q[q.length-1-diff] = scalar_div(r[0], d[0]);
-            r = addp(r, mulp(d, [scalar_neg(q[q.length-1-diff])]));
-            while (r.length && eq(r[0], O)) r.shift();
-            diff = r.length - d0.length;
-            if (diff === diff0) break; // remainder won't change anymore
-        }
-        //q = q.reverse();
-    }
-    return [q, pad ? (array(n.length-r.length, O).concat(r)) : r];
-}
-fn.deconv = varargout(function(nargout, a, b) {
-    var ans;
-    if (is_scalar(a) || is_scalar(b))
-    {
-        ans = 1 < nargout ? [dotdiv(a, b), O] : dotdiv(a, b);
+        // central part
+        nm = n;
+        i0 = m >> 1;
     }
     else
     {
-        a = vec(a);
-        b = vec(b);
-        if (!is_vector(a) || !is_vector(b)) not_supported("deconv");
-        if (!b.length || (1 === b.length) && eq(b[0], O)) throw "deconv: divisor is zero";
-        ans = deconv(a, b, true);
+        // full
+        nm = n + m - 1;
+        i0 = 0;
     }
-    return 1 < nargout ? ans : ans[0];
-});
-function conv2(a, b)
-{
-    // adapted from https://github.com/foo123/FILTER.js
-    var rA, cA,
-        rB, cB,
-        c, rC, cC,
-        cjk, j, k,
-        p, q, t;
-
-    if (ROWS(a) < ROWS(b))
-    {
-        t = a;
-        a = b;
-        b = t;
-    }
-    rA = ROWS(a);
-    cA = COLS(a);
-    rB = ROWS(b);
-    cB = COLS(b);
-    rC = rA + rB - 1;
-    cC = cA + cB - 1;
-    c = zeros(rC, cC);
-
-    for (j=0; j<rC; ++j)
-    {
-        for (k=0; k<cC; ++k)
+    return array(nm, function(i) {
+        var j, jn, ij, ci = O;
+        i += i0;
+        for (j=0,jn=stdMath.min(i+1, n); j<jn; ++j)
         {
-            cjk = O;
-            for (p=0; p<=j; ++p)
+            ij = i-j;
+            if ((0 <= ij) && (ij < m))
             {
-                if (p >= rA) break;
-                if (j-p >= rB) continue;
-                for (q=0; q<=k; ++q)
-                {
-                    if (q >= cA) break;
-                    if (k-q >= cB) continue;
-                    cjk = scalar_add(cjk, scalar_mul(a[p][q], b[j-p][k-q]));
-                }
+                ci = scalar_add(ci, scalar_mul(a[j], b[ij]));
             }
-            c[j][k] = cjk;
         }
-    }
-    return c;
+        return ci;
+    });
 }
-fn.conv2 = function(a, b) {
+fn.conv = function(a, b, shape) {
+    if (is_scalar(a) || is_scalar(b)) return dotmul(a, b);
+    a = vec(a); b = vec(b);
+    if (!is_vector(a) || !is_vector(b)) not_supported("conv");
+    return conv(a, b, shape);
+};
+function conv2(a, b, shape)
+{
+    var rA = ROWS(a), cA = COLS(a),
+        rB = ROWS(b), cB = COLS(b),
+        rC, cC, j0, k0;
+
+    if ("valid" === shape)
+    {
+        // non zero-padded part
+        rC = 0 === rB ? rA : stdMath.max(0, rA-rB+1);
+        cC = 0 === cB ? cA : stdMath.max(0, cA-cB+1);
+        j0 = rB >> 1;
+        k0 = cB >> 1;
+    }
+    else if ("same" === shape)
+    {
+        // central part
+        rC = rA;
+        cC = cA;
+        j0 = rB >> 1;
+        k0 = cB >> 1;
+    }
+    else
+    {
+        // full
+        rC = rA + rB - 1;
+        cC = cA + cB - 1;
+        j0 = 0;
+        k0 = 0;
+    }
+    return matrix(rC, cC, function(j, k) {
+        var jp, kq, p, pn, q, qn, cjk = O;
+        j += j0; k += k0;
+        for (p=0,pn=stdMath.min(j+1, rA); p<pn; ++p)
+        {
+            jp = j-p;
+            if (0 > jp || jp >= rB) continue;
+            for (q=0,qn=stdMath.min(k+1, cA); q<qn; ++q)
+            {
+                kq = k-q;
+                if (0 > kq || kq >= cB) continue;
+                cjk = scalar_add(cjk, scalar_mul(a[p][q], b[jp][kq]));
+            }
+        }
+        return cjk;
+    });
+}
+fn.conv2 = function(a, b, shape) {
     if (is_scalar(a) || is_scalar(b))
     {
         return dotmul(a, b);
@@ -14074,12 +14156,12 @@ fn.conv2 = function(a, b) {
     {
         if (is_vector(b))
         {
-            return conv(a, b);
+            return conv(a, b, shape);
         }
         else if (is_matrix(b))
         {
             return array(COLS(b), function(column) {
-                return conv(a, COL(b, column));
+                return conv(a, COL(b, column), shape);
             });
         }
         else
@@ -14091,12 +14173,12 @@ fn.conv2 = function(a, b) {
     {
         if (is_vector(a))
         {
-            return conv(a, b);
+            return conv(a, b, shape);
         }
         else if (is_matrix(a))
         {
             return array(a[0].length, function(column) {
-                return conv(COL(a, column), b);
+                return conv(COL(a, column), b, shape);
             });
         }
         else
@@ -14106,8 +14188,227 @@ fn.conv2 = function(a, b) {
     }
     if (!is_matrix(a)) throw "conv2: input 1 not supported";
     if (!is_matrix(b)) throw "conv2: input 2 not supported";
-    return conv2(a, b);
+    return conv2(a, b, shape);
 };
+function convn(a, b, shape)
+{
+    var sa = size(a), da = sa.length,
+        sb = size(b), db = sb.length,
+        sc, j0;
+
+    if ("valid" === shape)
+    {
+        // non zero-padded part
+        sc = array(da, function(i) {
+            if (!sb[i]) return sa[i];
+            return stdMath.max(0, sa[i]-sb[i]+1);
+        });
+        j0 = array(db, function(i) {return sb[i] >> 1;});
+    }
+    else if ("same" === shape)
+    {
+        // central part
+        sc = sa.slice();
+        j0 = array(db, function(i) {return sb[i] >> 1;});
+    }
+    else
+    {
+        // full
+        sc = array(stdMath.max(da, db), function(i) {
+            var sai = null == sa[i] ? 1 : sa[i], sbi = null == sb[i] ? 1 : sb[i];
+            return sai+sbi-1;
+        });
+        j0 = array(db, 0);
+    }
+    return ndarray(sc, function(j) {
+        var _, ki_ = ndarray.indices.split(j.map(function(ji, _) {return (j0[_]||0)+ji;}), sa, sb),
+            ki, k, ak, i, bi, cj = O;
+        for (;ki=ki_();)
+        {
+            for (k=ki[0],ak=a,_=0; _<da; ++_) ak = ak[k[_]];
+            for (i=ki[1],bi=b,_=0; _<db; ++_) bi = bi[i[_]];
+            cj = scalar_add(cj, scalar_mul(ak, bi));
+        }
+        return cj;
+    });
+}
+fn.convn = function(a, b, shape) {
+    if (is_scalar(a) || is_scalar(b))
+    {
+        return dotmul(a, b);
+    }
+    else if (is_array(a) && is_array(b))
+    {
+        return convn(is_1d(a) ? [a] : a, is_1d(b) ? [b] : b, shape);
+    }
+    not_supported("convn");
+};
+function least_squares(T, y, alpha)
+{
+    // https://en.wikipedia.org/wiki/Numerical_methods_for_linear_least_squares
+    var m = ROWS(T), n = COLS(T), TH, THT, R, x;
+    function vy(m) {return vec2col(y.length < m ? y.concat(array(m-y.length, O)) : y.slice(0, m));}
+
+    //THT = add(mul(TH=ctranspose(T), T), eye(n, dot(alpha, alpha))),
+
+    // this is instable and inefficient for ill-conditioned T
+    //x = mul(inv(THT), mul(TH, vy(m)));
+
+    // this is more stable when THT is well-conditioned but not very efficient
+    //R = chol(THT, "upper");
+    //x = R && R.length ? solve_tri("upper", R, solve_tri("lower", ctranspose(R), mul(TH, vy(m)))) : mul(TH, vy(m));
+
+    // this is stable but does more computations than (*) below since it does not take advantage when T has toeplitz form
+    R = qr(cat_vert(T, eye(n, alpha)), true);
+    x = solve_tri("upper", R[1], mul(ctranspose(R[0]), vy(ROWS(R[0]))), 0, null, n);
+
+    /*
+    // (*) FAST INVERSE QR FACTORIZATION FOR TOEPLITZ MATRICES, JAMES G. NAGY, 1993
+    var k, t0 = T[0][0],
+        T0 = matrix(m-1, n-1, function(i, j) {return T[i+1][j+1];}),
+        u = array(n-1, function(i) {return T[0][i+1];}),
+        v = array(m-1, function(i) {return T[i+1][0];}),
+        //uu = array(m-1, function(i) {return T[i][n-1];}),
+        vv = array(n-1, function(i) {return T[m-1][i];}),
+        Ti0 = array(m, function(i) {return T[i][0];}),
+        y0 = dotdiv(Ti0, norm(Ti0)),
+        y1 = array(y0.length, function(i) {return 0 === i ? I : O;}),
+        y2 = array(y0.length, O),
+        y3 = y0.map(function(yi) {return scalar_neg(yi);}),
+        y0Y = mul(y0, y[0]),
+        y1Y = mul(y1, y[0]),
+        y2Y = y2,//mul(y2, y[0]),
+        y3Y = mul(y3, y[0]),
+        c = [y0Y, y1Y, y2Y, y3Y],
+        r00 = null == alpha || eq(alpha, O) ? hypotn(array(m, function(i) {return T[i][i];})) : scalar_add(scalar_add(dot(t0, t0), dot(v, v)), dot(alpha, alpha)),
+        lt, l1, l2, lb,
+        h1, h2, h3,
+        d = I, g1 = I, g2 = I,
+        b, cs, sn,
+        z = vec(div(add(mul(t0, u), mul(ctranspose(T0), vec2col(v))), r00)),
+        rk, sk
+    ;
+    x = array(m, O);
+    for (k=0; k<n; ++k)
+    {
+        // kth row of R^(-T) = rk
+        if (0 === k)
+        {
+            h1 = [O];
+            h2 = [O];
+            h3 = [O];
+            rk = [scalar_div(I, r00)];
+        }
+        else
+        {
+            h1.push(O);
+            h2.push(O);
+            h3.push(O);
+            lt = rk;
+
+            b = dot(lt, u.slice(0, k));
+            [cs, sn] = compute_givens(d, scalar_neg(b));
+            d = scalar_add(scalar_mul(cs, d), scalar_mul(sn, b));
+            l1 = add(mul(cs, lt), mul(sn, h1));
+            h1 = add(mul(scalar_neg(sn), lt), mul(cs, h1));
+
+            b = dot(l1, vv.slice(0, k));
+            [cs, sn] = compute_givens(g1, b, 'hyp');
+            g1 = scalar_sub(scalar_mul(cs, g1), scalar_mul(sn, b));
+            l2 = add(mul(cs, l1), mul(scalar_neg(sn), h2));
+            h2 = add(mul(scalar_neg(sn), l1), mul(cs, h2));
+
+            b = dot(l2, z.slice(0, k));
+            [cs, sn] = compute_givens(g2, b, 'hyp');
+            g2 = scalar_sub(scalar_mul(cs, g2), scalar_mul(sn, b));
+            lb = add(mul(cs, l2), mul(scalar_neg(sn), h3));
+            h3 = add(mul(scalar_neg(sn), l2), mul(cs, h3));
+
+            rk = [scalar_neg(scalar_div(dot(lb, z.slice(0, k)), r00))].concat(lb);
+        }
+
+        // kth entry of Q(^T)B = sk
+        // TODO
+        if (0 === k)
+        {
+        }
+        else
+        {
+        }
+
+        // update x
+        rk.forEach(function(rki, i) {x[i] = scalar_add(x[i], scalar_mul(rki, sk));});
+    }*/
+    return x;
+}
+function deconv(y, h, method, a, shape, want_r)
+{
+/*
+% tests
+y = [2 7 4 9];
+h = [1 0 1];
+[x,r] = deconv(y,h) % correct
+%%
+xin = [-1 2];
+h = [2 5];
+y = conv(xin,h,"valid")
+[x,r] = deconv(y,h,"valid",Method="least-squares");
+xin
+x % differs from example -0.1724   -0.0690
+%%
+xin = [-1 2 3 -2 0 1 2];
+h = [2 4 -1 1];
+y = conv(xin,h,"same");
+[x,r] = deconv(y,h,"same",Method="least-squares");
+xin
+x % correct
+%%
+N = 200;
+n = 0.1*(1:N);
+x = 2*exp(-0.5*((n-10)).^2);
+h = 0.1*randn(1,length(x));
+y = conv(x,h);
+[x1,r1] = deconv(y,h);
+[x2,r2] = deconv(y,h,Method="least-squares");
+plot(n,x,Color="b",n,x1,Color="r")
+plot(n,x,Color="b",n,x2,Color="g") % correct
+*/
+    if ("least-squares" === method)
+    {
+        // least squares with regularization
+        var n = y.length, m = h.length, max = stdMath.max(n, m),
+            offset = "same" === shape ? m >> 1 : ("valid" === shape ? m >> 1 : 0),
+            x = vec(least_squares(matrix(max, "same" === shape ? n : ("valid" === shape ? (n+m-1) : (n-m+1)), function(i, j) {
+                i += offset; return 0 <= i-j && i-j < m ? h[i-j] : O; // convolution has toeplitz matrix form
+            }), y, a))
+        ;
+        return [x, want_r ? conv(x, h, shape).map(function(xhi, i) {return scalar_sub(y[i], xhi);}) : []];
+    }
+    else
+    {
+        // polynomial long-division
+        return divp(y, h, true);
+    }
+}
+fn.deconv = varargout(namevalueargs(function(nargout, y, h, shape) {
+    var ans, nv = arguments[arguments.length-1]._;
+    if (!is_string(shape)) shape = "full";
+    if (is_scalar(y) || is_scalar(h))
+    {
+        ans = 1 < nargout ? [dotdiv(y, h), O] : dotdiv(y, h);
+    }
+    else
+    {
+        y = vec(y); h = vec(h);
+        if (!is_vector(y) || !is_vector(h)) not_supported("deconv");
+        if (!h.length || ((1 === h.length) && eq(h[0], O))) throw "deconv: divisor is zero";
+        ans = deconv(y, h, "least-squares" === nv.Method ? "least-squares" : "long-division", nv.RegularizationFactor, shape, 1 < nargout);
+    }
+    return 1 < nargout ? ans : ans[0];
+}, {
+     Method: "long-division" // or "least-squares"
+    ,RegularizationFactor: 0
+}));
 function filter(b, a, x/*, zi, dim*/)
 {
     // adapted from https://github.com/foo123/FILTER.js
@@ -14238,7 +14539,7 @@ function fft1_r(x, inv, output)
     // Use the lowest odd factor, so we are able to use _fft_i in the
     // recursive transforms optimally.
     var p = first_odd_fac(n), m = n / p,
-        normalisation = inv ? __(1 / /*stdMath.sqrt(*/p/*)*/) : 1,
+        normalisation = inv ? __(1 / /*stdMath.sqrt(*/p/*)*/) : __(1),
         recursive_result = new Array(m),
         recursive_result2 = new Array(m),
         del_f_r, del_f_i, f_r, f_i, _real, _imag;
@@ -14338,31 +14639,68 @@ function fft1(x, inv, output)
     else fft1_i(x, inv, output);
     if (ret) return output;
 }
-fn.fft = function(x) {
+function fft_len(x, n)
+{
+    if (is_array(x) && is_num(n))
+    {
+        n = stdMath.floor(_(n));
+        if (0 < n && x.length > n) x = x.slice(0, n); // truncate
+        else if (0 < n && x.length < n) x.push.apply(x, array(n-x.length, O)); // pad trailing zeros
+    }
+    return x;
+}
+function fft_sz(x, sz)
+{
+    if (is_array(x) && is_vector(sz=vec(sz)) && sz.length)
+    {
+        var n = null == sz[0] ? -1 : stdMath.floor(_(sz[0]));
+        sz = sz.slice(1);
+        if (0 < n && x.length > n)
+        {
+            x = array(n, function(i) {
+                return sz.length ? fft_sz(x[i], sz) : x[i];
+            });
+        }
+        else if (0 < n && x.length < n)
+        {
+            x = array(n, function(i) {
+                return sz.length ? fft_sz(i < x.length ? x[i] : [], sz) : (i < x.length ? x[i] : O);
+            });
+        }
+        else if (sz.length)
+        {
+            x = x.map(function(xi) {
+                return fft_sz(xi, sz);
+            });
+        }
+    }
+    return x;
+}
+fn.fft = function(x, n, dim) {
     x = vec(x);
     if (is_matrix(x))
     {
         return array(COLS(x), function(column) {
-            return realify(fft1(complexify(COL(x, column)), false));
+            return realify(fft1(complexify(fft_len(COL(x, column), n)), false));
         });
     }
     else if (is_vector(x))
     {
-        return realify(fft1(complexify(x), false));
+        return realify(fft1(complexify(fft_len(x, n)), false));
     }
     not_supported("fft");
 };
-fn.ifft = function(x) {
+fn.ifft = function(x, n, dim) {
     x = vec(x);
     if (is_matrix(x))
     {
         return array(COLS(x), function(column) {
-            return realify(fft1(complexify(COL(x, column)), true));
+            return realify(fft1(complexify(fft_len(COL(x, column), n)), true));
         });
     }
     else if (is_vector(x))
     {
-        return realify(fft1(complexify(x), true));
+        return realify(fft1(complexify(fft_len(x, n)), true));
     }
     not_supported("ifft");
 };
@@ -14412,8 +14750,7 @@ function fft2(x, inv, output)
 {
     var nx = x.length, ny = x[0].length;
     if (0 >= nx || 0 >= ny) return;
-    var ret = false,
-        n = nx * ny, i, j, jn,
+    var ret = false, i, j,
         row = new Array(nx),
         col = new Array(ny),
         frow = new Array(nx),
@@ -14425,7 +14762,7 @@ function fft2(x, inv, output)
         for (i=0; i<nx; ++i) output[i] = new Array(ny);
         ret = true;
     }
-    for (j=0,jn=0; j<ny; ++j,jn+=nx)
+    for (j=0; j<ny; ++j)
     {
         for (i=0; i<nx; ++i)
         {
@@ -14439,12 +14776,12 @@ function fft2(x, inv, output)
     }
     for (i=0; i<nx; ++i)
     {
-        for (j=0,jn=0; j<ny; ++j,jn+=nx)
+        for (j=0; j<ny; ++j)
         {
             col[j] = output[i][j];
         }
         fft1(col, inv, fcol);
-        for (j=0,jn=0; j<ny; ++j,jn+=nx)
+        for (j=0; j<ny; ++j)
         {
             output[i][j] = fcol[j];
         }
@@ -14452,13 +14789,71 @@ function fft2(x, inv, output)
 
     if (ret) return output;
 }
-fn.fft2 = function(x) {
+fn.fft2 = function(x, m, n) {
     if (!is_matrix(x)) not_supported("fft2");
-    return realify(fft2(complexify(x), false));
+    return realify(fft2(complexify(fft_sz(x, [m, n])), false));
 };
-fn.ifft2 = function(x) {
+fn.ifft2 = function(x, m, n) {
     if (!is_matrix(x)) not_supported("ifft2");
-    return realify(fft2(complexify(x), true));
+    return realify(fft2(complexify(fft_sz(x, [m, n])), true));
+};
+// adapted from https://github.com/foo123/FILTER.js
+function fftn(x, inv, output)
+{
+    var sx = is_1d(x) ? [x.length] : size(x), dx = sx.length;
+    if (sx.filter(function(si) {return 0 >= si;}).length) return;
+    var ret = false, sxx, xx, fxx, j, jn = sx[dx-1];
+
+    if (1 === dx) return fft1(x, inv, output);
+
+    if (null == output)
+    {
+        output = ndarray(sx.slice(), O);
+        ret = true;
+    }
+
+    sxx = sx.slice(0, -1);
+    xx = ndarray(sxx, O);
+    fxx = ndarray(sxx.slice(), O);
+    for (j=0; j<jn; ++j)
+    {
+        ndarray.indices(sxx, function(i) {
+            var xxi = xx, xi = x, _, n = dx-2;
+            for (_=0; _<n; ++_) {xi = xi[i[_]]; xxi = xxi[i[_]];}
+            xxi[i[n]] = xi[i[n]][j];
+        });
+        fftn(xx, inv, fxx);
+        ndarray.indices(sxx, function(i) {
+            var fxxi = fxx, oi = output, _, n = dx-1;
+            for (_=0; _<n; ++_) {oi = oi[i[_]]; fxxi = fxxi[i[_]];}
+            oi[j] = fxxi;
+        });
+    }
+    xx = array(jn, O);
+    fxx = array(jn, O);
+    ndarray.indices(sxx, function(i) {
+        var oi = output, _, n = dx-1;
+        for (_=0; _<n; ++_) oi = oi[i[_]];
+        for (j=0; j<jn; ++j)
+        {
+            xx[j] = oi[j];
+        }
+        fft1(xx, inv, fxx);
+        for (j=0; j<jn; ++j)
+        {
+            oi[j] = fxx[j];
+        }
+    });
+
+    if (ret) return output;
+}
+fn.fftn = function(x, sz) {
+    if (!is_array(x)) not_supported("fftn");
+    return realify(fftn(complexify(fft_sz(is_1d(x) ? [x] : x, sz)), false));
+};
+fn.ifftn = function(x, sz) {
+    if (!is_array(x)) not_supported("ifftn");
+    return realify(fftn(complexify(fft_sz(is_1d(x) ? [x] : x, sz)), true));
 };
 function stft(inp, win, FFTLEN, OVERLAP, inv)
 {
@@ -14619,27 +15014,63 @@ fn.istft = varargout(namevalueargs(function(nargout, X) {
    FFTLength: null,
    OverlapLength: null
 }));
-function addp(p, q)
+// adapted from https://github.com/foo123/Abacus
+function addp(p, q, do_sub)
 {
-    // adapted from https://github.com/foo123/Abacus
+    // polynomial addition/subtraction
     var i = p.length-1, j = q.length-1, pq = [];
-    while ((0 <= i) && (0 <= j)) pq.unshift(scalar_add(p[i--], q[j--]));
-    while (0 <= i) pq.unshift(p[i--]);
-    while (0 <= j) pq.unshift(q[j--]);
+    do_sub = 'sub' === do_sub;
+    for (;(0 <= i) && (0 <= j);) pq.unshift(do_sub ? scalar_sub(p[i--], q[j--]) : scalar_add(p[i--], q[j--]));
+    for (;0 <= i;) pq.unshift(p[i--]);
+    for (;0 <= j;) pq.unshift(do_sub ? scalar_neg(q[j--]) : q[j--]);
+    for (;pq.length && eq(pq[0], O);) pq.shift();
     return pq;
 }
-var mulp = conv, divp = deconv;
+function mulp(p, q)
+{
+    // polynomial multiplication
+    var n = p.length, m = q.length, nm = n + m - 1, pq;
+    pq = array(nm, function(i) {
+        var j, jn, ij, pqi = O;
+        for (j=0,jn=stdMath.min(i+1, n); j<jn; ++j)
+        {
+            ij = i-j;
+            if ((0 <= ij) && (ij < m))
+            {
+                pqi = scalar_add(pqi, scalar_mul(p[j], q[ij]));
+            }
+        }
+        return pqi;
+    });
+    for (;pq.length && eq(pq[0], O);) pq.shift();
+    return pq;
+}
+function divp(n, d, pad)
+{
+    // polynomial long-division
+    var q = [], r = n.slice(), diff = r.length - d.length, diff0, d0 = d;
+    if (0 <= diff)
+    {
+        q = array(diff+1, O);
+        for (;0 <= diff;)
+        {
+            diff0 = diff;
+            d = d0.concat(array(diff, O));
+            q[q.length-1-diff] = scalar_div(r[0], d[0]);
+            r = addp(r, mulp(d, [scalar_neg(q[q.length-1-diff])]));
+            for (;r.length && eq(r[0], O);) r.shift();
+            diff = r.length - d0.length;
+            if (diff === diff0) break; // remainder won't change anymore
+        }
+    }
+    return [q, pad ? (array(n.length-r.length, O).concat(r)) : r];
+}
 function horner(p, x)
 {
-    // adapted from https://github.com/foo123/Abacus
     if (!p.length) return O;
     x = x || O;
     var n = p.length, i = 0, v = p[0];
-    while (i+1 < n)
-    {
-        ++i;
-        v = scalar_add(scalar_mul(v, x), p[i]);
-    }
+    for (;i+1 < n;) {++i; v = scalar_add(scalar_mul(v, x), p[i]);}
     return v;
 }
 fn.polydiv = varargout(function(nargout, a, b) {

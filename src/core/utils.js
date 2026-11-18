@@ -290,7 +290,7 @@ function ndarray(dims, v)
         return callable ? v([i], ndarr) : v;
     }) : [];
 }
-ndarray.indices = function(dims, f, n) {
+ndarray.indices = function(dims, f) {
     // https://en.wikipedia.org/wiki/Multi-index_notation
     var d = dims.length, index = null, do_next = false, next = function() {};
     if (0 >= d)
@@ -298,71 +298,93 @@ ndarray.indices = function(dims, f, n) {
         if (is_callable(f)) return;
         else return next;
     }
-    if (null == n)
-    {
-        // all d-dimensional multi-indices
-        // i.e all tuples of d parts each between 0 and dims[i]-1
-        index = array(d, 0); // initial
-        next = function next() {
-            if (index && do_next)
+    // all d-dimensional multi-indices
+    // i.e all tuples of d parts each between 0 and dims[i]-1
+    index = array(d, 0); // initial
+    next = function next() {
+        if (index && do_next)
+        {
+            // compute next
+            var i = d-1;
+            while ((0 <= i) && (index[i]+1 >= dims[i])) --i;
+            if (0 <= i)
             {
-                // compute next
-                var i = d-1;
-                while ((0 <= i) && (index[i]+1 >= dims[i])) --i;
-                if (0 <= i)
-                {
-                    ++index[i];
-                    while (i+1 < d) index[++i] = 0;
-                }
-                else
-                {
-                    index = null; // done
-                }
+                ++index[i];
+                while (i+1 < d) index[++i] = 0;
             }
-            do_next = true;
-            return index;
-        };
-    }
-    else
-    {
-        // all d-dimensional multi-indices that sum to n deg
-        // i.e all compositions of n into d parts between 0 and dims[i]-1
-        var rem = n;
-        index = array(d, function(i) {
-            var ni = 0 < rem ? stdMath.min(rem, dims[i]-1) : 0;
-            rem -= ni;
-            return ni;
-        }); // initial
-        if (0 < rem) index = null;
-        next = function next() {
-            if (index && do_next)
+            else
             {
-                // compute next
-                var i = d-1, m = index[i], rem = 1+m;
-                index[i--] = 0;
-                while ((0 <= i) && (0 === index[i])) --i;
-                if (0 <= i)
-                {
-                    --index[i];
-                    while ((0 < rem) && (i+1 < d))
-                    {
-                        ++i;
-                        m = stdMath.min(rem, dims[i]-1);
-                        index[i] = m;
-                        rem -= m;
-                    }
-                    if (0 < rem) index = null; // done
-                }
-                else
-                {
-                    index = null; // done
-                }
+                index = null; // done
             }
-            do_next = true;
-            return index;
-        };
-    }
+        }
+        do_next = true;
+        return index;
+    };
+    /*
+    // all d-dimensional multi-indices that sum to n deg
+    // i.e all compositions of n into d parts between 0 and dims[i]-1
+    var rem = n;
+    index = array(d, function(i) {
+        var ni = 0 < rem ? stdMath.min(rem, dims[i]-1) : 0;
+        rem -= ni;
+        return ni;
+    }); // initial
+    if (0 < rem) index = null;
+    next = function next() {
+        if (index && do_next)
+        {
+            // compute next
+            var i = d-1, m = index[i], rem = 1+m;
+            index[i--] = 0;
+            while ((0 <= i) && (0 === index[i])) --i;
+            if (0 <= i)
+            {
+                --index[i];
+                while ((0 < rem) && (i+1 < d))
+                {
+                    ++i;
+                    m = stdMath.min(rem, dims[i]-1);
+                    index[i] = m;
+                    rem -= m;
+                }
+                if (0 < rem) index = null; // done
+            }
+            else
+            {
+                index = null; // done
+            }
+        }
+        do_next = true;
+        return index;
+    };
+    */
     if (is_callable(f)) for (;next();) f(index);
+    else return next;
+};
+ndarray.indices.split = function(i, jdims, kdims, f) {
+    // all pairs j, k of multi-indices that sum to i multi-index compatible with jdims and kdims
+    var j_d = jdims.length, k_d = kdims.length, j_, j, k, next;
+    next = function next() {
+        if (null == j_) j_ = ndarray.indices(array(j_d, function(_) {return stdMath.min((i[_]||0)+1, jdims[_]);}));
+        var _, in_range = 0;
+        for (;j=j_();)
+        {
+            if (null == k) k = array(k_d, 0);
+            in_range = 1;
+            for (_=0; _<k_d; ++_)
+            {
+                k[_] = (i[_] || 0) - (j[_] || 0);
+                if ((0 > k[_]) || (k[_] >= kdims[_]))
+                {
+                    in_range = 0;
+                    break;
+                }
+            }
+            if (in_range) break;
+        }
+        return j && in_range ? [j, k] : null; // j+k = i
+    };
+    if (is_callable(f)) for (var index;index=next();) f(index);
     else return next;
 };
 ndarray.indices.deg = function(a) {

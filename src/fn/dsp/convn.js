@@ -29,29 +29,13 @@ function convn(a, b, shape)
         j0 = array(db, 0);
     }
     return ndarray(sc, function(j) {
-        var _, k_ = ndarray.indices(array(da, function(_) {return stdMath.min((j0[_]||0)+j[_]+1, sa[_]);})),
-            k, ak, i, bi, cj = O, in_range;
-        for (;k=k_();)
+        var _, ki_ = ndarray.indices.split(j.map(function(ji, _) {return (j0[_]||0)+ji;}), sa, sb),
+            ki, k, ak, i, bi, cj = O;
+        for (;ki=ki_();)
         {
-            in_range = 1;
-            for (bi=b,_=0; _<db; ++_)
-            {
-                i = j0[_] + (j[_] || 0) - (k[_] || 0);
-                if ((0 <= i) && (i < sb[_]))
-                {
-                    bi = bi[i];
-                }
-                else
-                {
-                    in_range = 0;
-                    break;
-                }
-            }
-            if (in_range)
-            {
-                for (ak=a,_=0; _<da; ++_) ak = ak[k[_]];
-                cj = scalar_add(cj, scalar_mul(ak, bi));
-            }
+            for (k=ki[0],ak=a,_=0; _<da; ++_) ak = ak[k[_]];
+            for (i=ki[1],bi=b,_=0; _<db; ++_) bi = bi[i[_]];
+            cj = scalar_add(cj, scalar_mul(ak, bi));
         }
         return cj;
     });
