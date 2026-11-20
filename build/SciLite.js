@@ -3,7 +3,7 @@
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab/SciPy in pure JavaScript
 * @version: 0.12.4
-* 2026-11-18 19:32:27
+* 2026-11-21 00:17:33
 * https://github.com/foo123/SciLite
 *
 **//**
@@ -11,7 +11,7 @@
 * SciLite,
 * A scientific computing environment similar to Octave/Matlab/SciPy in pure JavaScript
 * @version: 0.12.4
-* 2026-11-18 19:32:27
+* 2026-11-21 00:17:33
 * https://github.com/foo123/SciLite
 *
 **/
@@ -391,7 +391,7 @@ function ndarray(dims, v)
 }
 ndarray.indices = function(dims, f) {
     // https://en.wikipedia.org/wiki/Multi-index_notation
-    var d = dims.length, index = null, do_next = false, next = function() {};
+    var d = dims.length, index = null, do_next = 0, next = function() {};
     if (0 >= d)
     {
         if (is_callable(f)) return;
@@ -416,7 +416,7 @@ ndarray.indices = function(dims, f) {
                 index = null; // done
             }
         }
-        do_next = true;
+        do_next = 1;
         return index;
     };
     /*
@@ -495,7 +495,7 @@ ndarray.indices.split = function(i, jdims, kdims, f) {
             }
             if (in_range) break;
         }
-        return j && in_range ? (swapped ? [k, j] : [j, k]) : null; // j+k = i
+        return in_range ? (swapped ? [k, j] : [j, k]) : null; // j+k = i
     };
     if (is_callable(f)) for (var jk;jk=next();) f(jk);
     else return next;
@@ -15043,8 +15043,15 @@ function addp(p, q, do_sub)
 function mulp(p, q)
 {
     // polynomial multiplication
-    var n = p.length, m = q.length, nm = n + m - 1, pq;
-    pq = array(nm, function(i) {
+    var i, j, n = p.length, m = q.length, nm = n + m - 1, pq = array(nm, O);
+    for (i=0; i<n; ++i)
+    {
+        for (j=0; j<m; ++j)
+        {
+            pq[i+j] = scalar_add(scalar_mul(p[i], q[j]), pq[i+j]);
+        }
+    }
+    /*pq = array(nm, function(i) {
         var j, jn, ij, pqi = O;
         for (j=0,jn=stdMath.min(i+1, n); j<jn; ++j)
         {
@@ -15055,7 +15062,7 @@ function mulp(p, q)
             }
         }
         return pqi;
-    });
+    });*/
     for (;pq.length && eq(pq[0], O);) pq.shift();
     return pq;
 }

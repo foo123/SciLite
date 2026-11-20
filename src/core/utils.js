@@ -292,7 +292,7 @@ function ndarray(dims, v)
 }
 ndarray.indices = function(dims, f) {
     // https://en.wikipedia.org/wiki/Multi-index_notation
-    var d = dims.length, index = null, do_next = false, next = function() {};
+    var d = dims.length, index = null, do_next = 0, next = function() {};
     if (0 >= d)
     {
         if (is_callable(f)) return;
@@ -317,7 +317,7 @@ ndarray.indices = function(dims, f) {
                 index = null; // done
             }
         }
-        do_next = true;
+        do_next = 1;
         return index;
     };
     /*
@@ -396,7 +396,7 @@ ndarray.indices.split = function(i, jdims, kdims, f) {
             }
             if (in_range) break;
         }
-        return j && in_range ? (swapped ? [k, j] : [j, k]) : null; // j+k = i
+        return in_range ? (swapped ? [k, j] : [j, k]) : null; // j+k = i
     };
     if (is_callable(f)) for (var jk;jk=next();) f(jk);
     else return next;

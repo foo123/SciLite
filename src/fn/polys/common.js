@@ -13,8 +13,15 @@ function addp(p, q, do_sub)
 function mulp(p, q)
 {
     // polynomial multiplication
-    var n = p.length, m = q.length, nm = n + m - 1, pq;
-    pq = array(nm, function(i) {
+    var i, j, n = p.length, m = q.length, nm = n + m - 1, pq = array(nm, O);
+    for (i=0; i<n; ++i)
+    {
+        for (j=0; j<m; ++j)
+        {
+            pq[i+j] = scalar_add(scalar_mul(p[i], q[j]), pq[i+j]);
+        }
+    }
+    /*pq = array(nm, function(i) {
         var j, jn, ij, pqi = O;
         for (j=0,jn=stdMath.min(i+1, n); j<jn; ++j)
         {
@@ -25,7 +32,7 @@ function mulp(p, q)
             }
         }
         return pqi;
-    });
+    });*/
     for (;pq.length && eq(pq[0], O);) pq.shift();
     return pq;
 }
